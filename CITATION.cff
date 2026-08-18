@@ -1,0 +1,31 @@
+cff-version: 1.2.0
+message: "If you use OpenGenesis-BioCore in your research, please cite this software."
+title: "OpenGenesis-BioCore"
+type: software
+version: 0.1.0
+date-released: 2026-08-18
+
+authors:
+  - family-names: "Çelik"
+    given-names: "Recep"
+    orcid: "https://orcid.org/0009-0003-2939-1009"
+
+license: MIT
+
+abstract: >-
+  OpenGenesis-BioCore is a local-first and extensible bioinformatics platform
+  for reproducible biological data analysis. It provides a C++20 core,
+  localhost browser interface, SQLite-backed project persistence, native
+  worker and plugin execution, reproducible pipeline snapshots, durable
+  artifacts, and integrated FASTA/FASTQ-to-variant-analysis workflows.
+
+keywords:
+  - bioinformatics
+  - reproducible workflows
+  - local-first
+  - genomics
+  - FASTA
+  - FASTQ
+  - variant calling
+  - C++20
+  - scientific software

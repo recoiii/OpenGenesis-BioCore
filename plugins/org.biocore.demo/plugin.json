@@ -1,0 +1,54 @@
+{
+  "manifestVersion": 2,
+  "id": "org.biocore.demo",
+  "name": "OpenGenesis-BioCore Demo Plugin",
+  "version": "0.1.0",
+  "apiVersion": "1.0",
+  "publisher": "OpenGenesis-BioCore Project",
+  "modules": [
+    {
+      "id": "org.biocore.demo.validate",
+      "type": "process",
+      "entrypoints": {"linux-x64": "bin/linux-x64/biocore-demo-plugin", "windows-x64": "bin/windows-x64/biocore-demo-plugin.exe"},
+      "parameters": [], "inputs": [], "outputs": []
+    },
+    {
+      "id": "org.biocore.demo.scan",
+      "type": "process",
+      "entrypoints": {"linux-x64": "bin/linux-x64/biocore-demo-plugin", "windows-x64": "bin/windows-x64/biocore-demo-plugin.exe"},
+      "parameters": [], "inputs": [], "outputs": []
+    },
+    {
+      "id": "org.biocore.demo.report",
+      "type": "process",
+      "entrypoints": {"linux-x64": "bin/linux-x64/biocore-demo-plugin", "windows-x64": "bin/windows-x64/biocore-demo-plugin.exe"},
+      "parameters": [], "inputs": [], "outputs": []
+    },
+    {
+      "id": "org.biocore.demo.multi",
+      "type": "process",
+      "entrypoints": {"linux-x64": "bin/linux-x64/biocore-demo-plugin", "windows-x64": "bin/windows-x64/biocore-demo-plugin.exe"},
+      "parameters": [], "inputs": [],
+      "outputs": [{"name":"left","fileType":"txt"},{"name":"right","fileType":"txt"}]
+    },
+    {
+      "id": "org.biocore.demo.fail",
+      "type": "process",
+      "entrypoints": {"linux-x64": "bin/linux-x64/biocore-demo-plugin", "windows-x64": "bin/windows-x64/biocore-demo-plugin.exe"},
+      "parameters": [], "inputs": [], "outputs": [{"name":"partial","fileType":"txt"}]
+    },
+    {
+      "id": "org.biocore.demo.copy",
+      "type": "process",
+      "entrypoints": {"linux-x64": "bin/linux-x64/biocore-demo-plugin", "windows-x64": "bin/windows-x64/biocore-demo-plugin.exe"},
+      "parameters": [
+        {"name":"label","type":"string","required":false,"default":"demo","minimum":null,"maximum":null,"enumValues":[]},
+        {"name":"repeat","type":"integer","required":false,"default":"1","minimum":"1","maximum":"3","enumValues":[]},
+        {"name":"enabled","type":"boolean","required":false,"default":"true","minimum":null,"maximum":null,"enumValues":[]},
+        {"name":"mode","type":"enum","required":false,"default":"copy","minimum":null,"maximum":null,"enumValues":["copy","touch"]}
+      ],
+      "inputs": [{"name":"source","required":true,"acceptedFileTypes":["txt"]}],
+      "outputs": [{"name":"result","fileType":"txt"}]
+    }
+  ]
+}

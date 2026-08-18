@@ -1,0 +1,115 @@
+{
+  "manifestVersion": 2,
+  "id": "org.biocore.align",
+  "name": "OpenGenesis-BioCore Native Alignment",
+  "version": "0.1.0",
+  "apiVersion": "1.0",
+  "publisher": "OpenGenesis-BioCore Project",
+  "modules": [
+    {
+      "id": "org.biocore.align.single",
+      "type": "process",
+      "entrypoints": {
+        "linux-x64": "bin/linux-x64/biocore-alignment-plugin",
+        "windows-x64": "bin/windows-x64/biocore-alignment-plugin.exe"
+      },
+      "parameters": [
+        {
+          "name": "max-mismatches",
+          "type": "integer",
+          "required": false,
+          "default": "2",
+          "minimum": "0",
+          "maximum": "12",
+          "enumValues": []
+        }
+      ],
+      "inputs": [
+        {
+          "name": "reference",
+          "required": true,
+          "acceptedFileTypes": [
+            "fasta"
+          ]
+        },
+        {
+          "name": "reads",
+          "required": true,
+          "acceptedFileTypes": [
+            "fastq"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "alignment",
+          "fileType": "sam"
+        },
+        {
+          "name": "summary",
+          "fileType": "json"
+        },
+        {
+          "name": "table",
+          "fileType": "tsv"
+        }
+      ]
+    },
+    {
+      "id": "org.biocore.align.paired",
+      "type": "process",
+      "entrypoints": {
+        "linux-x64": "bin/linux-x64/biocore-alignment-plugin",
+        "windows-x64": "bin/windows-x64/biocore-alignment-plugin.exe"
+      },
+      "parameters": [
+        {
+          "name": "max-mismatches",
+          "type": "integer",
+          "required": false,
+          "default": "2",
+          "minimum": "0",
+          "maximum": "12",
+          "enumValues": []
+        }
+      ],
+      "inputs": [
+        {
+          "name": "reference",
+          "required": true,
+          "acceptedFileTypes": [
+            "fasta"
+          ]
+        },
+        {
+          "name": "read1",
+          "required": true,
+          "acceptedFileTypes": [
+            "fastq"
+          ]
+        },
+        {
+          "name": "read2",
+          "required": true,
+          "acceptedFileTypes": [
+            "fastq"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "alignment",
+          "fileType": "sam"
+        },
+        {
+          "name": "summary",
+          "fileType": "json"
+        },
+        {
+          "name": "table",
+          "fileType": "tsv"
+        }
+      ]
+    }
+  ]
+}

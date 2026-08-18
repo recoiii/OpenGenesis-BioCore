@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "id": "org.biocore.vcfqc.filter",
+  "name": "VCF QC and Threshold Filtering",
+  "version": "0.1.0",
+  "steps": [
+    {
+      "id": "qc",
+      "module": "org.biocore.vcfqc.filter",
+      "dependsOn": [],
+      "weight": 1.0
+    }
+  ]
+}

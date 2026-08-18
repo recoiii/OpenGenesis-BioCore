@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "id": "org.biocore.alignmentqc.summary",
+  "name": "SAM/BAM Alignment QC",
+  "version": "0.1.0",
+  "steps": [
+    {
+      "id": "qc",
+      "module": "org.biocore.alignmentqc.summary",
+      "dependsOn": [],
+      "weight": 1.0
+    }
+  ]
+}

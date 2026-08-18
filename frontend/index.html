@@ -1,0 +1,546 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <meta name="description" content="OpenGenesis-BioCore local-first bioinformatics workspace">
+  <title>OpenGenesis-BioCore</title>
+  <link rel="stylesheet" href="/assets/app.css">
+</head>
+<body>
+  <div class="ambient ambient-one" aria-hidden="true"></div>
+  <div class="ambient ambient-two" aria-hidden="true"></div>
+
+  <header class="topbar">
+    <a class="brand" href="/" aria-label="OpenGenesis-BioCore home">
+      <span class="brand-mark" aria-hidden="true">
+        <span></span><span></span><span></span>
+      </span>
+      <span class="brand-copy">
+        <strong>OpenGenesis-BioCore</strong>
+        <small>local-first bioinformatics</small>
+      </span>
+    </a>
+    <div class="topbar-actions">
+      <div class="server-state" id="server-state" role="status" aria-live="polite">
+        <span class="status-dot"></span>
+        <span id="server-state-text">Checking local core…</span>
+      </div>
+      <div class="live-state" id="live-state" hidden>
+        <span class="live-dot"></span>
+        <span id="live-state-text">Live channel offline</span>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero hero-compact" aria-labelledby="hero-title">
+      <div class="eyebrow">PROJECT GENESIS · CORE 0.1</div>
+      <h1 id="hero-title">Local workflows.<br><span>Live execution telemetry.</span></h1>
+      <p class="hero-copy">
+        Launch exact pipeline versions, follow native worker progress in real time,
+        inspect generated artifacts and open deterministic execution reports without
+        sending project data outside this machine.
+      </p>
+    </section>
+
+    <section class="workspace-shell" aria-label="OpenGenesis-BioCore workflow dashboard">
+      <aside class="sidebar">
+        <nav aria-label="Workspace sections">
+          <button class="nav-item active" type="button" data-view="dashboard" aria-current="page">
+            <span class="nav-icon" aria-hidden="true">◫</span>
+            Dashboard
+          </button>
+          <button class="nav-item" type="button" data-view="jobs">
+            <span class="nav-icon" aria-hidden="true">▤</span>
+            Jobs
+          </button>
+          <button class="nav-item" type="button" data-view="wizard">
+            <span class="nav-icon" aria-hidden="true">✦</span>
+            Analysis wizard
+          </button>
+          <button class="nav-item" type="button" data-view="submit">
+            <span class="nav-icon" aria-hidden="true">▶</span>
+            New job
+          </button>
+          <button class="nav-item" type="button" data-view="results">
+            <span class="nav-icon" aria-hidden="true">▦</span>
+            Results
+          </button>
+          <button class="nav-item" type="button" data-view="files">
+            <span class="nav-icon" aria-hidden="true">◇</span>
+            Files
+          </button>
+          <span class="nav-item disabled">
+            <span class="nav-icon" aria-hidden="true">⚙</span>
+            Settings
+          </span>
+        </nav>
+        <div class="privacy-card">
+          <span class="privacy-icon" aria-hidden="true">⌂</span>
+          <div>
+            <strong>Local-only</strong>
+            <p>No telemetry. No cloud upload.</p>
+          </div>
+        </div>
+      </aside>
+
+      <div class="workspace">
+        <section class="session-gate" id="session-gate">
+          <div class="panel panel-accent session-panel">
+            <div class="panel-heading">
+              <div>
+                <div class="kicker">Local authentication</div>
+                <h2>Connect this browser</h2>
+              </div>
+              <span class="badge">Local-first</span>
+            </div>
+            <p class="panel-copy">
+              Paste the process bootstrap token printed in the OpenGenesis-BioCore terminal.
+              It is exchanged for a separate HttpOnly browser-session cookie and is
+              never written to browser storage.
+            </p>
+            <form class="session-form" id="session-form">
+              <label for="bootstrap-token">Bootstrap token</label>
+              <div class="session-row">
+                <input id="bootstrap-token" name="bootstrap-token" type="password"
+                       autocomplete="off" autocapitalize="none" spellcheck="false" required>
+                <button class="button button-primary" id="session-submit" type="submit">Connect</button>
+              </div>
+            </form>
+            <p class="session-message" id="session-message" role="status" aria-live="polite">
+              Checking browser session…
+            </p>
+          </div>
+        </section>
+
+        <section id="app-shell" hidden>
+          <div class="section-heading">
+            <div>
+              <div class="kicker">Workspace</div>
+              <h2>Workflow dashboard</h2>
+            </div>
+            <div class="health-chip" id="health-chip">
+              <span class="health-light"></span>
+              <span id="health-label">Core status pending</span>
+            </div>
+          </div>
+
+          <div class="metric-grid">
+            <article class="metric-card">
+              <div class="metric-label">Active</div>
+              <div class="metric-value" id="metric-active">0</div>
+              <p>Queued, preparing or running jobs.</p>
+            </article>
+            <article class="metric-card">
+              <div class="metric-label">Completed</div>
+              <div class="metric-value" id="metric-completed">0</div>
+              <p>Jobs completed in this project.</p>
+            </article>
+            <article class="metric-card">
+              <div class="metric-label">Attention</div>
+              <div class="metric-value" id="metric-attention">0</div>
+              <p>Failed or interrupted jobs.</p>
+            </article>
+          </div>
+
+          <div class="dashboard-grid">
+            <article class="panel jobs-panel">
+              <div class="panel-heading panel-heading-center">
+                <div>
+                  <div class="kicker">Project queue</div>
+                  <h3>Jobs</h3>
+                </div>
+                <div class="panel-actions">
+                  <button class="button button-quiet" id="refresh-jobs" type="button">Refresh</button>
+                  <button class="button button-primary button-small" id="new-job-shortcut" type="button">New job</button>
+                </div>
+              </div>
+
+              <div class="job-filters" role="group" aria-label="Job status filter">
+                <button class="filter-pill active" type="button" data-filter="all">All</button>
+                <button class="filter-pill" type="button" data-filter="active">Active</button>
+                <button class="filter-pill" type="button" data-filter="completed">Completed</button>
+                <button class="filter-pill" type="button" data-filter="attention">Attention</button>
+              </div>
+
+              <div class="empty-state" id="jobs-empty">
+                <strong>No jobs yet</strong>
+                <span>Submit an exact pipeline ID and version to start.</span>
+              </div>
+              <div class="job-list" id="job-list" aria-live="polite"></div>
+            </article>
+
+            <article class="panel detail-panel">
+              <div class="panel-heading">
+                <div>
+                  <div class="kicker">Selected job</div>
+                  <h3 id="detail-title">No job selected</h3>
+                </div>
+                <span class="status-badge status-idle" id="detail-status">Idle</span>
+              </div>
+
+              <div id="detail-empty" class="detail-empty">
+                Select a job to inspect live progress, telemetry and generated outputs.
+              </div>
+
+              <div id="detail-content" hidden>
+                <div class="detail-grid">
+                  <div class="detail-field">
+                    <span>Pipeline</span>
+                    <strong id="detail-pipeline">—</strong>
+                  </div>
+                  <div class="detail-field">
+                    <span>Priority</span>
+                    <strong id="detail-priority">—</strong>
+                  </div>
+                  <div class="detail-field">
+                    <span>Active step</span>
+                    <strong id="detail-step">—</strong>
+                  </div>
+                  <div class="detail-field">
+                    <span>Updated</span>
+                    <strong id="detail-updated">—</strong>
+                  </div>
+                </div>
+
+                <div class="progress-block">
+                  <div class="progress-heading">
+                    <span>Progress</span>
+                    <strong id="detail-progress-label">0%</strong>
+                  </div>
+                  <div class="progress-track" aria-hidden="true">
+                    <div class="progress-bar" id="detail-progress-bar"></div>
+                  </div>
+                </div>
+
+                <div class="detail-actions">
+                  <a class="button button-quiet" id="report-json-link" href="#" target="_blank" rel="noopener">JSON report</a>
+                  <a class="button button-quiet" id="report-html-link" href="#" target="_blank" rel="noopener">HTML report</a>
+                  <button class="button button-quiet" id="refresh-artifacts" type="button">Refresh artifacts</button>
+                  <button class="button button-danger" id="cancel-job" type="button" hidden>Cancel job</button>
+                </div>
+
+                <div class="telemetry-grid">
+                  <section class="telemetry-card">
+                    <div class="telemetry-heading">
+                      <div>
+                        <div class="kicker">Ephemeral</div>
+                        <h4>Live log</h4>
+                      </div>
+                      <span id="log-count">0 events</span>
+                    </div>
+                    <div class="live-log" id="live-log">
+                      <div class="log-empty">No live log events received for this job.</div>
+                    </div>
+                    <p class="telemetry-note">
+                      Live log events are held only in browser memory and disappear on refresh.
+                    </p>
+                  </section>
+
+                  <section class="telemetry-card">
+                    <div class="telemetry-heading">
+                      <div>
+                        <div class="kicker">Durable</div>
+                        <h4>Artifacts</h4>
+                      </div>
+                      <span id="artifact-count">0 files</span>
+                    </div>
+                    <div class="artifact-list" id="artifact-list">
+                      <div class="artifact-empty">No generated artifacts.</div>
+                    </div>
+                  </section>
+                </div>
+              </div>
+            </article>
+          </div>
+
+          <article class="panel submit-panel" id="submit-panel">
+            <div class="panel-heading">
+              <div>
+                <div class="kicker">Exact pipeline submission</div>
+                <h3>New job</h3>
+              </div>
+              <span class="badge badge-muted">REST /api/v1/jobs</span>
+            </div>
+            <p class="panel-copy">
+              Start with the guided analysis wizard or use the exact pipeline form below. OpenGenesis-BioCore resolves
+              the exact pipeline ID/version and validates typed bindings before publishing the immutable execution plan.
+            </p>
+
+            <section class="analysis-wizard" id="analysis-wizard-panel" aria-labelledby="analysis-wizard-title">
+              <div class="wizard-heading">
+                <div>
+                  <div class="kicker">Guided analysis</div>
+                  <h4 id="analysis-wizard-title">Analysis wizard</h4>
+                </div>
+                <span class="badge">Exact pipeline bindings</span>
+              </div>
+              <p class="wizard-copy">
+                Choose an analysis, select the required managed inputs and review the exact immutable-plan
+                bindings before submission. The wizard does not infer server-side filenames or bypass plugin validation.
+              </p>
+              <div class="wizard-workflow-row">
+                <label>
+                  <span>Analysis</span>
+                  <select id="wizard-workflow">
+                    <option value="fasta-qc">FASTA QC</option>
+                    <option value="fastq-qc" selected>FASTQ QC</option>
+                    <option value="paired-fastq-qc">Paired FASTQ QC</option>
+                    <option value="trim-single">Single FASTQ trimming</option>
+                    <option value="trim-paired">Paired FASTQ trimming</option>
+                    <option value="align-single">Single-end alignment</option>
+                    <option value="align-paired">Paired-end alignment</option>
+                    <option value="alignment-qc">SAM/BAM alignment QC</option>
+                    <option value="variant-call">Native SNV calling</option>
+                    <option value="vcf-qc">VCF QC / filtering</option>
+                    <option value="variant-annotate">Local variant annotation + report</option>
+                  </select>
+                </label>
+                <div class="wizard-stage">
+                  <span>Stage</span>
+                  <strong id="wizard-stage">QC</strong>
+                </div>
+              </div>
+              <p class="wizard-description" id="wizard-description"></p>
+              <div class="wizard-fields" id="wizard-fields"></div>
+              <div class="wizard-actions">
+                <button class="button button-quiet" id="wizard-manage-inputs" type="button">Manage / import inputs</button>
+                <button class="button button-primary button-small" id="wizard-prepare" type="button">Review prepared job</button>
+              </div>
+              <p class="form-message" id="wizard-message" role="status" aria-live="polite"></p>
+              <div class="wizard-review" id="wizard-review" hidden>
+                <div class="wizard-review-grid">
+                  <div><span>Pipeline</span><strong id="wizard-review-pipeline">—</strong></div>
+                  <div><span>Expected results</span><div class="wizard-artifact-chips" id="wizard-review-artifacts"></div></div>
+                </div>
+                <details>
+                  <summary>Exact bindings JSON</summary>
+                  <pre id="wizard-review-bindings"></pre>
+                </details>
+                <button class="button button-primary" id="wizard-submit-prepared" type="button" disabled>Submit prepared job →</button>
+              </div>
+            </section>
+
+            <section class="file-import-card" id="file-import-panel" aria-labelledby="file-import-title">
+              <div class="file-import-heading">
+                <div>
+                  <div class="kicker">Managed input</div>
+                  <h4 id="file-import-title">Import a local FASTA, FASTQ, SAM, BAM, VCF, or annotation TSV</h4>
+                </div>
+                <span class="badge badge-muted">Chunked · local only</span>
+              </div>
+              <p class="file-import-copy">
+                The browser sends the selected file to this localhost OpenGenesis-BioCore process in bounded 1 MiB chunks.
+                Nothing is sent to a remote service.
+              </p>
+              <div class="file-import-grid">
+                <label>
+                  <span>Local file</span>
+                  <input id="managed-file-input" type="file"
+                         accept=".fa,.fasta,.fna,.ffn,.faa,.frn,.fq,.fastq,.fq.gz,.fastq.gz,.sam,.bam,.vcf,.tsv,text/plain,text/tab-separated-values,application/gzip,application/octet-stream">
+                </label>
+                <label>
+                  <span>OpenGenesis-BioCore file type</span>
+                  <select id="managed-file-type">
+                    <option value="fasta" selected>FASTA</option>
+                    <option value="fastq">FASTQ / FASTQ.GZ</option>
+                    <option value="sam">SAM</option>
+                    <option value="bam">BAM / BGZF</option>
+                    <option value="vcf">VCF</option>
+                    <option value="tsv">Annotation TSV</option>
+                  </select>
+                </label>
+              </div>
+              <div class="file-import-actions">
+                <button class="button button-primary button-small" id="managed-file-upload" type="button">
+                  Import file
+                </button>
+                <progress id="managed-file-progress" max="100" value="0" hidden></progress>
+                <span id="managed-file-progress-label" class="file-progress-label"></span>
+              </div>
+              <p class="form-message" id="managed-file-message" role="status" aria-live="polite"></p>
+              <div class="managed-file-picker">
+                <label>
+                  <span>Available managed inputs</span>
+                  <select id="managed-file-select">
+                    <option value="">No managed input selected</option>
+                  </select>
+                </label>
+                <button class="button button-quiet" id="use-fasta-input" type="button">
+                  Use for FASTA QC
+                </button>
+                <button class="button button-quiet" id="use-fastq-input" type="button">
+                  Use for FASTQ QC
+                </button>
+                <button class="button button-quiet" id="use-alignment-qc-input" type="button">
+                  Use for SAM/BAM Alignment QC
+                </button>
+              </div>
+              <div class="paired-fastq-picker" aria-label="Paired FASTQ inputs">
+                <label>
+                  <span>Paired FASTQ read 1 (R1)</span>
+                  <select id="paired-read1-select">
+                    <option value="">Select FASTQ read 1</option>
+                  </select>
+                </label>
+                <label>
+                  <span>Paired FASTQ read 2 (R2)</span>
+                  <select id="paired-read2-select">
+                    <option value="">Select FASTQ read 2</option>
+                  </select>
+                </label>
+                <button class="button button-quiet" id="use-paired-fastq-input" type="button">
+                  Use for paired FASTQ QC
+                </button>
+              </div>
+              <div class="paired-fastq-picker" aria-label="FASTQ trimming settings">
+                <label>
+                  <span>R1 / single-end adapter</span>
+                  <input id="trim-adapter-read1" value="AGATCGGAAGAGCACACGTCTGAACTCCAGTCA" autocomplete="off">
+                </label>
+                <label>
+                  <span>R2 adapter</span>
+                  <input id="trim-adapter-read2" value="AGATCGGAAGAGCGTCGTGTAGGGAAAGAGTGT" autocomplete="off">
+                </label>
+                <label><span>Minimum adapter overlap</span><input id="trim-min-adapter-overlap" type="number" min="3" max="64" value="6"></label>
+                <label><span>Maximum adapter mismatches</span><input id="trim-max-adapter-mismatches" type="number" min="0" max="8" value="0"></label>
+                <label><span>3′ quality threshold</span><input id="trim-quality-threshold" type="number" min="0" max="60" value="20"></label>
+                <label><span>Minimum retained length</span><input id="trim-minimum-length" type="number" min="1" max="1000000" value="20"></label>
+                <button class="button button-quiet" id="use-single-fastq-trim" type="button">Use for single FASTQ trimming</button>
+                <button class="button button-quiet" id="use-paired-fastq-trim" type="button">Use for paired FASTQ trimming</button>
+              </div>
+              <div class="paired-fastq-picker" aria-label="Reference alignment settings">
+                <label>
+                  <span>Reference FASTA</span>
+                  <select id="alignment-reference-select">
+                    <option value="">Select reference FASTA</option>
+                  </select>
+                </label>
+                <label>
+                  <span>FASTQ reads / R1</span>
+                  <select id="alignment-read1-select">
+                    <option value="">Select FASTQ reads / R1</option>
+                  </select>
+                </label>
+                <label>
+                  <span>FASTQ R2 <em>paired only</em></span>
+                  <select id="alignment-read2-select">
+                    <option value="">Select FASTQ R2</option>
+                  </select>
+                </label>
+                <label>
+                  <span>Maximum mismatches <em>ungapped</em></span>
+                  <input id="alignment-max-mismatches" type="number" min="0" max="12" value="2">
+                </label>
+                <button class="button button-quiet" id="use-single-alignment" type="button">Use for single-end alignment</button>
+                <button class="button button-quiet" id="use-paired-alignment" type="button">Use for paired-end alignment</button>
+              </div>
+              <div class="paired-fastq-picker" aria-label="SNV variant calling settings">
+                <label>
+                  <span>Variant reference FASTA</span>
+                  <select id="variant-reference-select">
+                    <option value="">Select variant reference FASTA</option>
+                  </select>
+                </label>
+                <label>
+                  <span>SAM/BAM alignment</span>
+                  <select id="variant-alignment-select">
+                    <option value="">Select SAM/BAM alignment</option>
+                  </select>
+                </label>
+                <label><span>Minimum depth (DP)</span><input id="variant-min-depth" type="number" min="1" max="1000000" value="3"></label>
+                <label><span>Minimum ALT count</span><input id="variant-min-alt-count" type="number" min="1" max="1000000" value="2"></label>
+                <label><span>Minimum ALT fraction</span><input id="variant-min-alt-fraction" type="number" min="0.01" max="1" step="0.01" value="0.20"></label>
+                <label><span>Minimum MAPQ</span><input id="variant-min-mapq" type="number" min="0" max="60" value="20"></label>
+                <label><span>Minimum base quality</span><input id="variant-min-base-quality" type="number" min="0" max="60" value="20"></label>
+                <button class="button button-quiet" id="use-variant-calling" type="button">Use for native SNV calling</button>
+              </div>
+              <div class="paired-fastq-picker" aria-label="VCF QC and filtering settings">
+                <label>
+                  <span>VCF variants</span>
+                  <select id="vcf-qc-select">
+                    <option value="">Select VCF for QC/filtering</option>
+                  </select>
+                </label>
+                <label><span><input id="vcf-qc-enable-depth" type="checkbox" checked> Enable depth (DP) filter</span><input id="vcf-qc-min-depth" type="number" min="1" max="1000000" value="3"></label>
+                <label><span><input id="vcf-qc-enable-alt-count" type="checkbox" checked> Enable ALT count (AC) filter</span><input id="vcf-qc-min-alt-count" type="number" min="1" max="1000000" value="2"></label>
+                <label><span><input id="vcf-qc-enable-alt-fraction" type="checkbox" checked> Enable ALT fraction (AF) filter</span><input id="vcf-qc-min-alt-fraction" type="number" min="0.01" max="1" step="0.01" value="0.20"></label>
+                <label><span><input id="vcf-qc-enable-alt-base-quality" type="checkbox" checked> Enable ALT base quality (ABQ) filter</span><input id="vcf-qc-min-alt-base-quality" type="number" min="0" max="93" step="0.1" value="20"></label>
+                <button class="button button-quiet" id="use-vcf-qc" type="button">Use for VCF QC / filtering</button>
+              </div>
+              <div class="paired-fastq-picker" aria-label="Local variant annotation and report settings">
+                <label>
+                  <span>Filtered or source VCF</span>
+                  <select id="annotation-vcf-select">
+                    <option value="">Select VCF for annotation</option>
+                  </select>
+                </label>
+                <label>
+                  <span>Local annotation TSV</span>
+                  <select id="annotation-table-select">
+                    <option value="">Select annotation TSV</option>
+                  </select>
+                </label>
+                <p class="file-import-copy">TSV header: <code>key, gene, consequence, clinical_significance, source, source_id</code> (tab-separated). Key contract: <code>CHROM:POS:REF:ALT</code>.</p>
+                <button class="button button-quiet" id="use-variant-annotation" type="button">Use for local variant annotation + report</button>
+              </div>
+            </section>
+
+            <form id="job-form" class="job-form">
+              <div class="form-grid">
+                <label>
+                  <span>Pipeline ID</span>
+                  <input id="pipeline-id" name="pipeline-id" autocomplete="off" required
+                         placeholder="org.biocore.demo.validation">
+                </label>
+                <label>
+                  <span>Pipeline version</span>
+                  <input id="pipeline-version" name="pipeline-version" autocomplete="off" required
+                         placeholder="0.1.0">
+                </label>
+                <label>
+                  <span>Analysis ID <em>optional</em></span>
+                  <input id="analysis-id" name="analysis-id" autocomplete="off" placeholder="analysis-01">
+                </label>
+                <label>
+                  <span>Priority</span>
+                  <select id="job-priority" name="job-priority">
+                    <option value="normal" selected>Normal</option>
+                    <option value="high">High</option>
+                    <option value="low">Low</option>
+                  </select>
+                </label>
+              </div>
+
+              <label class="bindings-field">
+                <span>Bindings JSON <em>optional</em></span>
+                <textarea id="job-bindings" name="job-bindings" rows="8"
+                          spellcheck="false"
+                          placeholder='{"steps":[{"stepId":"copy","parameters":[{"name":"repeat","value":2}],"inputs":[{"portName":"source","managedFileId":"file-1"}]}]}'></textarea>
+                <small>
+                  Must be a JSON object matching the existing <code>PipelineRunBindings</code> REST shape.
+                  Types are preserved; plugin semantics are validated by Core.
+                </small>
+              </label>
+
+              <div class="submit-row">
+                <p class="form-message" id="job-form-message" role="status" aria-live="polite"></p>
+                <button class="button button-primary" id="job-submit" type="submit">Submit job →</button>
+              </div>
+            </form>
+          </article>
+        </section>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <span>OpenGenesis-BioCore Core 0.1</span>
+    <span>Localhost only · Live logs are ephemeral · Artifacts remain project-local</span>
+  </footer>
+
+  <script src="/assets/app.js" defer></script>
+</body>
+</html>

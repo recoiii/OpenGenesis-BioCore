@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "id": "org.biocore.demo.validation",
+  "name": "Demo File Validation",
+  "version": "0.1.0",
+  "steps": [
+    {
+      "id": "validate",
+      "module": "org.biocore.demo.validate",
+      "dependsOn": [],
+      "weight": 0.2
+    },
+    {
+      "id": "scan",
+      "module": "org.biocore.demo.scan",
+      "dependsOn": ["validate"],
+      "weight": 0.6
+    },
+    {
+      "id": "report",
+      "module": "org.biocore.demo.report",
+      "dependsOn": ["scan"],
+      "weight": 0.2
+    }
+  ]
+}

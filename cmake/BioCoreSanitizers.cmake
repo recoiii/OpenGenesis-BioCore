@@ -1,0 +1,21 @@
+include_guard(GLOBAL)
+
+add_library(biocore_sanitizers INTERFACE)
+add_library(BioCore::sanitizers ALIAS biocore_sanitizers)
+
+if(MSVC)
+    if(BIOCORE_ENABLE_ASAN)
+        target_compile_options(biocore_sanitizers INTERFACE /fsanitize=address)
+        target_link_options(biocore_sanitizers INTERFACE /fsanitize=address)
+    endif()
+elseif(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+    if(BIOCORE_ENABLE_ASAN)
+        target_compile_options(biocore_sanitizers INTERFACE -fsanitize=address -fno-omit-frame-pointer)
+        target_link_options(biocore_sanitizers INTERFACE -fsanitize=address)
+    endif()
+
+    if(BIOCORE_ENABLE_UBSAN)
+        target_compile_options(biocore_sanitizers INTERFACE -fsanitize=undefined -fno-omit-frame-pointer)
+        target_link_options(biocore_sanitizers INTERFACE -fsanitize=undefined)
+    endif()
+endif()

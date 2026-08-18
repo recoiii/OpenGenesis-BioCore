@@ -1,0 +1,115 @@
+{
+  "manifestVersion": 2,
+  "id": "org.biocore.vcfqc",
+  "name": "OpenGenesis-BioCore VCF QC and Filter",
+  "version": "0.1.0",
+  "apiVersion": "1.0",
+  "publisher": "OpenGenesis-BioCore Project",
+  "modules": [
+    {
+      "id": "org.biocore.vcfqc.filter",
+      "type": "process",
+      "entrypoints": {
+        "linux-x64": "bin/linux-x64/biocore-vcf-qc-plugin",
+        "windows-x64": "bin/windows-x64/biocore-vcf-qc-plugin.exe"
+      },
+      "parameters": [
+        {
+          "name": "enable-depth-filter",
+          "type": "boolean",
+          "required": false,
+          "default": "true",
+          "minimum": null,
+          "maximum": null,
+          "enumValues": []
+        },
+        {
+          "name": "min-depth",
+          "type": "integer",
+          "required": false,
+          "default": "3",
+          "minimum": "1",
+          "maximum": "1000000",
+          "enumValues": []
+        },
+        {
+          "name": "enable-alt-count-filter",
+          "type": "boolean",
+          "required": false,
+          "default": "true",
+          "minimum": null,
+          "maximum": null,
+          "enumValues": []
+        },
+        {
+          "name": "min-alt-count",
+          "type": "integer",
+          "required": false,
+          "default": "2",
+          "minimum": "1",
+          "maximum": "1000000",
+          "enumValues": []
+        },
+        {
+          "name": "enable-alt-fraction-filter",
+          "type": "boolean",
+          "required": false,
+          "default": "true",
+          "minimum": null,
+          "maximum": null,
+          "enumValues": []
+        },
+        {
+          "name": "min-alt-fraction",
+          "type": "number",
+          "required": false,
+          "default": "0.2",
+          "minimum": "0.01",
+          "maximum": "1.0",
+          "enumValues": []
+        },
+        {
+          "name": "enable-alt-base-quality-filter",
+          "type": "boolean",
+          "required": false,
+          "default": "true",
+          "minimum": null,
+          "maximum": null,
+          "enumValues": []
+        },
+        {
+          "name": "min-alt-base-quality",
+          "type": "number",
+          "required": false,
+          "default": "20",
+          "minimum": "0",
+          "maximum": "93",
+          "enumValues": []
+        }
+      ],
+      "inputs": [
+        {
+          "name": "variants",
+          "required": true,
+          "acceptedFileTypes": [
+            "vcf"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "filtered",
+          "fileType": "vcf"
+        },
+        {
+          "name": "summary",
+          "fileType": "json"
+        },
+        {
+          "name": "table",
+          "fileType": "tsv"
+        }
+      ]
+    }
+  ]
+}

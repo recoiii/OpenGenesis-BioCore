@@ -1,0 +1,39 @@
+{
+  "manifestVersion": 2,
+  "id": "org.biocore.alignmentqc",
+  "name": "OpenGenesis-BioCore Alignment QC",
+  "version": "0.1.0",
+  "apiVersion": "1.0",
+  "publisher": "OpenGenesis-BioCore Project",
+  "modules": [
+    {
+      "id": "org.biocore.alignmentqc.summary",
+      "type": "process",
+      "entrypoints": {
+        "linux-x64": "bin/linux-x64/biocore-alignment-qc-plugin",
+        "windows-x64": "bin/windows-x64/biocore-alignment-qc-plugin.exe"
+      },
+      "parameters": [],
+      "inputs": [
+        {
+          "name": "alignment",
+          "required": true,
+          "acceptedFileTypes": [
+            "sam",
+            "bam"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "summary",
+          "fileType": "json"
+        },
+        {
+          "name": "table",
+          "fileType": "tsv"
+        }
+      ]
+    }
+  ]
+}

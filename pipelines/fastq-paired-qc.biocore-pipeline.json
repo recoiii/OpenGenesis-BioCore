@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "id": "org.biocore.fastqqc.paired_summary",
+  "name": "Paired-end FASTQ DNA QC & Quality Statistics",
+  "version": "0.1.0",
+  "steps": [
+    {
+      "id": "stats",
+      "module": "org.biocore.fastqqc.paired-stats",
+      "dependsOn": [],
+      "weight": 1.0
+    }
+  ]
+}

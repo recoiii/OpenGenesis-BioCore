@@ -1,0 +1,249 @@
+{
+  "manifestVersion": 2,
+  "id": "org.biocore.fastqqc",
+  "name": "OpenGenesis-BioCore FASTQ QC",
+  "version": "0.1.0",
+  "apiVersion": "1.0",
+  "publisher": "OpenGenesis-BioCore Project",
+  "modules": [
+    {
+      "id": "org.biocore.fastqqc.stats",
+      "type": "process",
+      "entrypoints": {
+        "linux-x64": "bin/linux-x64/biocore-fastq-qc-plugin",
+        "windows-x64": "bin/windows-x64/biocore-fastq-qc-plugin.exe"
+      },
+      "parameters": [],
+      "inputs": [
+        {
+          "name": "source",
+          "required": true,
+          "acceptedFileTypes": [
+            "fastq"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "summary",
+          "fileType": "json"
+        },
+        {
+          "name": "table",
+          "fileType": "tsv"
+        }
+      ]
+    },
+    {
+      "id": "org.biocore.fastqqc.paired-stats",
+      "type": "process",
+      "entrypoints": {
+        "linux-x64": "bin/linux-x64/biocore-fastq-qc-plugin",
+        "windows-x64": "bin/windows-x64/biocore-fastq-qc-plugin.exe"
+      },
+      "parameters": [],
+      "inputs": [
+        {
+          "name": "read1",
+          "required": true,
+          "acceptedFileTypes": [
+            "fastq"
+          ]
+        },
+        {
+          "name": "read2",
+          "required": true,
+          "acceptedFileTypes": [
+            "fastq"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "summary",
+          "fileType": "json"
+        },
+        {
+          "name": "table",
+          "fileType": "tsv"
+        }
+      ]
+    },
+    {
+      "id": "org.biocore.fastqqc.trim-single",
+      "type": "process",
+      "entrypoints": {
+        "linux-x64": "bin/linux-x64/biocore-fastq-qc-plugin",
+        "windows-x64": "bin/windows-x64/biocore-fastq-qc-plugin.exe"
+      },
+      "parameters": [
+        {
+          "name": "adapter-sequence",
+          "type": "string",
+          "required": false,
+          "default": "AGATCGGAAGAGCACACGTCTGAACTCCAGTCA",
+          "minimum": null,
+          "maximum": null,
+          "enumValues": []
+        },
+        {
+          "name": "min-adapter-overlap",
+          "type": "integer",
+          "required": false,
+          "default": "6",
+          "minimum": "3",
+          "maximum": "64",
+          "enumValues": []
+        },
+        {
+          "name": "max-adapter-mismatches",
+          "type": "integer",
+          "required": false,
+          "default": "0",
+          "minimum": "0",
+          "maximum": "8",
+          "enumValues": []
+        },
+        {
+          "name": "quality-threshold",
+          "type": "integer",
+          "required": false,
+          "default": "20",
+          "minimum": "0",
+          "maximum": "60",
+          "enumValues": []
+        },
+        {
+          "name": "minimum-length",
+          "type": "integer",
+          "required": false,
+          "default": "20",
+          "minimum": "1",
+          "maximum": "1000000",
+          "enumValues": []
+        }
+      ],
+      "inputs": [
+        {
+          "name": "source",
+          "required": true,
+          "acceptedFileTypes": [
+            "fastq"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "trimmed",
+          "fileType": "fastq"
+        },
+        {
+          "name": "summary",
+          "fileType": "json"
+        },
+        {
+          "name": "table",
+          "fileType": "tsv"
+        }
+      ]
+    },
+    {
+      "id": "org.biocore.fastqqc.trim-paired",
+      "type": "process",
+      "entrypoints": {
+        "linux-x64": "bin/linux-x64/biocore-fastq-qc-plugin",
+        "windows-x64": "bin/windows-x64/biocore-fastq-qc-plugin.exe"
+      },
+      "parameters": [
+        {
+          "name": "adapter-read1",
+          "type": "string",
+          "required": false,
+          "default": "AGATCGGAAGAGCACACGTCTGAACTCCAGTCA",
+          "minimum": null,
+          "maximum": null,
+          "enumValues": []
+        },
+        {
+          "name": "adapter-read2",
+          "type": "string",
+          "required": false,
+          "default": "AGATCGGAAGAGCGTCGTGTAGGGAAAGAGTGT",
+          "minimum": null,
+          "maximum": null,
+          "enumValues": []
+        },
+        {
+          "name": "min-adapter-overlap",
+          "type": "integer",
+          "required": false,
+          "default": "6",
+          "minimum": "3",
+          "maximum": "64",
+          "enumValues": []
+        },
+        {
+          "name": "max-adapter-mismatches",
+          "type": "integer",
+          "required": false,
+          "default": "0",
+          "minimum": "0",
+          "maximum": "8",
+          "enumValues": []
+        },
+        {
+          "name": "quality-threshold",
+          "type": "integer",
+          "required": false,
+          "default": "20",
+          "minimum": "0",
+          "maximum": "60",
+          "enumValues": []
+        },
+        {
+          "name": "minimum-length",
+          "type": "integer",
+          "required": false,
+          "default": "20",
+          "minimum": "1",
+          "maximum": "1000000",
+          "enumValues": []
+        }
+      ],
+      "inputs": [
+        {
+          "name": "read1",
+          "required": true,
+          "acceptedFileTypes": [
+            "fastq"
+          ]
+        },
+        {
+          "name": "read2",
+          "required": true,
+          "acceptedFileTypes": [
+            "fastq"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "trimmed_read1",
+          "fileType": "fastq"
+        },
+        {
+          "name": "trimmed_read2",
+          "fileType": "fastq"
+        },
+        {
+          "name": "summary",
+          "fileType": "json"
+        },
+        {
+          "name": "table",
+          "fileType": "tsv"
+        }
+      ]
+    }
+  ]
+}

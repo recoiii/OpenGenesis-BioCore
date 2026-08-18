@@ -1,0 +1,127 @@
+# OpenGenesis-BioCore
+# C++ / CMake / Visual Studio / local runtime artifacts
+
+# ----------------------------
+# CMake build output
+# ----------------------------
+/build/
+/build-*/
+/cmake-build-*/
+/out/
+/CMakeFiles/
+/CMakeCache.txt
+/cmake_install.cmake
+/CTestTestfile.cmake
+/CPackConfig.cmake
+/CPackSourceConfig.cmake
+/Testing/
+/install_manifest.txt
+/compile_commands.json
+
+# CMake preset user-local settings
+/CMakeUserPresets.json
+
+# ----------------------------
+# Visual Studio / MSVC
+# ----------------------------
+/.vs/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+*.VC.db
+*.VC.VC.opendb
+*.opendb
+*.ipch
+*.pch
+*.pdb
+*.ilk
+*.exp
+*.lib
+*.obj
+*.tlog
+*.lastbuildstate
+
+# ----------------------------
+# Other compiler / linker output
+# ----------------------------
+*.o
+*.a
+*.so
+*.so.*
+*.dylib
+*.dll
+*.exe
+*.out
+
+# ----------------------------
+# IDE / editor-local files
+# ----------------------------
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# ----------------------------
+# Dependency-manager local output
+# ----------------------------
+/vcpkg_installed/
+/.vcpkg-root/
+/conan-build/
+/_conan/
+
+# ----------------------------
+# Test / validation / release artifacts
+# ----------------------------
+/artifacts/
+/coverage/
+/Testing/
+*.gcda
+*.gcno
+*.gcov
+*.profraw
+*.profdata
+*.lcov
+
+# Sanitizer / crash output
+asan.log*
+ubsan.log*
+lsan.log*
+core
+core.*
+*.dmp
+
+# ----------------------------
+# OpenGenesis-BioCore runtime-generated state
+# ----------------------------
+/.biocore/
+/outputs/
+/quarantine/
+
+# SQLite transient files only
+*.sqlite-wal
+*.sqlite-shm
+*.sqlite-journal
+*.db-wal
+*.db-shm
+*.db-journal
+
+# ----------------------------
+# Temporary / backup files
+# ----------------------------
+*.tmp
+*.temp
+*.bak
+*.orig
+*.rej
+
+# ----------------------------
+# Local release archives / evidence
+# Keep source files in Git; attach distributable ZIPs to GitHub Releases.
+# ----------------------------
+/OpenGenesis-BioCore-*-source-CANDIDATE.zip
+/OpenGenesis-BioCore-*-windows-x64.zip
+/*-windows-evidence.zip

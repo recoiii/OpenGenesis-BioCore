@@ -1,0 +1,34 @@
+{
+  "manifestVersion": 2,
+  "id": "org.biocore.variantcall",
+  "name": "OpenGenesis-BioCore Native SNV Caller",
+  "version": "0.1.0",
+  "apiVersion": "1.0",
+  "publisher": "OpenGenesis-BioCore Project",
+  "modules": [
+    {
+      "id": "org.biocore.variantcall.snv",
+      "type": "process",
+      "entrypoints": {
+        "linux-x64": "bin/linux-x64/biocore-variant-call-plugin",
+        "windows-x64": "bin/windows-x64/biocore-variant-call-plugin.exe"
+      },
+      "parameters": [
+        {"name":"min-depth","type":"integer","required":false,"default":"3","minimum":"1","maximum":"1000000","enumValues":[]},
+        {"name":"min-alt-count","type":"integer","required":false,"default":"2","minimum":"1","maximum":"1000000","enumValues":[]},
+        {"name":"min-alt-fraction","type":"number","required":false,"default":"0.2","minimum":"0.01","maximum":"1.0","enumValues":[]},
+        {"name":"min-mapq","type":"integer","required":false,"default":"20","minimum":"0","maximum":"60","enumValues":[]},
+        {"name":"min-base-quality","type":"integer","required":false,"default":"20","minimum":"0","maximum":"60","enumValues":[]}
+      ],
+      "inputs": [
+        {"name":"reference","required":true,"acceptedFileTypes":["fasta"]},
+        {"name":"alignment","required":true,"acceptedFileTypes":["sam","bam"]}
+      ],
+      "outputs": [
+        {"name":"variants","fileType":"vcf"},
+        {"name":"summary","fileType":"json"},
+        {"name":"table","fileType":"tsv"}
+      ]
+    }
+  ]
+}

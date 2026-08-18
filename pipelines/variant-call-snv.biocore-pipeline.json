@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "id": "org.biocore.variantcall.snv",
+  "name": "Native SNV Variant Calling",
+  "version": "0.1.0",
+  "steps": [
+    {
+      "id": "call",
+      "module": "org.biocore.variantcall.snv",
+      "dependsOn": [],
+      "weight": 1.0
+    }
+  ]
+}
