@@ -1,5 +1,7 @@
 # OpenGenesis-BioCore
 
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.22012037.svg)](https://doi.org/10.5281/zenodo.22012037)
+
 OpenGenesis-BioCore is a local-first C++20 bioinformatics platform with a localhost browser UI, native worker
 processes, SQLite project persistence, plugin/pipeline execution, live job telemetry, durable artifacts,
 and an integrated FASTA/FASTQ-to-variant-analysis workflow suite.
@@ -107,7 +109,7 @@ Citation metadata are also available in [`CITATION.cff`](CITATION.cff).
 
 ## Software availability
 
-- Source code: https://github.com/recoiiii/OpenGenesis-BioCore
+- Source code: https://github.com/recoiii/OpenGenesis-BioCore
 - Archived release v0.1.0: https://doi.org/10.5281/zenodo.22012038
 - DOI for all versions: https://doi.org/10.5281/zenodo.22012037
 - License: MIT
