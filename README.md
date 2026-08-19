@@ -92,3 +92,22 @@ installing a plugin is equivalent to installing native software from that publis
 ## License
 
 OpenGenesis-BioCore is distributed under the [MIT License](LICENSE).
+
+## Citation
+
+If you use OpenGenesis-BioCore in research, please cite the archived software release:
+
+> Çelik, R. (2026). *OpenGenesis-BioCore v0.1.0* [Computer software]. Zenodo. https://doi.org/10.5281/zenodo.22012038
+
+Version-specific DOI: **10.5281/zenodo.22012038**
+
+Concept DOI (all versions): **10.5281/zenodo.22012037**
+
+Citation metadata are also available in [`CITATION.cff`](CITATION.cff).
+
+## Software availability
+
+- Source code: https://github.com/recoiiii/OpenGenesis-BioCore
+- Archived release v0.1.0: https://doi.org/10.5281/zenodo.22012038
+- DOI for all versions: https://doi.org/10.5281/zenodo.22012037
+- License: MIT

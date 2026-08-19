@@ -1,31 +1,52 @@
 cff-version: 1.2.0
-message: "If you use OpenGenesis-BioCore in your research, please cite this software."
+message: "If you use OpenGenesis-BioCore in your research, please cite the software using the metadata below."
+
 title: "OpenGenesis-BioCore"
 type: software
-version: 0.1.0
-date-released: 2026-08-18
+version: "0.1.0"
+date-released: "2026-08-18"
+license: MIT
+
+repository-code: "https://github.com/recoiiii/OpenGenesis-BioCore"
+doi: "10.5281/zenodo.22012038"
+url: "https://doi.org/10.5281/zenodo.22012038"
 
 authors:
   - family-names: "Çelik"
     given-names: "Recep"
     orcid: "https://orcid.org/0009-0003-2939-1009"
-
-license: MIT
-
-abstract: >-
-  OpenGenesis-BioCore is a local-first and extensible bioinformatics platform
-  for reproducible biological data analysis. It provides a C++20 core,
-  localhost browser interface, SQLite-backed project persistence, native
-  worker and plugin execution, reproducible pipeline snapshots, durable
-  artifacts, and integrated FASTA/FASTQ-to-variant-analysis workflows.
+    affiliation: "Gazi University"
 
 keywords:
   - bioinformatics
-  - reproducible workflows
-  - local-first
   - genomics
+  - NGS
+  - reproducible workflows
+  - workflow management
+  - local-first
+  - C++
+  - variant calling
   - FASTA
   - FASTQ
-  - variant calling
-  - C++20
   - scientific software
+
+abstract: >-
+  OpenGenesis-BioCore is a local-first, extensible bioinformatics platform
+  designed for reproducible analysis workflows on Windows and Linux. The
+  platform combines a C++20 native core with a localhost browser interface,
+  SQLite-backed project persistence, managed files, versioned plugins and
+  pipelines, immutable execution-plan snapshots, asynchronous job scheduling,
+  supervised worker processes, durable recovery, live progress reporting, and
+  output artifact tracking.
+
+preferred-citation:
+  type: software
+  title: "OpenGenesis-BioCore v0.1.0"
+  authors:
+    - family-names: "Çelik"
+      given-names: "Recep"
+      orcid: "https://orcid.org/0009-0003-2939-1009"
+  version: "0.1.0"
+  date-released: "2026-08-18"
+  doi: "10.5281/zenodo.22012038"
+  url: "https://doi.org/10.5281/zenodo.22012038"
