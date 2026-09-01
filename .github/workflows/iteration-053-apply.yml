@@ -46,7 +46,7 @@ jobs:
         shell: bash
         run: |
           rm -rf /tmp/iteration-053-candidate
-          git worktree add --detach /tmp/iteration-053-candidate accepted/iteration-052
+          git worktree add --detach /tmp/iteration-053-candidate 6b2d61ae41b46babc9e908d57667a028808fc5c1
           files=(
             CMakeLists.txt
             apps/biocore/main.cpp
