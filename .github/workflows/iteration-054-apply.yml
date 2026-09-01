@@ -24,7 +24,9 @@ jobs:
           sudo apt-get install -y ninja-build libsqlite3-dev zlib1g-dev
 
       - name: Apply final-closure transformation
-        run: python3 scripts/iteration-054-apply.py
+        run: |
+          python3 scripts/iteration-054-apply.py
+          python3 scripts/iteration-054-release-test-fix.py
 
       - name: Validate Linux final identity and regression floor
         shell: bash
@@ -54,6 +56,7 @@ jobs:
             docs/release/VALIDATION.md
             scripts/generate-gemini-review.py
             scripts/validate-windows-final.ps1
+            tests/export_report_foundation_tests.cpp
           )
           for file in "${files[@]}"; do
             mkdir -p "/tmp/iteration-054-candidate/$(dirname "${file}")"
