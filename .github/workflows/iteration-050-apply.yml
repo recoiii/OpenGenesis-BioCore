@@ -60,14 +60,21 @@ jobs:
           print('Iteration 050 bundled pipeline pin verification PASS')
           PY
 
-      - name: Publish clean candidate branch
+      - name: Publish workflow-neutral candidate tree
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          BASE="e4d8799c2b0f00a93b6600f8918f9137f38ba26f"
           git config user.name "OpenGenesis-BioCore Automation"
           git config user.email "noreply@github.com"
+
+          # The GitHub Actions token cannot push workflow-file changes. Restore the
+          # exact accepted-parent validation workflow for this transport commit;
+          # the final Iteration 050 workflow is applied through the GitHub API.
+          git checkout "${BASE}" -- .github/workflows/v0.2-validation.yml
           git add -A
-          git commit -m "Iteration 050: harden plugin and pipeline contracts"
-          git branch -f iteration-050-candidate HEAD
-          git push origin iteration-050-candidate --force
+          TREE="$(git write-tree)"
+          COMMIT="$(printf '%s\n' 'Iteration 050: harden plugin and pipeline contracts' | git commit-tree "${TREE}" -p "${BASE}")"
+          git push origin "${COMMIT}:refs/heads/iteration-050-candidate" --force
+          echo "Candidate transport commit: ${COMMIT}"
