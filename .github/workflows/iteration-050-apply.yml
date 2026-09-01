@@ -26,8 +26,10 @@ jobs:
       - name: Build Iteration 050 candidate tree
         shell: bash
         run: |
+          python3 scripts/patch-finalize-050.py
           python3 scripts/finalize-iteration-050.py
           python3 -m json.tool pipelines/fasta-qc.biocore-pipeline.json >/dev/null
+          test ! -e scripts/patch-finalize-050.py
           test ! -e scripts/finalize-iteration-050.py
           test ! -e .github/workflows/iteration-050-apply.yml
           cmake --preset linux-gcc-debug
