@@ -1,0 +1,67 @@
+name: Iteration 050 staging apply
+
+on:
+  push:
+    branches:
+      - iteration-050-staging
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout staging
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build libsqlite3-dev zlib1g-dev
+
+      - name: Build Iteration 050 candidate tree
+        shell: bash
+        run: |
+          python3 scripts/finalize-iteration-050.py
+          python3 -m json.tool pipelines/fasta-qc.biocore-pipeline.json >/dev/null
+          test ! -e scripts/finalize-iteration-050.py
+          test ! -e .github/workflows/iteration-050-apply.yml
+          cmake --preset linux-gcc-debug
+          cmake --build --preset linux-gcc-debug --parallel
+          count="$(ctest --preset linux-gcc-debug -N | sed -n 's/^Total Tests: //p')"
+          test "${count}" -ge 72
+          ctest --preset linux-gcc-debug --output-on-failure
+          test "$(build/linux-gcc-debug/apps/biocore/biocore --version)" = "0.2.0-dev"
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          module_versions = {}
+          for path in Path('plugins').glob('*/plugin.json'):
+              manifest = json.loads(path.read_text(encoding='utf-8'))
+              for module in manifest['modules']:
+                  module_versions[module['id']] = manifest['version']
+          pipelines = sorted(Path('pipelines').glob('*.json'))
+          assert len(pipelines) == 12
+          for path in pipelines:
+              document = json.loads(path.read_text(encoding='utf-8'))
+              assert document['schemaVersion'] == 2
+              for step in document['steps']:
+                  assert step['pluginVersion'] == module_versions[step['module']]
+          print('Iteration 050 bundled pipeline pin verification PASS')
+          PY
+
+      - name: Publish clean candidate branch
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git config user.name "OpenGenesis-BioCore Automation"
+          git config user.email "noreply@github.com"
+          git add -A
+          git commit -m "Iteration 050: harden plugin and pipeline contracts"
+          git branch -f iteration-050-candidate HEAD
+          git push origin iteration-050-candidate --force
