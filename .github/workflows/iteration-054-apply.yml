@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   apply:
@@ -39,11 +39,10 @@ jobs:
           test "$(build/linux-gcc-debug/apps/biocore/biocore --version)" = "0.2.0"
           python3 -m py_compile scripts/generate-gemini-review.py
 
-      - name: Publish workflow-neutral candidate tree
+      - name: Package workflow-neutral candidate files
         shell: bash
         run: |
-          rm -rf /tmp/iteration-054-candidate
-          git worktree add --detach /tmp/iteration-054-candidate origin/accepted/iteration-053
+          mkdir -p artifacts/iteration-054-candidate-files
           files=(
             .github/workflows/v0.2-validation.yml
             CITATION.cff
@@ -59,12 +58,16 @@ jobs:
             tests/export_report_foundation_tests.cpp
           )
           for file in "${files[@]}"; do
-            mkdir -p "/tmp/iteration-054-candidate/$(dirname "${file}")"
-            cp "${file}" "/tmp/iteration-054-candidate/${file}"
+            mkdir -p "artifacts/iteration-054-candidate-files/$(dirname "${file}")"
+            cp "${file}" "artifacts/iteration-054-candidate-files/${file}"
           done
-          cd /tmp/iteration-054-candidate
-          git config user.name "OpenGenesis-BioCore Automation"
-          git config user.email "noreply@github.com"
-          git add "${files[@]}"
-          git commit -m "Iteration 054: close v0.2.0 release candidate"
-          git push --force origin HEAD:refs/heads/iteration-054-candidate
+          printf '%s\n' "${files[@]}" > artifacts/iteration-054-candidate-files/FILES.txt
+          (cd artifacts/iteration-054-candidate-files && sha256sum "${files[@]}" > SHA256SUMS.txt)
+
+      - name: Upload validated candidate files
+        uses: actions/upload-artifact@v4
+        with:
+          name: OpenGenesis-BioCore-iteration-054-candidate-files
+          path: artifacts/iteration-054-candidate-files/
+          if-no-files-found: error
+          retention-days: 7
