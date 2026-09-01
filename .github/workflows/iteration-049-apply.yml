@@ -1,0 +1,53 @@
+name: Iteration 049 staging apply
+
+on:
+  push:
+    branches:
+      - iteration-049-staging
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          ref: iteration-049-staging
+
+      - name: Build Iteration 049 candidate tree
+        shell: bash
+        env:
+          BASE_SHA: f762462d864779b02379b6096198a4135add0cae
+        run: |
+          cp scripts/iteration-049-apply.py /tmp/iteration-049-apply.py
+          git reset --hard "${BASE_SHA}"
+          python3 /tmp/iteration-049-apply.py
+
+          python3 - <<'PY'
+          from pathlib import Path
+
+          p = Path('src/application/include/biocore/application/managed_file_service.hpp')
+          s = p.read_text(encoding='utf-8')
+          anchor = '#include "biocore/domain/managed_file.hpp"\n'
+          replacement = '#include "biocore/application/i_input_file_storage.hpp"\n#include "biocore/domain/managed_file.hpp"\n'
+          if s.count(anchor) != 1:
+              raise SystemExit('managed_file_service.hpp include anchor mismatch')
+          p.write_text(s.replace(anchor, replacement, 1), encoding='utf-8')
+
+          p = Path('tests/filesystem_input_file_storage_tests.cpp')
+          s = p.read_text(encoding='utf-8')
+          anchor = '#include <iostream>\n'
+          replacement = '#include <iostream>\n#include <optional>\n'
+          if s.count(anchor) != 1:
+              raise SystemExit('filesystem input test include anchor mismatch')
+          p.write_text(s.replace(anchor, replacement, 1), encoding='utf-8')
+          PY
+
+          git config user.name "OpenGenesis-BioCore Automation"
+          git config user.email "noreply@github.com"
+          git add -A
+          git commit -m "Iteration 049: managed-file integrity candidate"
+          git push --force origin HEAD:refs/heads/iteration-049-candidate
