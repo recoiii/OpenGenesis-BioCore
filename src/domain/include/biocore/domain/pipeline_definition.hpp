@@ -12,7 +12,7 @@ namespace biocore::domain {
 
 class PipelineDefinition final {
 public:
-    static constexpr std::uint32_t current_schema_version = 1U;
+    static constexpr std::uint32_t current_schema_version = 2U;
     static constexpr std::size_t maximum_id_length = 256U;
     static constexpr std::size_t maximum_name_length = 256U;
     static constexpr std::size_t maximum_version_length = 64U;

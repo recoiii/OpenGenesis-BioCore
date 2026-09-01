@@ -239,8 +239,8 @@ void ingest_events(
     infrastructure::JsonExecutionPlanStore plan_store{project.root()};
     application::PipelinePreparationService preparation{plan_store, registry, files};
     const domain::PipelineDefinition definition{
-        1U, "org.biocore.demo.artifacts", "Artifacts", "1.0.0",
-        {domain::PipelineStep{"copy", "org.biocore.demo.copy", {}, 1.0}}
+        2U, "org.biocore.demo.artifacts", "Artifacts", "1.0.0",
+        {domain::PipelineStep{"copy", "org.biocore.demo.copy", "0.1.0", {}, 1.0}}
     };
     application::PipelineRunBindings bindings{{application::PipelineStepBindings{
         .step_id = "copy",
@@ -349,8 +349,8 @@ void ingest_events(
     infrastructure::JsonExecutionPlanStore plan_store{project.root()};
     application::PipelinePreparationService preparation{plan_store, registry, files};
     const domain::PipelineDefinition definition{
-        1U, "org.biocore.demo.failure", "Failure artifacts", "1.0.0",
-        {domain::PipelineStep{"bad", "org.biocore.demo.fail", {}, 1.0}}
+        2U, "org.biocore.demo.failure", "Failure artifacts", "1.0.0",
+        {domain::PipelineStep{"bad", "org.biocore.demo.fail", "0.1.0", {}, 1.0}}
     };
     application::PipelineRunBindings bindings{{application::PipelineStepBindings{
         .step_id = "bad", .parameters = {}, .inputs = {},
@@ -430,8 +430,8 @@ void ingest_events(
     infrastructure::JsonExecutionPlanStore plan_store{project.root()};
     application::PipelinePreparationService preparation{plan_store, registry, files};
     const domain::PipelineDefinition definition{
-        1U, "org.biocore.demo.multi-pipeline", "Multi artifacts", "1.0.0",
-        {domain::PipelineStep{"multi", "org.biocore.demo.multi", {}, 1.0}}
+        2U, "org.biocore.demo.multi-pipeline", "Multi artifacts", "1.0.0",
+        {domain::PipelineStep{"multi", "org.biocore.demo.multi", "0.1.0", {}, 1.0}}
     };
     application::PipelineRunBindings bindings{{application::PipelineStepBindings{
         .step_id = "multi", .parameters = {}, .inputs = {},
@@ -556,8 +556,8 @@ void ingest_events(
     infrastructure::JsonExecutionPlanStore plan_store{project.root()};
     application::PipelinePreparationService preparation{plan_store, registry, files};
     const domain::PipelineDefinition definition{
-        1U, "org.biocore.fastaqc.summary", "FASTA DNA QC & Statistics", "0.1.0",
-        {domain::PipelineStep{"stats", "org.biocore.fastaqc.stats", {}, 1.0}}
+        2U, "org.biocore.fastaqc.summary", "FASTA DNA QC & Statistics", "0.1.0",
+        {domain::PipelineStep{"stats", "org.biocore.fastaqc.stats", "0.1.0", {}, 1.0}}
     };
     application::PipelineRunBindings bindings{{
         application::PipelineStepBindings{
@@ -757,8 +757,8 @@ void ingest_events(
     infrastructure::JsonExecutionPlanStore plan_store{project.root()};
     application::PipelinePreparationService preparation{plan_store, registry, files};
     const domain::PipelineDefinition definition{
-        1U, "org.biocore.fastqqc.summary", "FASTQ DNA QC & Quality Statistics", "0.1.0",
-        {domain::PipelineStep{"stats", "org.biocore.fastqqc.stats", {}, 1.0}}
+        2U, "org.biocore.fastqqc.summary", "FASTQ DNA QC & Quality Statistics", "0.1.0",
+        {domain::PipelineStep{"stats", "org.biocore.fastqqc.stats", "0.1.0", {}, 1.0}}
     };
     application::PipelineRunBindings bindings{{
         application::PipelineStepBindings{
@@ -953,9 +953,9 @@ void ingest_events(
     infrastructure::JsonExecutionPlanStore plan_store{project.root()};
     application::PipelinePreparationService preparation{plan_store, registry, files};
     const domain::PipelineDefinition definition{
-        1U, "org.biocore.fastqqc.paired_summary",
+        2U, "org.biocore.fastqqc.paired_summary",
         "Paired-end FASTQ DNA QC & Quality Statistics", "0.1.0",
-        {domain::PipelineStep{"stats", "org.biocore.fastqqc.paired-stats", {}, 1.0}}
+        {domain::PipelineStep{"stats", "org.biocore.fastqqc.paired-stats", "0.1.0", {}, 1.0}}
     };
     application::PipelineRunBindings bindings{{
         application::PipelineStepBindings{
@@ -1125,9 +1125,9 @@ void ingest_events(
     infrastructure::JsonExecutionPlanStore plan_store{project.root()};
     application::PipelinePreparationService preparation{plan_store, registry, files};
     const domain::PipelineDefinition definition{
-        1U, "org.biocore.fastqqc.trim_paired",
+        2U, "org.biocore.fastqqc.trim_paired",
         "Paired-end FASTQ Adapter & Quality Trimming", "0.1.0",
-        {domain::PipelineStep{"trim", "org.biocore.fastqqc.trim-paired", {}, 1.0}}
+        {domain::PipelineStep{"trim", "org.biocore.fastqqc.trim-paired", "0.1.0", {}, 1.0}}
     };
     application::PipelineRunBindings bindings{{
         application::PipelineStepBindings{
@@ -1279,8 +1279,8 @@ void ingest_events(
     infrastructure::JsonExecutionPlanStore plan_store{project.root()};
     application::PipelinePreparationService preparation{plan_store, registry, files};
     const domain::PipelineDefinition definition{
-        1U, "org.biocore.align.paired", "Paired-end Native Reference Alignment", "0.1.0",
-        {domain::PipelineStep{"align", "org.biocore.align.paired", {}, 1.0}}
+        2U, "org.biocore.align.paired", "Paired-end Native Reference Alignment", "0.1.0",
+        {domain::PipelineStep{"align", "org.biocore.align.paired", "0.1.0", {}, 1.0}}
     };
     application::PipelineRunBindings bindings{{
         application::PipelineStepBindings{
@@ -1431,8 +1431,8 @@ void ingest_events(
     infrastructure::JsonExecutionPlanStore plan_store{project.root()};
     application::PipelinePreparationService preparation{plan_store, registry, files};
     const domain::PipelineDefinition definition{
-        1U, "org.biocore.alignmentqc.summary", "SAM/BAM Alignment QC", "0.1.0",
-        {domain::PipelineStep{"qc", "org.biocore.alignmentqc.summary", {}, 1.0}}
+        2U, "org.biocore.alignmentqc.summary", "SAM/BAM Alignment QC", "0.1.0",
+        {domain::PipelineStep{"qc", "org.biocore.alignmentqc.summary", "0.1.0", {}, 1.0}}
     };
     application::PipelineRunBindings bindings{{
         application::PipelineStepBindings{
@@ -1579,8 +1579,8 @@ void ingest_events(
     infrastructure::JsonExecutionPlanStore plan_store{project.root()};
     application::PipelinePreparationService preparation{plan_store, registry, files};
     const domain::PipelineDefinition definition{
-        1U, "org.biocore.variantcall.snv", "Native SNV Variant Calling", "0.1.0",
-        {domain::PipelineStep{"call", "org.biocore.variantcall.snv", {}, 1.0}}
+        2U, "org.biocore.variantcall.snv", "Native SNV Variant Calling", "0.1.0",
+        {domain::PipelineStep{"call", "org.biocore.variantcall.snv", "0.1.0", {}, 1.0}}
     };
     application::PipelineRunBindings bindings{{
         application::PipelineStepBindings{
@@ -1720,8 +1720,8 @@ void ingest_events(
     infrastructure::JsonExecutionPlanStore plan_store{project.root()};
     application::PipelinePreparationService preparation{plan_store, registry, files};
     const domain::PipelineDefinition definition{
-        1U, "org.biocore.vcfqc.filter", "VCF QC and Threshold Filtering", "0.1.0",
-        {domain::PipelineStep{"qc", "org.biocore.vcfqc.filter", {}, 1.0}}
+        2U, "org.biocore.vcfqc.filter", "VCF QC and Threshold Filtering", "0.1.0",
+        {domain::PipelineStep{"qc", "org.biocore.vcfqc.filter", "0.1.0", {}, 1.0}}
     };
     application::PipelineRunBindings bindings{{application::PipelineStepBindings{
         .step_id = "qc",
@@ -1866,8 +1866,8 @@ void ingest_events(
     infrastructure::JsonExecutionPlanStore plan_store{project.root()};
     application::PipelinePreparationService preparation{plan_store, registry, files};
     const domain::PipelineDefinition definition{
-        1U, "org.biocore.variantannotate.local", "Local Variant Annotation and Report", "0.1.0",
-        {domain::PipelineStep{"annotate", "org.biocore.variantannotate.local", {}, 1.0}}
+        2U, "org.biocore.variantannotate.local", "Local Variant Annotation and Report", "0.1.0",
+        {domain::PipelineStep{"annotate", "org.biocore.variantannotate.local", "0.1.0", {}, 1.0}}
     };
     application::PipelineRunBindings bindings{{application::PipelineStepBindings{
         .step_id = "annotate", .parameters = {},

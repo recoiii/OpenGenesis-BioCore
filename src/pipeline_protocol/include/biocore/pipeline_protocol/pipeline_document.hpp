@@ -7,13 +7,14 @@
 
 namespace biocore::pipeline_protocol {
 
-inline constexpr std::uint32_t current_pipeline_definition_schema_version = 1U;
-inline constexpr std::uint32_t current_execution_plan_schema_version = 3U;
+inline constexpr std::uint32_t current_pipeline_definition_schema_version = 2U;
+inline constexpr std::uint32_t current_execution_plan_schema_version = 4U;
 inline constexpr std::size_t maximum_pipeline_document_bytes = 1024U * 1024U;
 
 struct PipelineStepDocument final {
     std::string id;
     std::string module_id;
+    std::string plugin_version;
     std::vector<std::string> depends_on;
     double weight{0.0};
 };
@@ -43,6 +44,8 @@ struct ExecutionPlanStepDocument final {
     std::string module_id;
     std::string plugin_id;
     std::string plugin_version;
+    std::uint32_t plugin_manifest_version{2U};
+    std::string plugin_api_version{"1.0"};
     std::string module_type;
     std::string plugin_root_path;
     std::string executable_path;

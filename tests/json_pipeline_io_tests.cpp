@@ -68,7 +68,7 @@ template <typename Function>
     const fs::path definition_path = project.path() / "demo.biocore-pipeline.json";
     write_file(
         definition_path,
-        R"({"schemaVersion":1,"id":"org.biocore.demo","name":"Demo","version":"1.0.0","steps":[{"id":"validate","module":"org.biocore.demo.validate","dependsOn":[],"weight":2},{"id":"scan","module":"org.biocore.demo.scan","dependsOn":["validate"],"weight":6},{"id":"report","module":"org.biocore.demo.report","dependsOn":["scan"],"weight":2}]})"
+        R"({"schemaVersion":2,"id":"org.biocore.demo","name":"Demo","version":"1.0.0","steps":[{"id":"validate","module":"org.biocore.demo.validate","pluginVersion":"0.1.0","dependsOn":[],"weight":2},{"id":"scan","module":"org.biocore.demo.scan","pluginVersion":"0.1.0","dependsOn":["validate"],"weight":6},{"id":"report","module":"org.biocore.demo.report","pluginVersion":"0.1.0","dependsOn":["scan"],"weight":2}]})"
     );
 
     const JsonPipelineDefinitionLoader loader;
@@ -95,6 +95,8 @@ template <typename Function>
         document.steps[1].depends_on != std::vector<std::string>{"validate"} ||
         document.steps[0].plugin_id != "org.biocore.demo" ||
         document.steps[0].plugin_version != "0.1.0" ||
+        document.steps[0].plugin_manifest_version != 2U ||
+        document.steps[0].plugin_api_version != "1.0" ||
         document.steps[0].module_type != "process" ||
         document.steps[0].plugin_root_path.empty() ||
         document.steps[0].executable_path.empty()) {
@@ -114,11 +116,11 @@ template <typename Function>
     if (!rejects([&] { static_cast<void>(loader.load(invalid)); })) return false;
 
     const biocore::domain::PipelineDefinition definition{
-        1U,
-        "p",
+        2U,
+        "org.biocore.p",
         "P",
-        "1",
-        {biocore::domain::PipelineStep{"a", "org.biocore.demo.validate", {}, 1.0}},
+        "1.0.0",
+        {biocore::domain::PipelineStep{"a", "org.biocore.demo.validate", "0.1.0", {}, 1.0}},
     };
     const FakePluginRegistry registry;
     const auto unsafe_plan = PipelinePlanner::create_execution_plan(
@@ -139,11 +141,11 @@ template <typename Function>
     fs::create_directory_symlink(outside, project.path() / ".biocore" / "runtime" / "jobs");
 
     const biocore::domain::PipelineDefinition definition{
-        1U,
-        "p",
+        2U,
+        "org.biocore.p",
         "P",
-        "1",
-        {biocore::domain::PipelineStep{"a", "org.biocore.demo.validate", {}, 1.0}},
+        "1.0.0",
+        {biocore::domain::PipelineStep{"a", "org.biocore.demo.validate", "0.1.0", {}, 1.0}},
     };
     const FakePluginRegistry registry;
     const auto plan = PipelinePlanner::create_execution_plan(

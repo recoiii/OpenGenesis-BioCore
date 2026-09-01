@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "id": "org.biocore.fastqqc.trim_paired",
   "name": "Paired-end FASTQ Adapter & Quality Trimming",
   "version": "0.1.0",
@@ -8,7 +8,8 @@
       "id": "trim",
       "module": "org.biocore.fastqqc.trim-paired",
       "dependsOn": [],
-      "weight": 1.0
+      "weight": 1.0,
+      "pluginVersion": "0.1.0"
     }
   ]
 }

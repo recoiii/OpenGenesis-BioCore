@@ -110,14 +110,14 @@ private:
 
 [[nodiscard]] PipelineDefinition successful_definition() {
     return PipelineDefinition{
-        1U,
+        2U,
         "org.biocore.demo",
         "Demo",
         "1.0.0",
         {
-            PipelineStep{"validate", "org.biocore.demo.validate", {}, 2.0},
-            PipelineStep{"scan", "org.biocore.demo.scan", {"validate"}, 6.0},
-            PipelineStep{"report", "org.biocore.demo.report", {"scan"}, 2.0},
+            PipelineStep{"validate", "org.biocore.demo.validate", "0.1.0", {}, 2.0},
+            PipelineStep{"scan", "org.biocore.demo.scan", "0.1.0", {"validate"}, 6.0},
+            PipelineStep{"report", "org.biocore.demo.report", "0.1.0", {"scan"}, 2.0},
         },
     };
 }
@@ -159,11 +159,11 @@ private:
 ) {
     TemporaryProject project;
     const PipelineDefinition definition{
-        1U,
+        2U,
         "org.biocore.failure",
         "Failure",
         "1.0.0",
-        {PipelineStep{"bad", "org.biocore.demo.fail", {}, 1.0}},
+        {PipelineStep{"bad", "org.biocore.demo.fail", "0.1.0", {}, 1.0}},
     };
     JsonExecutionPlanStore store{project.path()};
     const auto plan = PipelinePlanner::create_execution_plan(
@@ -275,11 +275,11 @@ private:
         .outputs = {},
     }};
     const PipelineDefinition definition{
-        1U,
+        2U,
         "org.biocore.test.slow.pipeline",
         "Slow plugin heartbeat probe",
         "0.1.0",
-        {PipelineStep{"slow", "org.biocore.test.slow.run", {}, 1.0}},
+        {PipelineStep{"slow", "org.biocore.test.slow.run", "0.1.0", {}, 1.0}},
     };
     JsonExecutionPlanStore store{project.path()};
     const auto plan = PipelinePlanner::create_execution_plan(

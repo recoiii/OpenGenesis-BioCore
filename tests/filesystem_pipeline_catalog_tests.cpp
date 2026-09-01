@@ -9,7 +9,7 @@
 
 namespace {
 void require(bool value, std::string_view message) { if (!value) { std::cerr << "FAIL: " << message << '\n'; std::exit(1); } }
-const char* document = R"({"schemaVersion":1,"id":"org.biocore.demo.validation","name":"Demo","version":"0.1.0","steps":[{"id":"validate","module":"org.biocore.demo.validate","dependsOn":[],"weight":1.0}]})";
+const char* document = R"({"schemaVersion":2,"id":"org.biocore.demo.validation","name":"Demo","version":"0.1.0","steps":[{"id":"validate","module":"org.biocore.demo.validate","pluginVersion":"0.1.0","dependsOn":[],"weight":1.0}]})";
 }
 
 int main() {

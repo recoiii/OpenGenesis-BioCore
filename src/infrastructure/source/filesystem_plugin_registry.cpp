@@ -224,6 +224,8 @@ struct CandidatePlugin final {
             .id = std::string{manifest.id()},
             .name = std::string{manifest.name()},
             .version = std::string{manifest.version()},
+            .manifest_version = manifest.manifest_version(),
+            .api_version = std::string{manifest.api_version()},
             .publisher = std::string{manifest.publisher()},
             .root_path = path_to_utf8(plugin_root),
         },
@@ -243,6 +245,8 @@ struct CandidatePlugin final {
         candidate.modules.push_back(application::ResolvedPluginModule{
             .plugin_id = std::string{manifest.id()},
             .plugin_version = std::string{manifest.version()},
+            .plugin_manifest_version = manifest.manifest_version(),
+            .plugin_api_version = std::string{manifest.api_version()},
             .module_id = std::string{module.id()},
             .module_type = module.type(),
             .plugin_root_path = path_to_utf8(plugin_root),

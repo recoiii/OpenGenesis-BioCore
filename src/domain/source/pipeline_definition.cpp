@@ -9,6 +9,8 @@
 #include <unordered_map>
 #include <utility>
 
+#include "biocore/domain/component_identity.hpp"
+
 namespace biocore::domain {
 namespace {
 
@@ -101,8 +103,14 @@ PipelineDefinition::PipelineDefinition(
         throw std::invalid_argument("Pipeline schema version is unsupported");
     }
     require_text(id_, "Pipeline id", maximum_id_length);
+    if (!is_namespaced_identifier(id_, maximum_id_length)) {
+        throw std::invalid_argument("Pipeline id is invalid");
+    }
     require_text(name_, "Pipeline name", maximum_name_length);
     require_text(version_, "Pipeline version", maximum_version_length);
+    if (!is_semantic_version(version_, maximum_version_length)) {
+        throw std::invalid_argument("Pipeline version must use semantic versioning");
+    }
     if (steps_.empty()) {
         throw std::invalid_argument("Pipeline must contain at least one step");
     }

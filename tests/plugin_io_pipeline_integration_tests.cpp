@@ -55,7 +55,7 @@ int main(int argc,const char* const argv[]){
     const auto report=registry.refresh();if(report.loaded_plugins!=8U||!report.rejected.empty()){std::cerr<<"Plugin discovery failed\n";return EXIT_FAILURE;}
     biocore::infrastructure::JsonExecutionPlanStore plan_store{project.root()};
     biocore::application::PipelinePreparationService preparation{plan_store,registry,repo};
-    const biocore::domain::PipelineDefinition definition{1U,"org.biocore.demo.io","IO","1.0.0",{biocore::domain::PipelineStep{"copy","org.biocore.demo.copy",{},1.0}}};
+    const biocore::domain::PipelineDefinition definition{2U,"org.biocore.demo.io","IO","1.0.0",{biocore::domain::PipelineStep{"copy","org.biocore.demo.copy", "0.1.0",{},1.0}}};
     biocore::application::PipelineRunBindings bindings{{biocore::application::PipelineStepBindings{
         .step_id="copy",
         .parameters={{"label",biocore::domain::PluginParameterValue{std::string{"beta"}}},{"repeat",biocore::domain::PluginParameterValue{std::int64_t{2}}}},

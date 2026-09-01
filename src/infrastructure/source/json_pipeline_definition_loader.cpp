@@ -51,7 +51,9 @@ domain::PipelineDefinition JsonPipelineDefinitionLoader::load(
     std::vector<domain::PipelineStep> steps;
     steps.reserve(document.steps.size());
     for (const pipeline_protocol::PipelineStepDocument& step : document.steps) {
-        steps.emplace_back(step.id, step.module_id, step.depends_on, step.weight);
+        steps.emplace_back(
+            step.id, step.module_id, step.plugin_version, step.depends_on, step.weight
+        );
     }
     return domain::PipelineDefinition{
         document.schema_version,

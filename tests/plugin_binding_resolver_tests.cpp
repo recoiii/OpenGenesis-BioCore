@@ -61,8 +61,8 @@ template <typename Function>
 }
 
 [[nodiscard]] domain::PipelineDefinition definition() {
-    return domain::PipelineDefinition{1U,"org.biocore.io","IO","1.0.0",
-        {domain::PipelineStep{"copy","org.biocore.demo.copy",{},1.0}}};
+    return domain::PipelineDefinition{2U,"org.biocore.io","IO","1.0.0",
+        {domain::PipelineStep{"copy","org.biocore.demo.copy", "0.1.0",{},1.0}}};
 }
 
 [[nodiscard]] bool resolution_contract() {

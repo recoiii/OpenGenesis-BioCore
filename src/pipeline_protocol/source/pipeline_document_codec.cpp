@@ -393,6 +393,14 @@ private:
     throw std::invalid_argument("Pipeline JSON field must be an integer: " + std::string{field});
 }
 
+[[nodiscard]] std::uint32_t require_uint32(const JsonObject& object, const std::string_view field) {
+    const std::int64_t value = require_integer(object, field);
+    if (value < 0 || value > static_cast<std::int64_t>(std::numeric_limits<std::uint32_t>::max())) {
+        throw std::invalid_argument("Pipeline JSON field is outside uint32 range: " + std::string{field});
+    }
+    return static_cast<std::uint32_t>(value);
+}
+
 [[nodiscard]] double require_number(const JsonObject& object, const std::string_view field) {
     const JsonValue& value = require_field(object, field);
     if (const auto* number = std::get_if<double>(&value.storage)) return *number;
@@ -451,10 +459,11 @@ void require_only_fields(
     steps.reserve(array.size());
     for (const JsonValue& entry : array) {
         const JsonObject& object = require_object(entry, "Pipeline step");
-        require_only_fields(object, {"id", "module", "dependsOn", "weight"});
+        require_only_fields(object, {"id", "module", "pluginVersion", "dependsOn", "weight"});
         steps.push_back(PipelineStepDocument{
             .id = require_string(object, "id"),
             .module_id = require_string(object, "module"),
+            .plugin_version = require_string(object, "pluginVersion"),
             .depends_on = parse_dependencies(require_field(object, "dependsOn")),
             .weight = require_number(object, "weight"),
         });
@@ -511,14 +520,17 @@ void require_only_fields(
         const JsonObject& object = require_object(entry, "Execution-plan step");
         require_only_fields(
             object,
-            {"id", "module", "pluginId", "pluginVersion", "moduleType",
-             "pluginRoot", "executable", "dependsOn", "weight", "parameters", "inputs", "outputs"}
+            {"id", "module", "pluginId", "pluginVersion", "pluginManifestVersion",
+             "pluginApiVersion", "moduleType", "pluginRoot", "executable", "dependsOn",
+             "weight", "parameters", "inputs", "outputs"}
         );
         steps.push_back(ExecutionPlanStepDocument{
             .id = require_string(object, "id"),
             .module_id = require_string(object, "module"),
             .plugin_id = require_string(object, "pluginId"),
             .plugin_version = require_string(object, "pluginVersion"),
+            .plugin_manifest_version = require_uint32(object, "pluginManifestVersion"),
+            .plugin_api_version = require_string(object, "pluginApiVersion"),
             .module_type = require_string(object, "moduleType"),
             .plugin_root_path = require_string(object, "pluginRoot"),
             .executable_path = require_string(object, "executable"),
@@ -582,6 +594,8 @@ void append_pipeline_steps(std::ostringstream& output, const std::vector<Pipelin
         append_string(output, step.id);
         output << ",\"module\":";
         append_string(output, step.module_id);
+        output << ",\"pluginVersion\":";
+        append_string(output, step.plugin_version);
         output << ",\"dependsOn\":[";
         for (std::size_t dependency = 0U; dependency < step.depends_on.size(); ++dependency) {
             if (dependency != 0U) output << ',';
@@ -604,6 +618,8 @@ void append_execution_steps(
         output << ",\"module\":"; append_string(output, step.module_id);
         output << ",\"pluginId\":"; append_string(output, step.plugin_id);
         output << ",\"pluginVersion\":"; append_string(output, step.plugin_version);
+        output << ",\"pluginManifestVersion\":" << step.plugin_manifest_version;
+        output << ",\"pluginApiVersion\":"; append_string(output, step.plugin_api_version);
         output << ",\"moduleType\":"; append_string(output, step.module_type);
         output << ",\"pluginRoot\":"; append_string(output, step.plugin_root_path);
         output << ",\"executable\":"; append_string(output, step.executable_path);
@@ -661,6 +677,7 @@ void require_serializable_pipeline_steps(const std::vector<PipelineStepDocument>
     for (const PipelineStepDocument& step : steps) {
         require_serializable_text(step.id, "Pipeline document step id");
         require_serializable_text(step.module_id, "Pipeline document module id");
+        require_serializable_text(step.plugin_version, "Pipeline document plugin version");
         if (!std::isfinite(step.weight) || step.weight <= 0.0 ||
             step.depends_on.size() > maximum_dependencies) {
             throw std::invalid_argument("Pipeline document step is invalid");
@@ -682,6 +699,10 @@ void require_serializable_execution_steps(
         require_serializable_text(step.module_id, "Execution-plan module id");
         require_serializable_text(step.plugin_id, "Execution-plan plugin id");
         require_serializable_text(step.plugin_version, "Execution-plan plugin version");
+        if (step.plugin_manifest_version == 0U) {
+            throw std::invalid_argument("Execution-plan plugin manifest version is invalid");
+        }
+        require_serializable_text(step.plugin_api_version, "Execution-plan plugin API version");
         require_serializable_text(step.module_type, "Execution-plan module type");
         require_serializable_text(step.plugin_root_path, "Execution-plan plugin root");
         require_serializable_text(step.executable_path, "Execution-plan executable");

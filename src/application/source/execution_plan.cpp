@@ -8,6 +8,9 @@
 #include <unordered_set>
 #include <utility>
 
+#include "biocore/domain/component_identity.hpp"
+#include "biocore/domain/plugin_manifest.hpp"
+
 namespace biocore::application {
 namespace {
 
@@ -62,7 +65,13 @@ ExecutionPlan::ExecutionPlan(
     }
     require_text(job_id_, "Execution plan job id");
     require_text(pipeline_id_, "Execution plan pipeline id");
+    if (!domain::is_namespaced_identifier(pipeline_id_, 256U)) {
+        throw std::invalid_argument("Execution plan pipeline id is invalid");
+    }
     require_text(pipeline_version_, "Execution plan pipeline version");
+    if (!domain::is_semantic_version(pipeline_version_, 64U)) {
+        throw std::invalid_argument("Execution plan pipeline version is invalid");
+    }
     if (job_revision_ < 0) {
         throw std::invalid_argument("Execution plan job revision must not be negative");
     }
@@ -77,8 +86,25 @@ ExecutionPlan::ExecutionPlan(
         const ExecutionPlanStep& step = steps_[index];
         require_text(step.id, "Execution plan step id");
         require_text(step.module_id, "Execution plan module id");
+        if (!domain::is_namespaced_identifier(step.module_id, 256U)) {
+            throw std::invalid_argument("Execution plan module id is invalid");
+        }
         require_text(step.plugin_id, "Execution plan plugin id");
+        if (!domain::is_namespaced_identifier(step.plugin_id, 128U)) {
+            throw std::invalid_argument("Execution plan plugin id is invalid");
+        }
         require_text(step.plugin_version, "Execution plan plugin version");
+        if (!domain::is_semantic_version(step.plugin_version, 64U)) {
+            throw std::invalid_argument("Execution plan plugin version is invalid");
+        }
+        if (step.plugin_manifest_version < domain::PluginManifest::minimum_manifest_version ||
+            step.plugin_manifest_version > domain::PluginManifest::current_manifest_version) {
+            throw std::invalid_argument("Execution plan plugin manifest version is unsupported");
+        }
+        require_text(step.plugin_api_version, "Execution plan plugin API version", 32U);
+        if (step.plugin_api_version != domain::PluginManifest::supported_api_version) {
+            throw std::invalid_argument("Execution plan plugin API version is unsupported");
+        }
         require_text(
             step.plugin_root_path, "Execution plan plugin root path", maximum_path_length
         );

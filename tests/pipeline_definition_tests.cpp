@@ -25,87 +25,96 @@ template <typename Function>
 
 [[nodiscard]] PipelineDefinition make_valid() {
     return PipelineDefinition{
-        1U,
+        2U,
         "org.biocore.demo",
         "Demo pipeline",
         "1.0.0",
         {
-            PipelineStep{"validate", "org.biocore.demo.validate", {}, 2.0},
-            PipelineStep{"scan", "org.biocore.demo.scan", {"validate"}, 6.0},
-            PipelineStep{"report", "org.biocore.demo.report", {"scan"}, 2.0},
+            PipelineStep{"validate", "org.biocore.demo.validate", "0.1.0", {}, 2.0},
+            PipelineStep{"scan", "org.biocore.demo.scan", "0.1.0", {"validate"}, 6.0},
+            PipelineStep{"report", "org.biocore.demo.report", "0.1.0", {"scan"}, 2.0},
         },
     };
 }
 
 [[nodiscard]] bool valid_dag_contract() {
     const PipelineDefinition definition = make_valid();
-    return definition.schema_version() == 1U && definition.id() == "org.biocore.demo" &&
+    return definition.schema_version() == 2U && definition.id() == "org.biocore.demo" &&
            definition.steps().size() == 3U &&
+           definition.steps()[0].plugin_version() == "0.1.0" &&
            definition.topological_order() == std::vector<std::size_t>{0U, 1U, 2U} &&
            std::abs(definition.total_weight() - 10.0) < 1.0e-12;
 }
 
 [[nodiscard]] bool deterministic_parallel_order_contract() {
     const PipelineDefinition definition{
-        1U,
-        "parallel",
+        2U,
+        "org.biocore.parallel",
         "Parallel",
-        "1",
+        "1.0.0",
         {
-            PipelineStep{"root-b", "module-b", {}, 1.0},
-            PipelineStep{"root-a", "module-a", {}, 1.0},
-            PipelineStep{"join", "module-join", {"root-a", "root-b"}, 1.0},
+            PipelineStep{"root-b", "org.biocore.demo.module-b", "0.1.0", {}, 1.0},
+            PipelineStep{"root-a", "org.biocore.demo.module-a", "0.1.0", {}, 1.0},
+            PipelineStep{"join", "org.biocore.demo.module-join", "0.1.0", {"root-a", "root-b"}, 1.0},
         },
     };
     return definition.topological_order() == std::vector<std::size_t>{0U, 1U, 2U};
 }
 
 [[nodiscard]] bool step_invariant_contract() {
-    return rejects([] { static_cast<void>(PipelineStep{"", "module", {}, 1.0}); }) &&
-           rejects([] { static_cast<void>(PipelineStep{"step", "", {}, 1.0}); }) &&
-           rejects([] { static_cast<void>(PipelineStep{"step", "module", {}, 0.0}); }) &&
-           rejects([] { static_cast<void>(PipelineStep{"step", "module", {"step"}, 1.0}); }) &&
+    return rejects([] { static_cast<void>(PipelineStep{"", "org.biocore.demo.module", "0.1.0", {}, 1.0}); }) &&
+           rejects([] { static_cast<void>(PipelineStep{"step", "", "0.1.0", {}, 1.0}); }) &&
+           rejects([] { static_cast<void>(PipelineStep{"step", "org.biocore.demo.module", "1", {}, 1.0}); }) &&
+           rejects([] { static_cast<void>(PipelineStep{"step", "org.biocore.demo.module", "0.1.0", {}, 0.0}); }) &&
+           rejects([] { static_cast<void>(PipelineStep{"step", "org.biocore.demo.module", "0.1.0", {"step"}, 1.0}); }) &&
            rejects([] {
-               static_cast<void>(PipelineStep{"step", "module", {"a", "a"}, 1.0});
+               static_cast<void>(PipelineStep{"step", "org.biocore.demo.module", "0.1.0", {"a", "a"}, 1.0});
            });
 }
 
 [[nodiscard]] bool graph_rejection_contract() {
     return rejects([] {
                static_cast<void>(PipelineDefinition{
-                   2U, "pipeline", "Pipeline", "1", {PipelineStep{"a", "m", {}, 1.0}}
-               });
-           }) &&
-           rejects([] {
-               static_cast<void>(PipelineDefinition{1U, "pipeline", "Pipeline", "1", {}});
-           }) &&
-           rejects([] {
-               static_cast<void>(PipelineDefinition{
-                   1U,
-                   "pipeline",
-                   "Pipeline",
-                   "1",
-                   {PipelineStep{"a", "m", {}, 1.0}, PipelineStep{"a", "m", {}, 1.0}},
+                   3U, "org.biocore.pipeline", "Pipeline", "1.0.0",
+                   {PipelineStep{"a", "org.biocore.demo.m", "0.1.0", {}, 1.0}}
                });
            }) &&
            rejects([] {
                static_cast<void>(PipelineDefinition{
-                   1U,
-                   "pipeline",
-                   "Pipeline",
-                   "1",
-                   {PipelineStep{"a", "m", {"missing"}, 1.0}},
+                   2U, "Pipeline", "Pipeline", "1.0.0",
+                   {PipelineStep{"a", "org.biocore.demo.m", "0.1.0", {}, 1.0}}
                });
            }) &&
            rejects([] {
                static_cast<void>(PipelineDefinition{
-                   1U,
-                   "pipeline",
+                   2U, "org.biocore.pipeline", "Pipeline", "1",
+                   {PipelineStep{"a", "org.biocore.demo.m", "0.1.0", {}, 1.0}}
+               });
+           }) &&
+           rejects([] {
+               static_cast<void>(PipelineDefinition{2U, "org.biocore.pipeline", "Pipeline", "1.0.0", {}});
+           }) &&
+           rejects([] {
+               static_cast<void>(PipelineDefinition{
+                   2U, "org.biocore.pipeline", "Pipeline", "1.0.0",
+                   {PipelineStep{"a", "org.biocore.demo.m", "0.1.0", {}, 1.0}, PipelineStep{"a", "org.biocore.demo.m", "0.1.0", {}, 1.0}},
+               });
+           }) &&
+           rejects([] {
+               static_cast<void>(PipelineDefinition{
+                   2U, "org.biocore.pipeline", "Pipeline", "1.0.0",
+                   {PipelineStep{"a", "org.biocore.demo.m", "0.1.0", {"missing"}, 1.0}},
+               });
+           }) &&
+           rejects([] {
+               static_cast<void>(PipelineDefinition{
+                   2U,
+                   "org.biocore.pipeline",
                    "Pipeline",
-                   "1",
+                   "1.0.0",
                    {
-                       PipelineStep{"a", "m", {"b"}, 1.0},
-                       PipelineStep{"b", "m", {"a"}, 1.0},
+                       PipelineStep{"a", "org.biocore.demo.m", "0.1.0", {"b"}, 1.0},
+                       PipelineStep{"b", "org.biocore.demo.m", "0.1.0", {"a"}, 1.0},
                    },
                });
            });

@@ -65,14 +65,14 @@ template <typename Function>
 
 [[nodiscard]] PipelineDefinition definition() {
     return PipelineDefinition{
-        1U,
+        2U,
         "org.biocore.demo",
         "Demo",
         "1.0.0",
         {
-            PipelineStep{"validate", "org.biocore.demo.validate", {}, 2.0},
-            PipelineStep{"scan", "org.biocore.demo.scan", {"validate"}, 6.0},
-            PipelineStep{"report", "org.biocore.demo.report", {"scan"}, 2.0},
+            PipelineStep{"validate", "org.biocore.demo.validate", "0.1.0", {}, 2.0},
+            PipelineStep{"scan", "org.biocore.demo.scan", "0.1.0", {"validate"}, 6.0},
+            PipelineStep{"report", "org.biocore.demo.report", "0.1.0", {"scan"}, 2.0},
         },
     };
 }
@@ -90,6 +90,8 @@ template <typename Function>
         std::abs(plan.steps()[2].normalized_weight - 0.2) > 1.0e-12 ||
         plan.steps()[0].plugin_id != "org.biocore.demo" ||
         plan.steps()[0].plugin_version != "0.1.0" ||
+        plan.steps()[0].plugin_manifest_version != 2U ||
+        plan.steps()[0].plugin_api_version != "1.0" ||
         plan.steps()[0].executable_path.empty()) {
         return false;
     }

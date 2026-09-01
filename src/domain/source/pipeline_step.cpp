@@ -7,6 +7,8 @@
 #include <unordered_set>
 #include <utility>
 
+#include "biocore/domain/component_identity.hpp"
+
 namespace biocore::domain {
 namespace {
 
@@ -37,15 +39,23 @@ void require_text(
 PipelineStep::PipelineStep(
     std::string id,
     std::string module_id,
+    std::string plugin_version,
     std::vector<std::string> depends_on,
     const double weight
 )
     : id_{std::move(id)},
       module_id_{std::move(module_id)},
+      plugin_version_{std::move(plugin_version)},
       depends_on_{std::move(depends_on)},
       weight_{weight} {
     require_text(id_, "Pipeline step id", maximum_id_length);
     require_text(module_id_, "Pipeline step module id", maximum_module_id_length);
+    if (!is_namespaced_identifier(module_id_, maximum_module_id_length)) {
+        throw std::invalid_argument("Pipeline step module id is invalid");
+    }
+    if (!is_semantic_version(plugin_version_, maximum_plugin_version_length)) {
+        throw std::invalid_argument("Pipeline step plugin version must use semantic versioning");
+    }
     if (!std::isfinite(weight_) || weight_ <= 0.0) {
         throw std::invalid_argument("Pipeline step weight must be finite and greater than zero");
     }
@@ -68,6 +78,7 @@ PipelineStep::PipelineStep(
 
 std::string_view PipelineStep::id() const noexcept { return id_; }
 std::string_view PipelineStep::module_id() const noexcept { return module_id_; }
+std::string_view PipelineStep::plugin_version() const noexcept { return plugin_version_; }
 const std::vector<std::string>& PipelineStep::depends_on() const noexcept { return depends_on_; }
 double PipelineStep::weight() const noexcept { return weight_; }
 

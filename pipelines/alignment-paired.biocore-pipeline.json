@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "id": "org.biocore.align.paired",
   "name": "Paired-end Native Reference Alignment",
   "version": "0.1.0",
@@ -8,7 +8,8 @@
       "id": "align",
       "module": "org.biocore.align.paired",
       "dependsOn": [],
-      "weight": 1.0
+      "weight": 1.0,
+      "pluginVersion": "0.1.0"
     }
   ]
 }

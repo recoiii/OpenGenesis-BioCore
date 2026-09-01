@@ -1,5 +1,3 @@
-# Pipeline Development Area
+# OpenGenesis-BioCore pipelines
 
-The first demo pipeline will be added after the worker protocol and persistence layers are validated.
-
-- `org.biocore.fastqqc.paired_summary` — paired-end FASTQ QC using managed R1/R2 FASTQ inputs.
+Bundled pipeline definitions use pipeline schema v2. Every step pins an exact semantic `pluginVersion`; planning fails closed if the discovered module belongs to a different plugin version.

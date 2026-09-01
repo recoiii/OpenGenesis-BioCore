@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "id": "org.biocore.fastaqc.summary",
   "name": "FASTA DNA QC & Statistics",
   "version": "0.1.0",
@@ -8,7 +8,8 @@
       "id": "stats",
       "module": "org.biocore.fastaqc.stats",
       "dependsOn": [],
-      "weight": 1.0
+      "weight": 1.0,
+      "pluginVersion": "0.1.0"
     }
   ]
 }

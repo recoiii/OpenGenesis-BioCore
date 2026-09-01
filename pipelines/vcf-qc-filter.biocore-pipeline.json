@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "id": "org.biocore.vcfqc.filter",
   "name": "VCF QC and Threshold Filtering",
   "version": "0.1.0",
@@ -8,7 +8,8 @@
       "id": "qc",
       "module": "org.biocore.vcfqc.filter",
       "dependsOn": [],
-      "weight": 1.0
+      "weight": 1.0,
+      "pluginVersion": "0.1.0"
     }
   ]
 }

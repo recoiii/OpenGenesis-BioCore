@@ -54,6 +54,8 @@ namespace {
             .module_id = step.module_id,
             .plugin_id = step.plugin_id,
             .plugin_version = step.plugin_version,
+            .plugin_manifest_version = step.plugin_manifest_version,
+            .plugin_api_version = step.plugin_api_version,
             .module_type = std::string{domain::to_string(step.module_type)},
             .plugin_root_path = step.plugin_root_path,
             .executable_path = step.executable_path,

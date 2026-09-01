@@ -4,6 +4,7 @@ add_library(BioCore::domain ALIAS biocore-domain)
 target_sources(
     biocore-domain
     PRIVATE
+        source/component_identity.cpp
         source/job.cpp
         source/job_failure.cpp
         source/job_priority.cpp
@@ -21,6 +22,7 @@ target_sources(
         FILE_SET HEADERS
         BASE_DIRS include
         FILES
+            include/biocore/domain/component_identity.hpp
             include/biocore/domain/job.hpp
             include/biocore/domain/job_failure.hpp
             include/biocore/domain/job_priority.hpp

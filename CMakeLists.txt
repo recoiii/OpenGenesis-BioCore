@@ -118,6 +118,19 @@ if(BIOCORE_BUILD_TESTS)
         NAME integration.managed_file_integrity
         COMMAND biocore-managed-file-integrity-tests
     )
+
+    add_executable(
+        biocore-plugin-pipeline-contract-hardening-tests
+        tests/plugin_pipeline_contract_hardening_tests.cpp
+    )
+    target_link_libraries(
+        biocore-plugin-pipeline-contract-hardening-tests
+        PRIVATE BioCore::infrastructure BioCore::pipeline_protocol BioCore::project_warnings BioCore::sanitizers
+    )
+    add_test(
+        NAME integration.plugin_pipeline_contract_hardening
+        COMMAND biocore-plugin-pipeline-contract-hardening-tests
+    )
 endif()
 
 if(WIN32)

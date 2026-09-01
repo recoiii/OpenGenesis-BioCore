@@ -35,8 +35,8 @@ class Catalog final : public application::IPipelineCatalog {
 public:
     std::optional<domain::PipelineDefinition> find(std::string_view id, std::string_view version) const override {
         if (id != "org.biocore.demo.validation" || version != "0.1.0") return std::nullopt;
-        return domain::PipelineDefinition{1U, "org.biocore.demo.validation", "Demo", "0.1.0", {
-            {"validate", "org.biocore.demo.validate", {}, 1.0},
+        return domain::PipelineDefinition{2U, "org.biocore.demo.validation", "Demo", "0.1.0", {
+            {"validate", "org.biocore.demo.validate", "0.1.0", {}, 1.0},
         }};
     }
     std::vector<application::RegisteredPipeline> list() const override { return {}; }
@@ -51,11 +51,11 @@ public:
     ) const override {
         if (id != "org.biocore.io" || version != "1.0.0") return std::nullopt;
         return domain::PipelineDefinition{
-            1U,
+            2U,
             "org.biocore.io",
             "I/O binding test",
             "1.0.0",
-            {domain::PipelineStep{"copy", "org.biocore.demo.copy", {}, 1.0}},
+            {domain::PipelineStep{"copy", "org.biocore.demo.copy", "0.1.0", {}, 1.0}},
         };
     }
 

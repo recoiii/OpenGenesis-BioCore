@@ -77,11 +77,11 @@ private:
 
 [[nodiscard]] biocore::domain::PipelineDefinition demo_definition() {
     return biocore::domain::PipelineDefinition{
-        1U, "org.biocore.demo.validation", "Demo File Validation", "0.1.0",
+        2U, "org.biocore.demo.validation", "Demo File Validation", "0.1.0",
         {
-            {"validate", "org.biocore.demo.validate", {}, 0.2},
-            {"scan", "org.biocore.demo.scan", {"validate"}, 0.6},
-            {"report", "org.biocore.demo.report", {"scan"}, 0.2},
+            {"validate", "org.biocore.demo.validate", "0.1.0", {}, 0.2},
+            {"scan", "org.biocore.demo.scan", "0.1.0", {"validate"}, 0.6},
+            {"report", "org.biocore.demo.report", "0.1.0", {"scan"}, 0.2},
         },
     };
 }

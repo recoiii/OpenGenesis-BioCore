@@ -1,9 +1,15 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "id": "org.biocore.variantannotate.local",
   "name": "Local Variant Annotation and Report",
   "version": "0.1.0",
   "steps": [
-    {"id":"annotate","module":"org.biocore.variantannotate.local","dependsOn":[],"weight":1.0}
+    {
+      "id": "annotate",
+      "module": "org.biocore.variantannotate.local",
+      "dependsOn": [],
+      "weight": 1.0,
+      "pluginVersion": "0.1.0"
+    }
   ]
 }

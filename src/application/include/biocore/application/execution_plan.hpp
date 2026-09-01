@@ -44,6 +44,8 @@ struct ExecutionPlanStep final {
     std::string module_id;
     std::string plugin_id;
     std::string plugin_version;
+    std::uint32_t plugin_manifest_version{2U};
+    std::string plugin_api_version{"1.0"};
     domain::PluginModuleType module_type{domain::PluginModuleType::process};
     std::string plugin_root_path;
     std::string executable_path;
@@ -59,7 +61,7 @@ struct ExecutionPlanStep final {
 
 class ExecutionPlan final {
 public:
-    static constexpr std::uint32_t current_schema_version = 3U;
+    static constexpr std::uint32_t current_schema_version = 4U;
 
     ExecutionPlan(
         std::uint32_t schema_version,

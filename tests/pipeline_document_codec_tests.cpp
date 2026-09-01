@@ -22,13 +22,13 @@ template <typename Function>
 
 [[nodiscard]] PipelineDefinitionDocument definition_document() {
     return PipelineDefinitionDocument{
-        .schema_version = 1U,
+        .schema_version = current_pipeline_definition_schema_version,
         .id = "org.biocore.demo",
         .name = "Demo \"pipeline\"",
         .version = "1.0.0",
         .steps = {
-            PipelineStepDocument{"validate", "org.biocore.demo.validate", {}, 0.2},
-            PipelineStepDocument{"scan", "org.biocore.demo.scan", {"validate"}, 0.8},
+            PipelineStepDocument{"validate", "org.biocore.demo.validate", "0.1.0", {}, 0.2},
+            PipelineStepDocument{"scan", "org.biocore.demo.scan", "0.1.0", {"validate"}, 0.8},
         },
     };
 }
@@ -38,7 +38,8 @@ template <typename Function>
     const std::string encoded = serialize_pipeline_definition_document(definition);
     const auto decoded = parse_pipeline_definition_document(encoded);
     if (decoded.id != definition.id || decoded.name != definition.name ||
-        decoded.steps.size() != 2U || decoded.steps[1].depends_on != std::vector<std::string>{"validate"}) {
+        decoded.steps.size() != 2U || decoded.steps[0].plugin_version != "0.1.0" ||
+        decoded.steps[1].depends_on != std::vector<std::string>{"validate"}) {
         return false;
     }
 
@@ -54,6 +55,8 @@ template <typename Function>
                 .module_id = "org.biocore.demo.validate",
                 .plugin_id = "org.biocore.demo",
                 .plugin_version = "0.1.0",
+                .plugin_manifest_version = 2U,
+                .plugin_api_version = "1.0",
                 .module_type = "process",
                 .plugin_root_path = "/plugins/org.biocore.demo",
                 .executable_path = "/plugins/org.biocore.demo/bin/demo",
@@ -66,6 +69,8 @@ template <typename Function>
                 .module_id = "org.biocore.demo.scan",
                 .plugin_id = "org.biocore.demo",
                 .plugin_version = "0.1.0",
+                .plugin_manifest_version = 2U,
+                .plugin_api_version = "1.0",
                 .module_type = "process",
                 .plugin_root_path = "/plugins/org.biocore.demo",
                 .executable_path = "/plugins/org.biocore.demo/bin/demo",
@@ -79,29 +84,36 @@ template <typename Function>
         serialize_execution_plan_document(plan)
     );
     return decoded_plan.job_id == "job-1" && decoded_plan.job_revision == 4 &&
-           decoded_plan.steps[0].module_id == "org.biocore.demo.validate";
+           decoded_plan.steps[0].module_id == "org.biocore.demo.validate" &&
+           decoded_plan.steps[0].plugin_manifest_version == 2U &&
+           decoded_plan.steps[0].plugin_api_version == "1.0";
 }
 
 [[nodiscard]] bool strict_schema_contract() {
     return rejects([] {
                static_cast<void>(parse_pipeline_definition_document(
-                   R"({"schemaVersion":1,"id":"p","name":"P","version":"1","unknown":1,"steps":[{"id":"a","module":"m","dependsOn":[],"weight":1}]})"
+                   R"({"schemaVersion":1,"id":"org.biocore.p","name":"P","version":"1.0.0","steps":[{"id":"a","module":"org.biocore.demo.m","dependsOn":[],"weight":1}]})"
                ));
            }) &&
            rejects([] {
                static_cast<void>(parse_pipeline_definition_document(
-                   R"({"schemaVersion":1,"id":"p","id":"q","name":"P","version":"1","steps":[{"id":"a","module":"m","dependsOn":[],"weight":1}]})"
+                   R"({"schemaVersion":2,"id":"org.biocore.p","name":"P","version":"1.0.0","steps":[{"id":"a","module":"org.biocore.demo.m","dependsOn":[],"weight":1}]})"
+               ));
+           }) &&
+           rejects([] {
+               static_cast<void>(parse_pipeline_definition_document(
+                   R"({"schemaVersion":2,"id":"org.biocore.p","id":"org.biocore.q","name":"P","version":"1.0.0","steps":[{"id":"a","module":"org.biocore.demo.m","pluginVersion":"0.1.0","dependsOn":[],"weight":1}]})"
                ));
            }) &&
            rejects([] {
                static_cast<void>(parse_execution_plan_document(
-                   R"({"schemaVersion":2,"jobId":"j","jobRevision":0,"pipelineId":"p","pipelineVersion":"1","steps":[{"id":"a","module":"m","dependsOn":[],"weight":1}]})"
+                   R"({"schemaVersion":3,"jobId":"j","jobRevision":0,"pipelineId":"org.biocore.p","pipelineVersion":"1.0.0","steps":[]})"
                ));
            }) &&
            rejects([] {
-               std::string invalid = R"({"schemaVersion":1,"id":")";
+               std::string invalid = R"({"schemaVersion":2,"id":")";
                invalid.push_back(static_cast<char>(0xFF));
-               invalid += R"(","name":"P","version":"1","steps":[]})";
+               invalid += R"(","name":"P","version":"1.0.0","steps":[]})";
                static_cast<void>(parse_pipeline_definition_document(invalid));
            }) &&
            rejects([] {
