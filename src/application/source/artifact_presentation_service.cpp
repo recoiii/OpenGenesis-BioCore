@@ -235,6 +235,7 @@ PipelineExecutionReport ArtifactPresentationService::build_job_report(
         .started_at_utc = job->started_at_utc(),
         .finished_at_utc = job->finished_at_utc(),
         .revision = job->revision(),
+        .failure = job->failure(),
         .generated_at_utc = clock_.now_utc_iso8601(),
         .artifacts = list_for_job(job_id),
     };

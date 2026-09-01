@@ -45,6 +45,7 @@ using namespace biocore;
         .started_at_utc = std::string{"s"},
         .finished_at_utc = std::string{"f"},
         .revision = 7,
+        .failure = std::nullopt,
         .generated_at_utc = "g",
         .artifacts = {artifact()},
     };

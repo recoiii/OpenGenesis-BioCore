@@ -648,7 +648,14 @@ void WorkerRuntime::enforce_heartbeat_timeouts(
                     job_id,
                     domain::JobStatus::interrupted,
                     current->progress(),
-                    std::nullopt
+                    std::nullopt,
+                    JobFailureContext{
+                        .kind = domain::JobFailureKind::heartbeat_timeout,
+                        .message =
+                            "Worker heartbeat deadline expired; process termination was requested.",
+                        .exit_code = std::nullopt,
+                        .worker_timestamp_utc = std::nullopt,
+                    }
                 ));
                 state.timeout_persisted_interrupted = true;
                 if (output_artifact_cleanup_service_ != nullptr) {

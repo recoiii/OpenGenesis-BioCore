@@ -6,7 +6,7 @@ namespace biocore::infrastructure::sqlite {
 
 class SqliteConnection;
 
-inline constexpr std::int32_t latest_project_schema_version = 6;
+inline constexpr std::int32_t latest_project_schema_version = 7;
 
 class ProjectMigrationRunner final {
 public:

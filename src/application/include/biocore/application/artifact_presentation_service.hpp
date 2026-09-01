@@ -6,6 +6,7 @@
 #include <string_view>
 #include <vector>
 
+#include "biocore/domain/job_failure.hpp"
 #include "biocore/domain/job_priority.hpp"
 #include "biocore/domain/job_status.hpp"
 
@@ -54,6 +55,7 @@ struct PipelineExecutionReport final {
     std::optional<std::string> started_at_utc;
     std::optional<std::string> finished_at_utc;
     std::int64_t revision{0};
+    std::optional<domain::JobFailure> failure;
     std::string generated_at_utc;
     std::vector<ArtifactMetadata> artifacts;
 };

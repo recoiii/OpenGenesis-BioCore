@@ -351,7 +351,16 @@ WorkerEventIngestionResult WorkerEventIngestionSession::ingest(
                     throw lifecycle_error(expected_job_id_, "Failed event is invalid for the current job state");
                 }
                 result.persisted_job = job_service_.transition(
-                    expected_job_id_, domain::JobStatus::failed, current.progress(), std::nullopt
+                    expected_job_id_,
+                    domain::JobStatus::failed,
+                    current.progress(),
+                    std::nullopt,
+                    JobFailureContext{
+                        .kind = domain::JobFailureKind::worker_reported_failure,
+                        .message = *event.message,
+                        .exit_code = event.exit_code,
+                        .worker_timestamp_utc = event.worker_timestamp_utc,
+                    }
                 );
                 terminal_received_ = true;
                 terminal_exit_code_ = *event.exit_code;
@@ -415,9 +424,22 @@ WorkerProcessFinalizationResult WorkerEventIngestionSession::finalize_process_ex
     const domain::JobStatus target = current.status() == domain::JobStatus::cancelling
                                          ? domain::JobStatus::cancelled
                                          : domain::JobStatus::interrupted;
-    auto finalized = job_service_.transition(
-        expected_job_id_, target, current.progress(), std::nullopt
-    );
+    auto finalized = current.status() == domain::JobStatus::cancelling
+                         ? job_service_.transition(
+                               expected_job_id_, target, current.progress(), std::nullopt
+                           )
+                         : job_service_.transition(
+                               expected_job_id_,
+                               target,
+                               current.progress(),
+                               std::nullopt,
+                               JobFailureContext{
+                                   .kind = domain::JobFailureKind::process_exit_without_terminal,
+                                   .message = "Worker process exited without a terminal lifecycle event.",
+                                   .exit_code = exit_code,
+                                   .worker_timestamp_utc = std::nullopt,
+                               }
+                           );
     terminal_received_ = true;
     process_finalized_ = true;
     terminal_exit_code_ = exit_code;

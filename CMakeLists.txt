@@ -79,6 +79,19 @@ if(BIOCORE_BUILD_TESTS)
         NAME infrastructure.project_database_guard
         COMMAND biocore-project-database-guard-tests
     )
+
+    add_executable(
+        biocore-job-failure-diagnostics-tests
+        tests/job_failure_diagnostics_tests.cpp
+    )
+    target_link_libraries(
+        biocore-job-failure-diagnostics-tests
+        PRIVATE BioCore::infrastructure BioCore::project_warnings BioCore::sanitizers
+    )
+    add_test(
+        NAME integration.job_failure_diagnostics
+        COMMAND biocore-job-failure-diagnostics-tests
+    )
 endif()
 
 if(WIN32)

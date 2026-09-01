@@ -6,6 +6,7 @@
 #include <vector>
 
 #include "biocore/domain/job.hpp"
+#include "biocore/domain/job_failure.hpp"
 #include "biocore/domain/job_priority.hpp"
 #include "biocore/domain/job_status.hpp"
 
@@ -22,6 +23,13 @@ struct CreateJobRequest final {
     domain::JobPriority priority{domain::JobPriority::normal};
 };
 
+struct JobFailureContext final {
+    domain::JobFailureKind kind{domain::JobFailureKind::unspecified_terminal_failure};
+    std::string message;
+    std::optional<std::int64_t> exit_code;
+    std::optional<std::string> worker_timestamp_utc;
+};
+
 class JobService final {
 public:
     static constexpr int maximum_identifier_attempts = 8;
@@ -33,7 +41,8 @@ public:
         std::string_view job_id,
         domain::JobStatus target,
         double progress,
-        std::optional<std::string> active_step_id
+        std::optional<std::string> active_step_id,
+        std::optional<JobFailureContext> failure = std::nullopt
     );
     [[nodiscard]] domain::Job update_progress(
         std::string_view job_id,

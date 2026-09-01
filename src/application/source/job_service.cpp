@@ -52,7 +52,8 @@ domain::Job JobService::transition(
     const std::string_view job_id,
     const domain::JobStatus target,
     const double progress,
-    std::optional<std::string> active_step_id
+    std::optional<std::string> active_step_id,
+    std::optional<JobFailureContext> failure
 ) {
     auto job = repository_.find_by_id(job_id);
     if (!job.has_value()) {
@@ -64,7 +65,20 @@ domain::Job JobService::transition(
     }
 
     const std::int64_t expected_revision = job->revision();
-    job->transition_to(target, progress, std::move(active_step_id), clock_.now_utc_iso8601());
+    const std::string transition_at = clock_.now_utc_iso8601();
+    std::optional<domain::JobFailure> failure_evidence;
+    if (failure.has_value()) {
+        failure_evidence.emplace(
+            failure->kind,
+            std::move(failure->message),
+            failure->exit_code,
+            std::move(failure->worker_timestamp_utc),
+            transition_at
+        );
+    }
+    job->transition_to(
+        target, progress, std::move(active_step_id), transition_at, std::move(failure_evidence)
+    );
 
     if (!repository_.update_runtime_state(*job, expected_revision)) {
         throw JobServiceError{

@@ -157,7 +157,7 @@ using biocore::infrastructure::sqlite::SqliteError;
         INSERT INTO schema_migrations(version, name, applied_at_utc)
         VALUES (6, 'associate_prepared_job_execution_plans', 't');
         INSERT INTO schema_migrations(version, name, applied_at_utc)
-        VALUES (7, 'future_schema', 't');
+        VALUES (8, 'future_schema', 't');
     )sql");
 
     ProjectDatabaseGuard guard{connection};

@@ -5,6 +5,7 @@ target_sources(
     biocore-domain
     PRIVATE
         source/job.cpp
+        source/job_failure.cpp
         source/job_priority.cpp
         source/job_status.cpp
         source/managed_file.cpp
@@ -21,6 +22,7 @@ target_sources(
         BASE_DIRS include
         FILES
             include/biocore/domain/job.hpp
+            include/biocore/domain/job_failure.hpp
             include/biocore/domain/job_priority.hpp
             include/biocore/domain/job_status.hpp
             include/biocore/domain/managed_file.hpp

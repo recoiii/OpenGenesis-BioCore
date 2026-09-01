@@ -308,6 +308,113 @@ void apply_version_six(SqliteConnection& connection) {
     )sql");
 }
 
+void apply_version_seven(SqliteConnection& connection) {
+    connection.execute(R"sql(
+        ALTER TABLE jobs ADD COLUMN failure_kind TEXT
+            CHECK(failure_kind IS NULL OR failure_kind IN (
+                'worker_reported_failure',
+                'process_exit_without_terminal',
+                'heartbeat_timeout',
+                'startup_recovery',
+                'unspecified_terminal_failure',
+                'legacy_terminal_state'
+            ));
+        ALTER TABLE jobs ADD COLUMN failure_message TEXT
+            CHECK(failure_message IS NULL OR (
+                length(trim(failure_message)) >= 1 AND
+                length(CAST(failure_message AS BLOB)) <= 16384 AND
+                instr(failure_message, char(0)) = 0
+            ));
+        ALTER TABLE jobs ADD COLUMN failure_exit_code INTEGER
+            CHECK(failure_exit_code IS NULL OR failure_exit_code >= 0);
+        ALTER TABLE jobs ADD COLUMN failure_worker_timestamp_utc TEXT
+            CHECK(failure_worker_timestamp_utc IS NULL OR (
+                length(trim(failure_worker_timestamp_utc)) >= 1 AND
+                length(CAST(failure_worker_timestamp_utc AS BLOB)) <= 200 AND
+                instr(failure_worker_timestamp_utc, char(0)) = 0
+            ));
+        ALTER TABLE jobs ADD COLUMN failure_recorded_at_utc TEXT
+            CHECK(failure_recorded_at_utc IS NULL OR (
+                length(trim(failure_recorded_at_utc)) >= 1 AND
+                length(CAST(failure_recorded_at_utc AS BLOB)) <= 200 AND
+                instr(failure_recorded_at_utc, char(0)) = 0
+            ));
+
+        UPDATE jobs
+        SET failure_kind = 'legacy_terminal_state',
+            failure_message = 'Terminal state predates structured failure evidence.',
+            failure_recorded_at_utc = COALESCE(finished_at_utc, updated_at_utc)
+        WHERE status IN ('failed', 'interrupted');
+
+        CREATE TRIGGER jobs_validate_failure_evidence_insert
+        BEFORE INSERT ON jobs
+        WHEN (
+            (NEW.status IN ('failed', 'interrupted') AND (
+                NEW.failure_kind IS NULL OR NEW.failure_message IS NULL OR
+                NEW.failure_recorded_at_utc IS NULL
+            )) OR
+            (NEW.status NOT IN ('failed', 'interrupted') AND (
+                NEW.failure_kind IS NOT NULL OR NEW.failure_message IS NOT NULL OR
+                NEW.failure_exit_code IS NOT NULL OR
+                NEW.failure_worker_timestamp_utc IS NOT NULL OR
+                NEW.failure_recorded_at_utc IS NOT NULL
+            )) OR
+            (NEW.failure_kind = 'worker_reported_failure' AND (
+                NEW.status != 'failed' OR NEW.failure_exit_code IS NULL OR
+                NEW.failure_exit_code = 0 OR NEW.failure_worker_timestamp_utc IS NULL
+            )) OR
+            (NEW.failure_kind = 'process_exit_without_terminal' AND (
+                NEW.status != 'interrupted' OR NEW.failure_exit_code IS NULL OR
+                NEW.failure_worker_timestamp_utc IS NOT NULL
+            )) OR
+            (NEW.failure_kind IN ('heartbeat_timeout', 'startup_recovery') AND
+                NEW.status != 'interrupted') OR
+            (NEW.failure_kind NOT IN ('worker_reported_failure', 'process_exit_without_terminal') AND
+                NEW.failure_exit_code IS NOT NULL) OR
+            (NEW.failure_kind != 'worker_reported_failure' AND
+                NEW.failure_worker_timestamp_utc IS NOT NULL)
+        )
+        BEGIN
+            SELECT RAISE(ABORT, 'job failure evidence does not match terminal job state');
+        END;
+
+        CREATE TRIGGER jobs_validate_failure_evidence_update
+        BEFORE UPDATE ON jobs
+        WHEN (
+            (NEW.status IN ('failed', 'interrupted') AND (
+                NEW.failure_kind IS NULL OR NEW.failure_message IS NULL OR
+                NEW.failure_recorded_at_utc IS NULL
+            )) OR
+            (NEW.status NOT IN ('failed', 'interrupted') AND (
+                NEW.failure_kind IS NOT NULL OR NEW.failure_message IS NOT NULL OR
+                NEW.failure_exit_code IS NOT NULL OR
+                NEW.failure_worker_timestamp_utc IS NOT NULL OR
+                NEW.failure_recorded_at_utc IS NOT NULL
+            )) OR
+            (NEW.failure_kind = 'worker_reported_failure' AND (
+                NEW.status != 'failed' OR NEW.failure_exit_code IS NULL OR
+                NEW.failure_exit_code = 0 OR NEW.failure_worker_timestamp_utc IS NULL
+            )) OR
+            (NEW.failure_kind = 'process_exit_without_terminal' AND (
+                NEW.status != 'interrupted' OR NEW.failure_exit_code IS NULL OR
+                NEW.failure_worker_timestamp_utc IS NOT NULL
+            )) OR
+            (NEW.failure_kind IN ('heartbeat_timeout', 'startup_recovery') AND
+                NEW.status != 'interrupted') OR
+            (NEW.failure_kind NOT IN ('worker_reported_failure', 'process_exit_without_terminal') AND
+                NEW.failure_exit_code IS NOT NULL) OR
+            (NEW.failure_kind != 'worker_reported_failure' AND
+                NEW.failure_worker_timestamp_utc IS NOT NULL)
+        )
+        BEGIN
+            SELECT RAISE(ABORT, 'job failure evidence does not match terminal job state');
+        END;
+
+        INSERT INTO schema_migrations(version, name, applied_at_utc)
+        VALUES (7, 'persist_structured_job_failure_evidence', strftime('%Y-%m-%dT%H:%M:%fZ', 'now'));
+    )sql");
+}
+
 }  // namespace
 
 ProjectMigrationRunner::ProjectMigrationRunner(SqliteConnection& connection) noexcept
@@ -349,6 +456,9 @@ void ProjectMigrationRunner::apply_pending() {
     }
     if (version < 6) {
         apply_version_six(connection_);
+    }
+    if (version < 7) {
+        apply_version_seven(connection_);
     }
     transaction.commit();
 }

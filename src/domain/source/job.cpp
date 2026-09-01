@@ -63,7 +63,8 @@ Job::Job(
     std::string updated_at_utc,
     std::optional<std::string> started_at_utc,
     std::optional<std::string> finished_at_utc,
-    const std::int64_t revision
+    const std::int64_t revision,
+    std::optional<JobFailure> failure
 )
     : id_{std::move(id)},
       analysis_id_{std::move(analysis_id)},
@@ -77,7 +78,8 @@ Job::Job(
       updated_at_utc_{std::move(updated_at_utc)},
       started_at_utc_{std::move(started_at_utc)},
       finished_at_utc_{std::move(finished_at_utc)},
-      revision_{revision} {
+      revision_{revision},
+      failure_{std::move(failure)} {
     require_text(id_, "Job id", maximum_id_length);
     require_optional_text(analysis_id_, "Job analysis id", maximum_id_length);
     require_optional_text(pipeline_id_, "Job pipeline id", maximum_metadata_length);
@@ -103,6 +105,9 @@ Job::Job(
     }
     if (is_terminal(status_) && active_step_id_.has_value()) {
         throw std::invalid_argument("Terminal jobs must not have an active step");
+    }
+    if (failure_.has_value() && status_ != JobStatus::failed && status_ != JobStatus::interrupted) {
+        throw std::invalid_argument("Failure evidence is only valid for failed or interrupted jobs");
     }
 
     const bool requires_start_timestamp =
@@ -167,6 +172,10 @@ std::int64_t Job::revision() const noexcept {
     return revision_;
 }
 
+const std::optional<JobFailure>& Job::failure() const noexcept {
+    return failure_;
+}
+
 void Job::update_progress(
     const double progress,
     std::optional<std::string> active_step_id,
@@ -195,7 +204,8 @@ void Job::transition_to(
     const JobStatus target,
     const double progress,
     std::optional<std::string> active_step_id,
-    std::string transition_at_utc
+    std::string transition_at_utc,
+    std::optional<JobFailure> failure
 ) {
     if (!can_transition(status_, target)) {
         throw std::invalid_argument("Invalid job status transition");
@@ -206,6 +216,19 @@ void Job::transition_to(
 
     if (target == JobStatus::completed && progress != 1.0) {
         throw std::invalid_argument("Completed jobs must have progress 1");
+    }
+    const bool failure_target = target == JobStatus::failed || target == JobStatus::interrupted;
+    if (!failure_target && failure.has_value()) {
+        throw std::invalid_argument("Failure evidence is only valid for failed or interrupted transitions");
+    }
+    if (failure_target && !failure.has_value()) {
+        failure = JobFailure{
+            JobFailureKind::unspecified_terminal_failure,
+            "Terminal job state was persisted without a more specific runtime diagnostic.",
+            std::nullopt,
+            std::nullopt,
+            transition_at_utc,
+        };
     }
     if (revision_ == std::numeric_limits<std::int64_t>::max()) {
         throw std::overflow_error("Job revision cannot be incremented");
@@ -227,6 +250,7 @@ void Job::transition_to(
 
     status_ = target;
     progress_ = progress;
+    failure_ = failure_target ? std::move(failure) : std::nullopt;
     updated_at_utc_ = std::move(transition_at_utc);
     ++revision_;
 }

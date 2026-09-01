@@ -6,6 +6,7 @@
 #include <string>
 #include <string_view>
 
+#include "biocore/domain/job_failure.hpp"
 #include "biocore/domain/job_priority.hpp"
 #include "biocore/domain/job_status.hpp"
 
@@ -29,7 +30,8 @@ public:
         std::string updated_at_utc,
         std::optional<std::string> started_at_utc,
         std::optional<std::string> finished_at_utc,
-        std::int64_t revision
+        std::int64_t revision,
+        std::optional<JobFailure> failure = std::nullopt
     );
 
     [[nodiscard]] std::string_view id() const noexcept;
@@ -45,6 +47,7 @@ public:
     [[nodiscard]] const std::optional<std::string>& started_at_utc() const noexcept;
     [[nodiscard]] const std::optional<std::string>& finished_at_utc() const noexcept;
     [[nodiscard]] std::int64_t revision() const noexcept;
+    [[nodiscard]] const std::optional<JobFailure>& failure() const noexcept;
 
     void update_progress(
         double progress,
@@ -56,7 +59,8 @@ public:
         JobStatus target,
         double progress,
         std::optional<std::string> active_step_id,
-        std::string transition_at_utc
+        std::string transition_at_utc,
+        std::optional<JobFailure> failure = std::nullopt
     );
 
 private:
@@ -73,6 +77,7 @@ private:
     std::optional<std::string> started_at_utc_;
     std::optional<std::string> finished_at_utc_;
     std::int64_t revision_;
+    std::optional<JobFailure> failure_;
 };
 
 }  // namespace biocore::domain

@@ -78,7 +78,17 @@ ProjectRecoveryResult ProjectRecoveryService::recover() {
 
             try {
                 const auto interrupted = job_service_.transition(
-                    snapshot.id(), domain::JobStatus::interrupted, recovered_progress, std::nullopt
+                    snapshot.id(),
+                    domain::JobStatus::interrupted,
+                    recovered_progress,
+                    std::nullopt,
+                    JobFailureContext{
+                        .kind = domain::JobFailureKind::startup_recovery,
+                        .message =
+                            "Project startup recovered a stale worker-owned job after an earlier process exit or crash.",
+                        .exit_code = std::nullopt,
+                        .worker_timestamp_utc = std::nullopt,
+                    }
                 );
                 result.recovered_jobs.push_back(RecoveredJob{
                     .job_id = std::string{snapshot.id()},

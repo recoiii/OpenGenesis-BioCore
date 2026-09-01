@@ -40,7 +40,7 @@ int main() {
     biocore::infrastructure::sqlite::SqliteConnection connection{db};
     biocore::infrastructure::sqlite::ProjectMigrationRunner migrations{connection};
     migrations.apply_pending();
-    require(migrations.current_version() == 6, "schema v6 required");
+    require(migrations.current_version() == 7, "schema v7 required");
     biocore::infrastructure::sqlite::SqlitePreparedJobStore prepared{connection};
     biocore::infrastructure::sqlite::SqliteJobRepository jobs{connection};
 
@@ -76,7 +76,7 @@ int main() {
     } catch (...) {
         trigger_rejected = true;
     }
-    require(trigger_rejected, "schema v6 trigger must reject mismatched direct prepared-plan insertion");
+    require(trigger_rejected, "prepared-plan trigger must reject mismatched direct prepared-plan insertion");
     require(!prepared.find_execution("job-c").has_value(), "rejected direct insertion must leave no prepared association");
 
     std::error_code error;

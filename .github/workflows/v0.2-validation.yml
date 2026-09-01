@@ -11,8 +11,8 @@ on:
   workflow_dispatch:
 
 env:
-  BIOCORE_ITERATION: "046"
-  BIOCORE_TEST_FLOOR: "68"
+  BIOCORE_ITERATION: "047"
+  BIOCORE_TEST_FLOOR: "69"
 
 permissions:
   contents: read
@@ -65,6 +65,47 @@ jobs:
           actual="$(build/linux-gcc-debug/apps/biocore/biocore --version)"
           test "${actual}" = "0.2.0-dev"
           echo "Development identity: ${actual}"
+
+      - name: Verify browser failure evidence contract
+        if: matrix.preset == 'linux-gcc-debug'
+        shell: bash
+        run: |
+          node --check frontend/assets/app.js
+          node - <<'JS'
+          const { core } = require('./frontend/assets/app.js');
+          const normalized = core.normalizeJob({
+            id: 'failure-ui',
+            status: 'failed',
+            failure: {
+              kind: 'worker_reported_failure',
+              message: 'worker failed',
+              exitCode: 17,
+              workerTimestampUtc: '2026-09-01T08:00:00Z',
+              recordedAtUtc: '2026-09-01T08:00:01Z'
+            }
+          });
+          if (!normalized || normalized.failure?.exitCode !== 17 ||
+              normalized.failure?.message !== 'worker failed') process.exit(1);
+          const state = {
+            jobs: new Map([['failure-ui', { ...normalized, status: 'running', failure: null }]]),
+            logs: new Map(),
+            cursors: new Map()
+          };
+          const result = core.applyLifecycle(state, {
+            type: 'worker.lifecycle',
+            eventType: 'failed',
+            jobId: 'failure-ui',
+            launchRevision: 1,
+            sequence: 1,
+            workerTimestampUtc: '2026-09-01T08:00:02Z',
+            message: 'terminal failure',
+            exitCode: 9
+          });
+          if (!result.accepted ||
+              state.jobs.get('failure-ui').failure?.kind !== 'worker_reported_failure' ||
+              state.jobs.get('failure-ui').failure?.exitCode !== 9) process.exit(2);
+          console.log('Browser failure evidence contract PASS');
+          JS
 
       - name: Guard development preset identities
         if: matrix.preset == 'linux-gcc-debug'
