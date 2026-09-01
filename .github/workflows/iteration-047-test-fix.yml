@@ -10,7 +10,6 @@ permissions:
 
 jobs:
   apply-corrections:
-    if: github.event.head_commit.message == 'Iteration 047: stage CI fixture corrections'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v5
