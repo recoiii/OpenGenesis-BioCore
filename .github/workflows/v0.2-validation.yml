@@ -11,8 +11,8 @@ on:
   workflow_dispatch:
 
 env:
-  BIOCORE_ITERATION: "049"
-  BIOCORE_TEST_FLOOR: "71"
+  BIOCORE_ITERATION: "050"
+  BIOCORE_TEST_FLOOR: "72"
 
 permissions:
   contents: read
@@ -106,6 +106,36 @@ jobs:
               state.jobs.get('failure-ui').failure?.exitCode !== 9) process.exit(2);
           console.log('Browser failure evidence contract PASS');
           JS
+
+      - name: Verify exact pipeline plugin-version pins
+        if: matrix.preset == 'linux-gcc-debug'
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          module_versions = {}
+          for manifest_path in Path('plugins').glob('*/plugin.json'):
+              manifest = json.loads(manifest_path.read_text(encoding='utf-8'))
+              for module in manifest['modules']:
+                  module_versions[module['id']] = manifest['version']
+
+          pipelines = sorted(Path('pipelines').glob('*.json'))
+          if len(pipelines) != 12:
+              raise SystemExit(f'Expected 12 bundled pipelines; found {len(pipelines)}')
+
+          for path in pipelines:
+              document = json.loads(path.read_text(encoding='utf-8'))
+              if document.get('schemaVersion') != 2:
+                  raise SystemExit(f'{path}: expected pipeline schema v2')
+              for step in document['steps']:
+                  expected = module_versions.get(step['module'])
+                  if expected is None or step.get('pluginVersion') != expected:
+                      raise SystemExit(f"{path}: plugin pin mismatch for {step['module']}")
+
+          print('Pipeline plugin-version pin contract PASS')
+          PY
 
       - name: Guard development preset identities
         if: matrix.preset == 'linux-gcc-debug'
