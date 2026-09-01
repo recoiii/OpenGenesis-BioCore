@@ -169,7 +169,8 @@ public:
         found->checksum_algorithm != std::optional<std::string>{"sha256"} ||
         found->checksum_value != std::optional<std::string>{std::string{checksum}} ||
         report.job_id != "job-1" || report.status != domain::JobStatus::completed ||
-        report.priority != domain::JobPriority::high || report.artifacts.size() != 2U ||
+        report.priority != domain::JobPriority::high || report.attempt_number != 1U ||
+        report.artifacts.size() != 2U ||
         report.generated_at_utc != "2026-08-07T12:30:00Z") {
         return false;
     }

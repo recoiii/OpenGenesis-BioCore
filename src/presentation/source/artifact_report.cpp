@@ -142,7 +142,7 @@ std::string render_pipeline_execution_report_json(
     artifacts += ']';
 
     return "{" +
-           std::string{"\"schemaVersion\":1,\"jobId\":"} + quote_json(report.job_id) +
+           std::string{"\"schemaVersion\":2,\"jobId\":"} + quote_json(report.job_id) +
            ",\"analysisId\":" + optional_json(report.analysis_id) +
            ",\"pipelineId\":" + optional_json(report.pipeline_id) +
            ",\"pipelineVersion\":" + optional_json(report.pipeline_version) +
@@ -155,8 +155,30 @@ std::string render_pipeline_execution_report_json(
            ",\"startedAtUtc\":" + optional_json(report.started_at_utc) +
            ",\"finishedAtUtc\":" + optional_json(report.finished_at_utc) +
            ",\"revision\":" + std::to_string(report.revision) +
+           ",\"attemptNumber\":" + std::to_string(report.attempt_number) +
            ",\"failure\":" + failure_json(report.failure) +
            ",\"generatedAtUtc\":" + quote_json(report.generated_at_utc) +
+           ",\"artifacts\":" + artifacts + "}";
+}
+
+std::string render_pipeline_export_manifest_json(
+    const application::PipelineExportManifest& manifest
+) {
+    std::string artifacts{"["};
+    for (std::size_t index = 0U; index < manifest.artifacts.size(); ++index) {
+        if (index != 0U) artifacts += ',';
+        const auto& entry = manifest.artifacts[index];
+        artifacts += "{\"metadata\":" + render_artifact_metadata_json(entry.metadata) +
+                     ",\"verifiedSha256\":" + quote_json(entry.verified_sha256) + "}";
+    }
+    artifacts += ']';
+    return "{" +
+           std::string{"\"schemaVersion\":"} + std::to_string(manifest.schema_version) +
+           ",\"producer\":{\"name\":\"OpenGenesis-BioCore\",\"version\":" +
+           quote_json(manifest.producer_version) + "}" +
+           ",\"stableSnapshot\":" + (manifest.stable_snapshot ? "true" : "false") +
+           ",\"artifactCount\":" + std::to_string(manifest.artifacts.size()) +
+           ",\"report\":" + render_pipeline_execution_report_json(manifest.report) +
            ",\"artifacts\":" + artifacts + "}";
 }
 
@@ -178,7 +200,8 @@ std::string render_pipeline_execution_report_html(
            "</title></head><body><main><h1>OpenGenesis-BioCore Pipeline Report</h1><dl><dt>Job</dt><dd>" +
             escape_html(report.job_id) + "</dd><dt>Status</dt><dd>" +
             escape_html(domain::to_string(report.status)) + "</dd><dt>Pipeline</dt><dd>" +
-           optional_html(report.pipeline_id) + "</dd>" + failure_html(report.failure) +
+           optional_html(report.pipeline_id) + "</dd><dt>Attempt</dt><dd>" +
+           std::to_string(report.attempt_number) + "</dd>" + failure_html(report.failure) +
            "<dt>Generated</dt><dd>" + escape_html(report.generated_at_utc) +
            "</dd></dl><table><thead><tr><th>Step</th><th>Port</th><th>File</th><th>Type</th>"
            "<th>Bytes</th><th>SHA-256</th></tr></thead><tbody>" +

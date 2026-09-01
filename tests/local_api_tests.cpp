@@ -663,8 +663,15 @@ int main() {
     require(artifacts_response.body.find("/secret/project") == std::string::npos, "absolute content path must not leak into artifact JSON");
 
     const auto report_json = api.handle({.method = biocore::presentation::HttpMethod::get, .target = "/api/v1/jobs/job-a/report.json", .authorization = auth, .body = {}});
-    require(report_json.status == 200 && report_json.body.find("\"schemaVersion\":1") != std::string::npos, "JSON report route");
+    require(report_json.status == 200 && report_json.body.find("\"schemaVersion\":2") != std::string::npos, "JSON report route");
+    require(report_json.body.find("\"attemptNumber\":1") != std::string::npos, "report attempt identity");
     require(report_json.body.find("/secret/project") == std::string::npos, "report must not expose absolute content path");
+
+    const auto export_manifest = api.handle({.method = biocore::presentation::HttpMethod::get, .target = "/api/v1/jobs/job-a/export-manifest.json", .authorization = auth, .body = {}});
+    require(export_manifest.status == 200, "export manifest route");
+    require(export_manifest.body.find("\"stableSnapshot\":true") != std::string::npos, "completed export must be stable");
+    require(export_manifest.body.find("\"verifiedSha256\":\"aaaaaaaa") != std::string::npos, "export must contain verified digest");
+    require(export_manifest.body.find("/secret/project") == std::string::npos, "export manifest must not expose absolute content path");
 
     const auto download = api.handle({.method = biocore::presentation::HttpMethod::get, .target = "/api/v1/jobs/job-a/artifacts/step-a/result/download", .authorization = auth, .body = {}});
     require(download.status == 200 && download.file.has_value(), "download descriptor");

@@ -1183,6 +1183,9 @@ if (path.size() == 6U && path[2] == "files" && path[3] == "uploads" &&
             if (path.size() == 5U && path[4] == "report.json" && request.method == HttpMethod::get) {
                 return json_response(200, render_pipeline_execution_report_json(artifacts_.build_job_report(job_id)));
             }
+            if (path.size() == 5U && path[4] == "export-manifest.json" && request.method == HttpMethod::get) {
+                return json_response(200, render_pipeline_export_manifest_json(artifacts_.build_job_export_manifest(job_id)));
+            }
             if (path.size() == 5U && path[4] == "report.html" && request.method == HttpMethod::get) {
                 LocalHttpResponse response;
                 response.status = 200;

@@ -41,6 +41,11 @@ struct ArtifactDownloadDescriptor final {
     std::string verified_sha256;
 };
 
+struct ArtifactExportEntry final {
+    ArtifactMetadata metadata;
+    std::string verified_sha256;
+};
+
 struct PipelineExecutionReport final {
     std::string job_id;
     std::optional<std::string> analysis_id;
@@ -55,9 +60,19 @@ struct PipelineExecutionReport final {
     std::optional<std::string> started_at_utc;
     std::optional<std::string> finished_at_utc;
     std::int64_t revision{0};
+    std::int64_t attempt_number{1};
     std::optional<domain::JobFailure> failure;
     std::string generated_at_utc;
     std::vector<ArtifactMetadata> artifacts;
+};
+
+struct PipelineExportManifest final {
+    static constexpr std::uint32_t current_schema_version = 1U;
+    std::uint32_t schema_version{current_schema_version};
+    std::string producer_version;
+    bool stable_snapshot{false};
+    PipelineExecutionReport report;
+    std::vector<ArtifactExportEntry> artifacts;
 };
 
 class ArtifactPresentationService final {
@@ -85,6 +100,7 @@ public:
         std::string_view output_port
     );
     [[nodiscard]] PipelineExecutionReport build_job_report(std::string_view job_id);
+    [[nodiscard]] PipelineExportManifest build_job_export_manifest(std::string_view job_id);
 
 private:
     IManagedFileRepository& managed_files_;

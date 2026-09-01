@@ -131,6 +131,19 @@ if(BIOCORE_BUILD_TESTS)
         NAME integration.plugin_pipeline_contract_hardening
         COMMAND biocore-plugin-pipeline-contract-hardening-tests
     )
+
+    add_executable(
+        biocore-export-report-foundation-tests
+        tests/export_report_foundation_tests.cpp
+    )
+    target_link_libraries(
+        biocore-export-report-foundation-tests
+        PRIVATE BioCore::application BioCore::presentation BioCore::project_warnings BioCore::sanitizers
+    )
+    add_test(
+        NAME integration.export_report_foundation
+        COMMAND biocore-export-report-foundation-tests
+    )
 endif()
 
 if(WIN32)

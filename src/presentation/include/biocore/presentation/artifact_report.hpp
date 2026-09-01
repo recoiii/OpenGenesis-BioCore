@@ -15,5 +15,8 @@ namespace biocore::presentation {
 [[nodiscard]] std::string render_pipeline_execution_report_html(
     const application::PipelineExecutionReport& report
 );
+[[nodiscard]] std::string render_pipeline_export_manifest_json(
+    const application::PipelineExportManifest& manifest
+);
 
 }  // namespace biocore::presentation

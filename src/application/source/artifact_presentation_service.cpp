@@ -7,6 +7,7 @@
 #include <utility>
 
 #include "biocore/application/artifact_presentation_service_error.hpp"
+#include "biocore/application/build_info.hpp"
 #include "biocore/application/generated_output_artifact.hpp"
 #include "biocore/application/i_artifact_content_access.hpp"
 #include "biocore/application/i_job_repository.hpp"
@@ -59,6 +60,11 @@ void sort_metadata(std::vector<ArtifactMetadata>& artifacts) {
         if (left.output_port != right.output_port) return left.output_port < right.output_port;
         return left.managed_file_id < right.managed_file_id;
     });
+}
+
+[[nodiscard]] bool stable_export_status(const domain::JobStatus status) noexcept {
+    return status == domain::JobStatus::completed || status == domain::JobStatus::failed ||
+           status == domain::JobStatus::cancelled || status == domain::JobStatus::interrupted;
 }
 
 [[noreturn]] void throw_job_not_found() {
@@ -235,9 +241,36 @@ PipelineExecutionReport ArtifactPresentationService::build_job_report(
         .started_at_utc = job->started_at_utc(),
         .finished_at_utc = job->finished_at_utc(),
         .revision = job->revision(),
+        .attempt_number = job->attempt_number(),
         .failure = job->failure(),
         .generated_at_utc = clock_.now_utc_iso8601(),
         .artifacts = list_for_job(job_id),
+    };
+}
+
+PipelineExportManifest ArtifactPresentationService::build_job_export_manifest(
+    const std::string_view job_id
+) {
+    PipelineExecutionReport report = build_job_report(job_id);
+    std::vector<ArtifactExportEntry> entries;
+    entries.reserve(report.artifacts.size());
+    for (const auto& metadata : report.artifacts) {
+        auto descriptor = prepare_download(job_id, metadata.step_id, metadata.output_port);
+        if (descriptor.metadata.managed_file_id != metadata.managed_file_id ||
+            descriptor.metadata.relative_project_path != metadata.relative_project_path) {
+            throw std::runtime_error("Artifact identity changed while building export manifest");
+        }
+        entries.push_back(ArtifactExportEntry{
+            .metadata = std::move(descriptor.metadata),
+            .verified_sha256 = std::move(descriptor.verified_sha256),
+        });
+    }
+    return PipelineExportManifest{
+        .schema_version = PipelineExportManifest::current_schema_version,
+        .producer_version = std::string{BuildInfo::version()},
+        .stable_snapshot = stable_export_status(report.status),
+        .report = std::move(report),
+        .artifacts = std::move(entries),
     };
 }
 

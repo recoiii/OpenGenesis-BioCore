@@ -45,6 +45,7 @@ using namespace biocore;
         .started_at_utc = std::string{"s"},
         .finished_at_utc = std::string{"f"},
         .revision = 7,
+        .attempt_number = 2U,
         .failure = std::nullopt,
         .generated_at_utc = "g",
         .artifacts = {artifact()},
@@ -69,7 +70,8 @@ using namespace biocore;
     const auto json = presentation::render_pipeline_execution_report_json(report());
     const auto artifact_json = presentation::render_artifact_metadata_json(artifact());
     const auto failed_json = presentation::render_pipeline_execution_report_json(failure_report());
-    return json.starts_with("{\"schemaVersion\":1") &&
+    return json.starts_with("{\"schemaVersion\":2") &&
+           json.find("\"attemptNumber\":2") != std::string::npos &&
            json.find("\"status\":\"completed\"") != std::string::npos &&
            json.find("\"failure\":null") != std::string::npos &&
            json.find("\"priority\":\"high\"") != std::string::npos &&
@@ -89,6 +91,7 @@ using namespace biocore;
            html.find("job-&lt;script&gt;alert(1)&lt;/script&gt;") != std::string::npos &&
            html.find("result&lt;unsafe&gt;&amp;&quot;.txt") != std::string::npos &&
            html.find("b6a98d9ce9a2d914") != std::string::npos &&
+           html.find("<dt>Attempt</dt><dd>2</dd>") != std::string::npos &&
            failed_html.find("malformed &lt;FASTQ&gt; &amp; invalid read") != std::string::npos &&
            failed_html.find("malformed <FASTQ>") == std::string::npos;
 }
