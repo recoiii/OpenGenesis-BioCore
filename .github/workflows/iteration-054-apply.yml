@@ -70,4 +70,5 @@ jobs:
           name: OpenGenesis-BioCore-iteration-054-candidate-files
           path: artifacts/iteration-054-candidate-files/
           if-no-files-found: error
+          include-hidden-files: true
           retention-days: 7
