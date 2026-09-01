@@ -66,6 +66,19 @@ add_subdirectory(apps/variant_annotation_plugin)
 
 if(BIOCORE_BUILD_TESTS)
     add_subdirectory(tests)
+
+    add_executable(
+        biocore-project-database-guard-tests
+        tests/project_database_guard_tests.cpp
+    )
+    target_link_libraries(
+        biocore-project-database-guard-tests
+        PRIVATE BioCore::infrastructure BioCore::project_warnings BioCore::sanitizers
+    )
+    add_test(
+        NAME infrastructure.project_database_guard
+        COMMAND biocore-project-database-guard-tests
+    )
 endif()
 
 if(WIN32)

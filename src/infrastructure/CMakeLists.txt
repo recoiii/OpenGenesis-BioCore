@@ -26,6 +26,7 @@ target_sources(
         source/windows_process_arguments.cpp
         source/worker_event_mapper.cpp
         source/sqlite/catalog_migration_runner.cpp
+        source/sqlite/project_database_guard.cpp
         source/sqlite/project_database_initializer.cpp
         source/sqlite/project_migration_runner.cpp
         source/sqlite/sqlite_connection.cpp
@@ -60,6 +61,7 @@ target_sources(
             include/biocore/infrastructure/windows_process_arguments.hpp
             include/biocore/infrastructure/worker_event_mapper.hpp
             include/biocore/infrastructure/sqlite/catalog_migration_runner.hpp
+            include/biocore/infrastructure/sqlite/project_database_guard.hpp
             include/biocore/infrastructure/sqlite/project_database_initializer.hpp
             include/biocore/infrastructure/sqlite/project_migration_runner.hpp
             include/biocore/infrastructure/sqlite/sqlite_connection.hpp

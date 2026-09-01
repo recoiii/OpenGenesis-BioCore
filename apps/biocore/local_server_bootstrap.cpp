@@ -28,6 +28,7 @@
 #include "biocore/infrastructure/monotonic_clock.hpp"
 #include "biocore/infrastructure/platform_worker_supervisor.hpp"
 #include "biocore/infrastructure/secure_token.hpp"
+#include "biocore/infrastructure/sqlite/project_database_guard.hpp"
 #include "biocore/infrastructure/sqlite/project_migration_runner.hpp"
 #include "biocore/infrastructure/sqlite/sqlite_connection.hpp"
 #include "biocore/infrastructure/sqlite/sqlite_job_repository.hpp"
@@ -211,8 +212,11 @@ int run_local_server(
     const auto project_database_path = root / ".biocore" / "project.sqlite";
     {
         infrastructure::sqlite::SqliteConnection migration_connection{project_database_path};
+        infrastructure::sqlite::ProjectDatabaseGuard database_guard{migration_connection};
+        database_guard.validate_before_migration();
         infrastructure::sqlite::ProjectMigrationRunner migrations{migration_connection};
         migrations.apply_pending();
+        database_guard.validate_current_schema();
     }
 
     // The HTTP adapter is intentionally single-threaded in Core 0.1 and owns a

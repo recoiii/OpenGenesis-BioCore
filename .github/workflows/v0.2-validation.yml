@@ -10,6 +10,10 @@ on:
       - v0.2.0-dev
   workflow_dispatch:
 
+env:
+  BIOCORE_ITERATION: "046"
+  BIOCORE_TEST_FLOOR: "68"
+
 permissions:
   contents: read
 
@@ -41,12 +45,12 @@ jobs:
       - name: Build
         run: cmake --build --preset "${{ matrix.preset }}" --parallel
 
-      - name: Preserve baseline test floor
+      - name: Preserve active test floor
         shell: bash
         run: |
           count="$(ctest --preset "${{ matrix.preset }}" -N | sed -n 's/^Total Tests: //p')"
-          if [[ -z "${count}" || "${count}" -lt 67 ]]; then
-            echo "Expected at least the 67-test v0.1 baseline; found '${count:-unknown}'." >&2
+          if [[ -z "${count}" || "${count}" -lt "${BIOCORE_TEST_FLOOR}" ]]; then
+            echo "Expected at least ${BIOCORE_TEST_FLOOR} tests (v0.1 baseline: 67); found '${count:-unknown}'." >&2
             exit 1
           fi
           echo "CTest count: ${count}"
@@ -109,12 +113,12 @@ jobs:
       - name: Build ASan + UBSan
         run: cmake --build build/linux-gcc-asan-ubsan --parallel
 
-      - name: Preserve baseline test floor
+      - name: Preserve active test floor
         shell: bash
         run: |
           count="$(ctest --test-dir build/linux-gcc-asan-ubsan -N | sed -n 's/^Total Tests: //p')"
-          if [[ -z "${count}" || "${count}" -lt 67 ]]; then
-            echo "Expected at least the 67-test v0.1 baseline; found '${count:-unknown}'." >&2
+          if [[ -z "${count}" || "${count}" -lt "${BIOCORE_TEST_FLOOR}" ]]; then
+            echo "Expected at least ${BIOCORE_TEST_FLOOR} tests (v0.1 baseline: 67); found '${count:-unknown}'." >&2
             exit 1
           fi
           echo "CTest count: ${count}"
@@ -140,7 +144,7 @@ jobs:
       - name: Generate exact four-part Markdown package
         run: |
           python3 scripts/generate-gemini-review.py \
-            --iteration 45 \
+            --iteration "${BIOCORE_ITERATION}" \
             --parts 4 \
             --ci-run-id "${{ github.run_id }}" \
             --output artifacts/gemini-review
@@ -151,12 +155,12 @@ jobs:
           mapfile -t parts < <(find artifacts/gemini-review -maxdepth 1 -type f -name '*-part-*-of-04.md' -print | sort)
           test "${#parts[@]}" -eq 4
           cd artifacts/gemini-review
-          sha256sum -c OpenGenesis-BioCore-iteration-045-GEMINI-review-SHA256SUMS.txt
+          sha256sum -c "OpenGenesis-BioCore-iteration-${BIOCORE_ITERATION}-GEMINI-review-SHA256SUMS.txt"
 
       - name: Upload Gemini review package
         uses: actions/upload-artifact@v4
         with:
-          name: OpenGenesis-BioCore-iteration-045-GEMINI-review
+          name: OpenGenesis-BioCore-iteration-${{ env.BIOCORE_ITERATION }}-GEMINI-review
           path: artifacts/gemini-review/
           if-no-files-found: error
           retention-days: 30
