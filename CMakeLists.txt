@@ -30,7 +30,7 @@ else()
     message(STATUS "OpenGenesis-BioCore local web server backend: unavailable (Drogon not found)")
 endif()
 
-set(BIOCORE_VERSION_SUFFIX "dev" CACHE STRING "Semantic version suffix; empty for final release")
+set(BIOCORE_VERSION_SUFFIX "" CACHE STRING "Semantic version suffix; empty for final release")
 if(BIOCORE_VERSION_SUFFIX STREQUAL "")
     set(BIOCORE_VERSION_STRING "${PROJECT_VERSION}")
 else()
@@ -86,7 +86,7 @@ if(BIOCORE_BUILD_TESTS)
     )
     target_link_libraries(
         biocore-job-failure-diagnostics-tests
-        PRIVATE BioCore::infrastructure BioCore::project_warnings BioCore::sanitizers
+        PRIVATE BioCore::infrastructure SQLite::SQLite3 BioCore::project_warnings BioCore::sanitizers
     )
     add_test(
         NAME integration.job_failure_diagnostics

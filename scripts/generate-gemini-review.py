@@ -112,15 +112,30 @@ def common_header(
 ) -> str:
     total_bytes = sum(len(entry.data) for entry in entries)
     scope_path = f"docs/development/ITERATION-{iteration:03d}.md"
+    final_release = iteration >= 54
+    release_identity = "0.2.0" if final_release else "0.2.0-dev"
     ci_lines = ""
     if ci_run_id is not None:
+        if final_release:
+            prerequisite_gates = (
+                "GCC Debug, GCC Release, Clang Debug, GCC ASan+UBSan and native Windows "
+                "MSVC Debug/Release; the final source archive, install/package smoke and SHA-256 evidence "
+                "must all pass before package generation"
+            )
+            identity_gate = "Final release identity gate: `biocore --version` verified exact `0.2.0`"
+        else:
+            prerequisite_gates = (
+                "GCC Debug, GCC Release, Clang Debug, GCC ASan+UBSan; each enforces at least the "
+                "67-test v0.1 baseline and a fully passing CTest suite"
+            )
+            identity_gate = "Development identity gate: GCC Debug verified `biocore --version` equals `0.2.0-dev`"
         ci_lines = f"""- GitHub Actions validation run: `{ci_run_id}`
 - CI prerequisite status: **PASSED before package generation**
-- Required prerequisite gates: GCC Debug, GCC Release, Clang Debug, GCC ASan+UBSan; each enforces at least the 67-test v0.1 baseline and a fully passing CTest suite
-- Development identity gate: GCC Debug verified `biocore --version` equals `0.2.0-dev`
+- Required prerequisite gates: {prerequisite_gates}
+- {identity_gate}
 """
 
-    return f"""# OpenGenesis-BioCore v0.2.0-dev — Iteration {iteration:03d} Gemini Independent Validation
+    return f"""# OpenGenesis-BioCore v{release_identity} — Iteration {iteration:03d} Gemini Independent Validation
 
 ## Review identity
 
