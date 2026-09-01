@@ -176,7 +176,7 @@ public:
            result.persisted_job->failure()->message() == "startup failed" &&
            result.persisted_job->failure()->exit_code() == std::optional<std::int64_t>{17} &&
            result.persisted_job->failure()->worker_timestamp_utc() ==
-               std::optional<std::string>{"worker-time"} &&
+               std::optional<std::string>{"2026-08-06T20:02:00Z"} &&
            !session.ready_received() && session.terminal_received();
 }
 

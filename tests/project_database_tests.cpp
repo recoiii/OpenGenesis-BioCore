@@ -525,9 +525,22 @@ private:
 
         CREATE TABLE jobs (
             id TEXT PRIMARY KEY NOT NULL,
-            progress REAL NOT NULL
+            status TEXT NOT NULL,
+            priority TEXT NOT NULL DEFAULT 'normal',
+            progress REAL NOT NULL,
+            active_step_id TEXT,
+            created_at_utc TEXT NOT NULL,
+            updated_at_utc TEXT NOT NULL,
+            analysis_id TEXT,
+            pipeline_id TEXT,
+            pipeline_version TEXT,
+            started_at_utc TEXT,
+            finished_at_utc TEXT,
+            revision INTEGER NOT NULL DEFAULT 0
         );
-        INSERT INTO jobs(id, progress) VALUES ('job-1', 0.42);
+        INSERT INTO jobs(
+            id, status, priority, progress, created_at_utc, updated_at_utc
+        ) VALUES ('job-1', 'running', 'normal', 0.42, 'created', 'updated');
 
         CREATE TABLE managed_files (
             id TEXT PRIMARY KEY NOT NULL,
