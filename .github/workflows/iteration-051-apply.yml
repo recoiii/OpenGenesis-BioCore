@@ -27,7 +27,9 @@ jobs:
         shell: bash
         run: |
           python3 scripts/finalize-iteration-051.py
+          python3 scripts/patch-iteration-051.py
           test ! -e scripts/finalize-iteration-051.py
+          test ! -e scripts/patch-iteration-051.py
           rm .github/workflows/iteration-051-apply.yml
           cmake --preset linux-gcc-debug
           cmake --build --preset linux-gcc-debug --parallel
