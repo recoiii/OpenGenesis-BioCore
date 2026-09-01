@@ -113,6 +113,8 @@ public:
             .managed_path = "/project/inputs/" + std::string{id} + "/örnek.fastq",
             .relative_project_path = "inputs/" + std::string{id} + "/örnek.fastq",
             .size_bytes = 12,
+            .checksum_algorithm = std::string{"sha256"},
+            .checksum_value = std::string(64U, 'a'),
         }, committed, destroyed, trace_);
     }
     bool begin_browser_upload(
@@ -160,6 +162,8 @@ public:
                 iterator->second.display_name,
             .size_bytes = static_cast<std::int64_t>(iterator->second.bytes.size()) +
                 reported_upload_size_delta,
+            .checksum_algorithm = std::string{"sha256"},
+            .checksum_value = std::string(64U, 'b'),
         }, committed, destroyed, trace_);
     }
 
@@ -248,7 +252,9 @@ private:
     ManagedFileService service{repository, storage, ids, clock, clock};
     const ManagedFile file = service.register_managed_copy({"/source/örnek.fastq", "fastq"});
     return file.id() == "file-1" && file.display_name() == "örnek.fastq" &&
-           file.size_bytes() == 12 && file.created_at_utc() == "2026-08-06T21:00:00Z" &&
+           file.size_bytes() == 12 && file.checksum_algorithm() == std::optional<std::string>{"sha256"} &&
+           file.checksum_value() == std::optional<std::string>{std::string(64U, 'a')} &&
+           file.created_at_utc() == "2026-08-06T21:00:00Z" &&
            repository.find_calls == 1 && repository.add_calls == 1 && storage.calls == 1 &&
            storage.committed && storage.destroyed && ids.calls == 1 && clock.calls == 1 &&
            trace == std::vector<std::string>({"clock", "id", "find", "prepare", "add", "commit"});
@@ -347,6 +353,8 @@ private:
     const ManagedFile file = service.complete_upload("upload-1");
     return file.id() == "file-1" && file.display_name() == "genome.fa" &&
            file.file_type() == "fasta" && file.size_bytes() == 4 &&
+           file.checksum_algorithm() == std::optional<std::string>{"sha256"} &&
+           file.checksum_value() == std::optional<std::string>{std::string(64U, 'b')} &&
            storage.prepare_upload_commit_calls == 1 &&
            storage.discard_upload_calls == 1 && storage.browser_uploads.empty() &&
            repository.files.size() == 1U && clock.calls == 1;

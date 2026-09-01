@@ -4,6 +4,7 @@
 #include <bit>
 #include <cstdint>
 #include <fstream>
+#include <limits>
 #include <stdexcept>
 #include <string>
 
@@ -165,7 +166,7 @@ std::string sha256_file_hex(const std::filesystem::path& path) {
     }
 
     Sha256 sha;
-    std::array<char, 64U * 1024U> buffer{};
+    std::array<char, file_stream_buffer_bytes> buffer{};
     while (stream) {
         stream.read(buffer.data(), static_cast<std::streamsize>(buffer.size()));
         const auto count = stream.gcount();
@@ -180,6 +181,62 @@ std::string sha256_file_hex(const std::filesystem::path& path) {
         throw std::runtime_error("Unable to read file during SHA-256 calculation");
     }
     return digest_to_hex(sha.finish());
+}
+
+FileCopySha256Result copy_file_with_sha256(
+    const std::filesystem::path& source,
+    const std::filesystem::path& destination
+) {
+    if (source == destination) {
+        throw std::invalid_argument("SHA-256 copy source and destination must differ");
+    }
+
+    std::ifstream input{source, std::ios::binary};
+    if (!input.is_open()) {
+        throw std::runtime_error("Unable to open source file for managed streaming copy");
+    }
+    std::ofstream output{destination, std::ios::binary | std::ios::trunc};
+    if (!output.is_open()) {
+        throw std::runtime_error("Unable to open destination file for managed streaming copy");
+    }
+
+    Sha256 sha;
+    std::array<char, file_stream_buffer_bytes> buffer{};
+    std::uint64_t total = 0U;
+    while (input) {
+        input.read(buffer.data(), static_cast<std::streamsize>(buffer.size()));
+        const std::streamsize count = input.gcount();
+        if (count <= 0) continue;
+        const auto unsigned_count = static_cast<std::uint64_t>(count);
+        if (unsigned_count > std::numeric_limits<std::uint64_t>::max() - total) {
+            throw std::overflow_error("Managed streaming copy size overflow");
+        }
+        output.write(buffer.data(), count);
+        if (!output) {
+            throw std::runtime_error("Unable to write managed streaming copy");
+        }
+        sha.update(std::span<const std::byte>{
+            reinterpret_cast<const std::byte*>(buffer.data()),
+            static_cast<std::size_t>(count),
+        });
+        total += unsigned_count;
+    }
+    if (!input.eof()) {
+        throw std::runtime_error("Unable to read source during managed streaming copy");
+    }
+    output.flush();
+    if (!output) {
+        throw std::runtime_error("Unable to flush managed streaming copy");
+    }
+    output.close();
+    if (output.fail()) {
+        throw std::runtime_error("Unable to close managed streaming copy");
+    }
+
+    return FileCopySha256Result{
+        .bytes_copied = total,
+        .sha256 = digest_to_hex(sha.finish()),
+    };
 }
 
 }  // namespace biocore::infrastructure

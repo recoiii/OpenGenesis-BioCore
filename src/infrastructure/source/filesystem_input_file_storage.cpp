@@ -14,6 +14,9 @@
 #include <utility>
 #include <vector>
 
+#include "biocore/domain/storage_mode.hpp"
+#include "biocore/infrastructure/sha256.hpp"
+
 namespace biocore::infrastructure {
 namespace {
 
@@ -421,16 +424,10 @@ FilesystemInputFileStorage::prepare_managed_copy(
         }
 
         created_paths.push_back(temporary_path);
-        std::error_code copy_error;
-        const bool copied = std::filesystem::copy_file(
-            source,
-            temporary_path,
-            std::filesystem::copy_options::none,
-            copy_error
-        );
-        if (copy_error || !copied) {
+        const FileCopySha256Result copy = copy_file_with_sha256(source, temporary_path);
+        if (copy.bytes_copied != size_before) {
             throw std::runtime_error(
-                "Unable to copy input file: " + copy_error.message()
+                "Managed streaming copy byte count does not match the source size"
             );
         }
 
@@ -472,6 +469,8 @@ FilesystemInputFileStorage::prepare_managed_copy(
             .managed_path = path_to_utf8(final_path),
             .relative_project_path = path_to_utf8(relative),
             .size_bytes = static_cast<std::int64_t>(size_before),
+            .checksum_algorithm = std::string{"sha256"},
+            .checksum_value = copy.sha256,
         };
         return std::make_unique<FilesystemInputImportTransaction>(
             std::move(prepared),
@@ -575,6 +574,19 @@ FilesystemInputFileStorage::prepare_browser_upload_commit(
         size > static_cast<std::uintmax_t>(std::numeric_limits<std::int64_t>::max())) {
         throw std::runtime_error("Browser upload has an unsupported final size");
     }
+    std::error_code timestamp_error;
+    const auto modified_before = std::filesystem::last_write_time(staged_path, timestamp_error);
+    if (timestamp_error) {
+        throw std::runtime_error("Unable to inspect browser upload modification time");
+    }
+    const std::string checksum = sha256_file_hex(staged_path);
+    size_error.clear();
+    const std::uintmax_t size_after_hash = std::filesystem::file_size(staged_path, size_error);
+    timestamp_error.clear();
+    const auto modified_after = std::filesystem::last_write_time(staged_path, timestamp_error);
+    if (size_error || timestamp_error || size_after_hash != size || modified_after != modified_before) {
+        throw std::runtime_error("Browser upload changed while SHA-256 was being calculated");
+    }
 
     const std::filesystem::path destination_directory =
         inputs_directory_ / path_from_utf8(managed_file_id);
@@ -611,6 +623,8 @@ FilesystemInputFileStorage::prepare_browser_upload_commit(
         .managed_path = path_to_utf8(final_path),
         .relative_project_path = path_to_utf8(relative),
         .size_bytes = static_cast<std::int64_t>(size),
+        .checksum_algorithm = std::string{"sha256"},
+        .checksum_value = checksum,
     };
     return std::make_unique<BrowserUploadImportTransaction>(
         std::move(prepared),
@@ -619,6 +633,102 @@ FilesystemInputFileStorage::prepare_browser_upload_commit(
         destination_directory,
         upload_directory
     );
+}
+
+application::ManagedFileIntegrityResult FilesystemInputFileStorage::verify_managed_file(
+    const domain::ManagedFile& file
+) const {
+    application::ManagedFileIntegrityResult result{
+        .status = application::ManagedFileIntegrityStatus::checksum_unavailable,
+        .expected_size_bytes = file.size_bytes(),
+    };
+    if (file.checksum_algorithm().has_value() && file.checksum_value().has_value() &&
+        *file.checksum_algorithm() == "sha256") {
+        result.expected_sha256 = *file.checksum_value();
+    }
+
+    if (file.storage_mode() != domain::StorageMode::managed_copy &&
+        file.storage_mode() != domain::StorageMode::managed_move) {
+        return result;
+    }
+    if (!file.relative_project_path().has_value() || !file.managed_path().has_value()) {
+        result.status = application::ManagedFileIntegrityStatus::unsafe_path;
+        return result;
+    }
+
+    const std::filesystem::path relative = path_from_utf8(*file.relative_project_path());
+    if (relative.empty() || relative.is_absolute() || relative.has_root_path()) {
+        result.status = application::ManagedFileIntegrityStatus::unsafe_path;
+        return result;
+    }
+    for (const auto& component : relative) {
+        if (component == "." || component == "..") {
+            result.status = application::ManagedFileIntegrityStatus::unsafe_path;
+            return result;
+        }
+    }
+
+    const std::filesystem::path candidate = project_root_ / relative;
+    if (candidate.lexically_normal() != candidate ||
+        path_from_utf8(*file.managed_path()) != candidate) {
+        result.status = application::ManagedFileIntegrityStatus::unsafe_path;
+        return result;
+    }
+
+    std::error_code status_error;
+    const auto status = std::filesystem::symlink_status(candidate, status_error);
+    if (status_error == std::errc::no_such_file_or_directory ||
+        (!status_error && status.type() == std::filesystem::file_type::not_found)) {
+        result.status = application::ManagedFileIntegrityStatus::file_missing;
+        return result;
+    }
+    if (status_error || status.type() != std::filesystem::file_type::regular) {
+        result.status = application::ManagedFileIntegrityStatus::unsafe_path;
+        return result;
+    }
+    std::error_code canonical_error;
+    const auto canonical = std::filesystem::canonical(candidate, canonical_error);
+    if (canonical_error || canonical != candidate) {
+        result.status = application::ManagedFileIntegrityStatus::unsafe_path;
+        return result;
+    }
+
+    std::error_code size_error;
+    const std::uintmax_t size_before = std::filesystem::file_size(candidate, size_error);
+    if (size_error ||
+        size_before > static_cast<std::uintmax_t>(std::numeric_limits<std::int64_t>::max())) {
+        result.status = application::ManagedFileIntegrityStatus::size_mismatch;
+        return result;
+    }
+    result.observed_size_bytes = static_cast<std::int64_t>(size_before);
+    if (*result.observed_size_bytes != file.size_bytes()) {
+        result.status = application::ManagedFileIntegrityStatus::size_mismatch;
+        return result;
+    }
+    if (!result.expected_sha256.has_value()) {
+        result.status = application::ManagedFileIntegrityStatus::checksum_unavailable;
+        return result;
+    }
+
+    std::error_code timestamp_error;
+    const auto modified_before = std::filesystem::last_write_time(candidate, timestamp_error);
+    if (timestamp_error) {
+        throw std::runtime_error("Unable to inspect managed file modification time");
+    }
+    result.observed_sha256 = sha256_file_hex(candidate);
+    size_error.clear();
+    const std::uintmax_t size_after = std::filesystem::file_size(candidate, size_error);
+    timestamp_error.clear();
+    const auto modified_after = std::filesystem::last_write_time(candidate, timestamp_error);
+    if (size_error || timestamp_error || size_after != size_before || modified_after != modified_before) {
+        result.status = application::ManagedFileIntegrityStatus::changed_during_verification;
+        return result;
+    }
+
+    result.status = *result.observed_sha256 == *result.expected_sha256
+        ? application::ManagedFileIntegrityStatus::verified
+        : application::ManagedFileIntegrityStatus::checksum_mismatch;
+    return result;
 }
 
 void FilesystemInputFileStorage::discard_browser_upload(

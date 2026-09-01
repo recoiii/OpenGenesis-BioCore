@@ -37,6 +37,10 @@ public:
 
     void discard_browser_upload(std::string_view upload_id) noexcept override;
 
+    [[nodiscard]] application::ManagedFileIntegrityResult verify_managed_file(
+        const domain::ManagedFile& file
+    ) const override;
+
 private:
     std::filesystem::path project_root_;
     std::filesystem::path inputs_directory_;

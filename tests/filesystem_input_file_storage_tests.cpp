@@ -3,11 +3,13 @@
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <optional>
 #include <stdexcept>
 #include <string>
 #include <vector>
 
 #include "biocore/infrastructure/filesystem_input_file_storage.hpp"
+#include "biocore/infrastructure/sha256.hpp"
 
 namespace {
 
@@ -85,7 +87,10 @@ void write_bytes(const std::filesystem::path& path, const std::vector<unsigned c
     const std::filesystem::path first_managed = path_from_utf8(first_prepared.managed_path);
     if (!std::filesystem::exists(first_managed) || read_bytes(first_managed) != first_bytes ||
         first_prepared.relative_project_path != "inputs/file-1/örnek.fastq" ||
-        first_prepared.size_bytes != static_cast<std::int64_t>(first_bytes.size())) {
+        first_prepared.size_bytes != static_cast<std::int64_t>(first_bytes.size()) ||
+        first_prepared.checksum_algorithm != std::optional<std::string>{"sha256"} ||
+        first_prepared.checksum_value !=
+            std::optional<std::string>{biocore::infrastructure::sha256_file_hex(first_managed)}) {
         return false;
     }
     first->commit();
@@ -210,7 +215,10 @@ void write_bytes(const std::filesystem::path& path, const std::vector<unsigned c
         auto transaction = storage.prepare_browser_upload_commit("upload-1", "file-1");
         final_path = path_from_utf8(transaction->prepared_file().managed_path);
         if (!std::filesystem::exists(final_path) ||
-            transaction->prepared_file().relative_project_path != "inputs/file-1/genome.fa") {
+            transaction->prepared_file().relative_project_path != "inputs/file-1/genome.fa" ||
+            transaction->prepared_file().checksum_algorithm != std::optional<std::string>{"sha256"} ||
+            transaction->prepared_file().checksum_value !=
+                std::optional<std::string>{biocore::infrastructure::sha256_file_hex(final_path)}) {
             return false;
         }
     }

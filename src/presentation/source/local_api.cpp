@@ -146,7 +146,21 @@ namespace {
            ",\"storageMode\":" + quote(domain::to_string(file.storage_mode())) +
            ",\"fileType\":" + quote(file.file_type()) +
            ",\"sizeBytes\":" + std::to_string(file.size_bytes()) +
+           ",\"checksumAlgorithm\":" + optional_json(file.checksum_algorithm()) +
+           ",\"checksumValue\":" + optional_json(file.checksum_value()) +
            ",\"createdAtUtc\":" + quote(file.created_at_utc()) + "}";
+}
+
+[[nodiscard]] std::string render_integrity(
+    const application::ManagedFileIntegrityResult& result
+) {
+    return "{" + std::string{"\"status\":"} + quote(application::to_string(result.status)) +
+           ",\"expectedSizeBytes\":" + std::to_string(result.expected_size_bytes) +
+           ",\"observedSizeBytes\":" +
+           (result.observed_size_bytes.has_value()
+                ? std::to_string(*result.observed_size_bytes) : "null") +
+           ",\"expectedSha256\":" + optional_json(result.expected_sha256) +
+           ",\"observedSha256\":" + optional_json(result.observed_sha256) + "}";
 }
 
 [[nodiscard]] std::string render_managed_inputs(
@@ -1012,6 +1026,14 @@ LocalHttpResponse LocalApiController::handle(const LocalHttpRequest& request) {
 
 if (path.size() == 3U && path[2] == "files" && request.method == HttpMethod::get) {
     return json_response(200, render_managed_inputs(managed_files_.list()));
+}
+if (path.size() == 5U && path[2] == "files" && safe_path_atom(path[3]) &&
+    path[4] == "integrity" && request.method == HttpMethod::get) {
+    const auto integrity = managed_files_.verify_integrity(path[3]);
+    if (!integrity.has_value()) {
+        return error_response(404, "managed_file_not_found", "Managed input file was not found");
+    }
+    return json_response(200, render_integrity(*integrity));
 }
 if (path.size() == 4U && path[2] == "files" && safe_path_atom(path[3]) &&
     request.method == HttpMethod::get) {

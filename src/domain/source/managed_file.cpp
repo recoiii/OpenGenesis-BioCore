@@ -113,9 +113,12 @@ ManagedFile::ManagedFile(
         (!managed_path_.has_value() || !relative_project_path_.has_value())) {
         throw std::invalid_argument("Generated outputs require managed and relative project paths");
     }
-    if (storage_mode_ == StorageMode::generated_output && checksum_algorithm_.has_value() &&
+    if ((storage_mode_ == StorageMode::managed_copy ||
+         storage_mode_ == StorageMode::managed_move ||
+         storage_mode_ == StorageMode::generated_output) &&
+        checksum_algorithm_.has_value() &&
         (*checksum_algorithm_ != "sha256" || !is_lower_sha256(*checksum_value_))) {
-        throw std::invalid_argument("Generated output checksum must be lowercase SHA-256");
+        throw std::invalid_argument("Managed file checksum must be lowercase SHA-256");
     }
 }
 

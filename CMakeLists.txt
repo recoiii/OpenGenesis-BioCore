@@ -105,6 +105,19 @@ if(BIOCORE_BUILD_TESTS)
         NAME integration.job_retry_semantics
         COMMAND biocore-job-retry-semantics-tests
     )
+
+    add_executable(
+        biocore-managed-file-integrity-tests
+        tests/managed_file_integrity_tests.cpp
+    )
+    target_link_libraries(
+        biocore-managed-file-integrity-tests
+        PRIVATE BioCore::infrastructure BioCore::project_warnings BioCore::sanitizers
+    )
+    add_test(
+        NAME integration.managed_file_integrity
+        COMMAND biocore-managed-file-integrity-tests
+    )
 endif()
 
 if(WIN32)
