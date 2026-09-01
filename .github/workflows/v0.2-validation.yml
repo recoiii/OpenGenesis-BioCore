@@ -11,8 +11,8 @@ on:
   workflow_dispatch:
 
 env:
-  BIOCORE_ITERATION: "050"
-  BIOCORE_TEST_FLOOR: "72"
+  BIOCORE_ITERATION: "051"
+  BIOCORE_TEST_FLOOR: "73"
 
 permissions:
   contents: read
