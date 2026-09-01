@@ -1,0 +1,141 @@
+name: OpenGenesis-BioCore v0.2 validation
+
+on:
+  push:
+    branches:
+      - v0.2.0-dev
+  pull_request:
+    branches:
+      - main
+      - v0.2.0-dev
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  linux-matrix:
+    name: ${{ matrix.preset }}
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        preset:
+          - linux-gcc-debug
+          - linux-gcc-release
+          - linux-clang-debug
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build libsqlite3-dev zlib1g-dev clang
+
+      - name: Configure
+        run: cmake --preset "${{ matrix.preset }}"
+
+      - name: Build
+        run: cmake --build --preset "${{ matrix.preset }}" --parallel
+
+      - name: Preserve baseline test floor
+        shell: bash
+        run: |
+          count="$(ctest --preset "${{ matrix.preset }}" -N | sed -n 's/^Total Tests: //p')"
+          if [[ -z "${count}" || "${count}" -lt 67 ]]; then
+            echo "Expected at least the 67-test v0.1 baseline; found '${count:-unknown}'." >&2
+            exit 1
+          fi
+          echo "CTest count: ${count}"
+
+      - name: Run regression suite
+        run: ctest --preset "${{ matrix.preset }}" --output-on-failure
+
+      - name: Verify v0.2 development identity
+        if: matrix.preset == 'linux-gcc-debug'
+        shell: bash
+        run: |
+          actual="$(build/linux-gcc-debug/apps/biocore/biocore --version)"
+          test "${actual}" = "0.2.0-dev"
+          echo "Development identity: ${actual}"
+
+  sanitizers:
+    name: linux-gcc-debug-asan-ubsan
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build libsqlite3-dev zlib1g-dev
+
+      - name: Configure ASan + UBSan
+        run: |
+          cmake -S . -B build/linux-gcc-asan-ubsan -G Ninja \
+            -DCMAKE_BUILD_TYPE=Debug \
+            -DCMAKE_CXX_COMPILER=g++ \
+            -DBIOCORE_BUILD_TESTS=ON \
+            -DBIOCORE_WARNINGS_AS_ERRORS=ON \
+            -DBIOCORE_ENABLE_ASAN=ON \
+            -DBIOCORE_ENABLE_UBSAN=ON
+
+      - name: Build ASan + UBSan
+        run: cmake --build build/linux-gcc-asan-ubsan --parallel
+
+      - name: Preserve baseline test floor
+        shell: bash
+        run: |
+          count="$(ctest --test-dir build/linux-gcc-asan-ubsan -N | sed -n 's/^Total Tests: //p')"
+          if [[ -z "${count}" || "${count}" -lt 67 ]]; then
+            echo "Expected at least the 67-test v0.1 baseline; found '${count:-unknown}'." >&2
+            exit 1
+          fi
+          echo "CTest count: ${count}"
+
+      - name: Run ASan + UBSan regression suite
+        env:
+          ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
+          UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+        run: ctest --test-dir build/linux-gcc-asan-ubsan --output-on-failure
+
+  gemini-review-package:
+    name: Gemini four-part review package
+    needs:
+      - linux-matrix
+      - sanitizers
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout exact validated candidate
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Generate exact four-part Markdown package
+        run: |
+          python3 scripts/generate-gemini-review.py \
+            --iteration 45 \
+            --parts 4 \
+            --output artifacts/gemini-review
+
+      - name: Verify package shape and checksums
+        shell: bash
+        run: |
+          mapfile -t parts < <(find artifacts/gemini-review -maxdepth 1 -type f -name '*-part-*-of-04.md' -print | sort)
+          test "${#parts[@]}" -eq 4
+          cd artifacts/gemini-review
+          sha256sum -c OpenGenesis-BioCore-iteration-045-GEMINI-review-SHA256SUMS.txt
+
+      - name: Upload Gemini review package
+        uses: actions/upload-artifact@v4
+        with:
+          name: OpenGenesis-BioCore-iteration-045-GEMINI-review
+          path: artifacts/gemini-review/
+          if-no-files-found: error
+          retention-days: 30
