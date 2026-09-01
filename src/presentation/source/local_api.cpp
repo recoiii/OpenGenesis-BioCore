@@ -92,6 +92,18 @@ namespace {
     return value.has_value() ? quote(*value) : "null";
 }
 
+[[nodiscard]] std::string render_failure(const std::optional<domain::JobFailure>& failure) {
+    if (!failure.has_value()) {
+        return "null";
+    }
+    return "{" + std::string{"\"kind\":"} + quote(domain::to_string(failure->kind())) +
+           ",\"message\":" + quote(failure->message()) +
+           ",\"exitCode\":" +
+           (failure->exit_code().has_value() ? std::to_string(*failure->exit_code()) : "null") +
+           ",\"workerTimestampUtc\":" + optional_json(failure->worker_timestamp_utc()) +
+           ",\"recordedAtUtc\":" + quote(failure->recorded_at_utc()) + "}";
+}
+
 [[nodiscard]] std::string render_job(const domain::Job& job) {
     return "{" + std::string{"\"id\":"} + quote(job.id()) +
            ",\"analysisId\":" + optional_json(job.analysis_id()) +
@@ -105,7 +117,8 @@ namespace {
            ",\"updatedAtUtc\":" + quote(job.updated_at_utc()) +
            ",\"startedAtUtc\":" + optional_json(job.started_at_utc()) +
            ",\"finishedAtUtc\":" + optional_json(job.finished_at_utc()) +
-           ",\"revision\":" + std::to_string(job.revision()) + "}";
+           ",\"revision\":" + std::to_string(job.revision()) +
+           ",\"failure\":" + render_failure(job.failure()) + "}";
 }
 
 [[nodiscard]] std::string render_jobs(std::vector<domain::Job> jobs) {

@@ -95,6 +95,21 @@ namespace {
     return value.has_value() ? escape_html(*value) : "—";
 }
 
+[[nodiscard]] std::string failure_html(const std::optional<domain::JobFailure>& failure) {
+    if (!failure.has_value()) {
+        return "<dt>Failure</dt><dd>—</dd>";
+    }
+    return "<dt>Failure kind</dt><dd>" +
+           escape_html(domain::to_string(failure->kind())) +
+           "</dd><dt>Failure message</dt><dd>" + escape_html(failure->message()) +
+           "</dd><dt>Exit code</dt><dd>" +
+           (failure->exit_code().has_value() ? std::to_string(*failure->exit_code()) : "—") +
+           "</dd><dt>Worker timestamp</dt><dd>" +
+           optional_html(failure->worker_timestamp_utc()) +
+           "</dd><dt>Failure recorded</dt><dd>" +
+           escape_html(failure->recorded_at_utc()) + "</dd>";
+}
+
 }  // namespace
 
 std::string render_artifact_metadata_json(const application::ArtifactMetadata& artifact) {
@@ -161,11 +176,10 @@ std::string render_pipeline_execution_report_html(
     return "<!doctype html><html><head><meta charset=\"utf-8\"><title>OpenGenesis-BioCore report " +
            escape_html(report.job_id) +
            "</title></head><body><main><h1>OpenGenesis-BioCore Pipeline Report</h1><dl><dt>Job</dt><dd>" +
-           escape_html(report.job_id) + "</dd><dt>Status</dt><dd>" +
-           escape_html(domain::to_string(report.status)) + "</dd><dt>Pipeline</dt><dd>" +
-           optional_html(report.pipeline_id) + "</dd><dt>Failure</dt><dd>" +
-           (report.failure.has_value() ? escape_html(report.failure->message()) : "—") +
-           "</dd><dt>Generated</dt><dd>" + escape_html(report.generated_at_utc) +
+            escape_html(report.job_id) + "</dd><dt>Status</dt><dd>" +
+            escape_html(domain::to_string(report.status)) + "</dd><dt>Pipeline</dt><dd>" +
+           optional_html(report.pipeline_id) + "</dd>" + failure_html(report.failure) +
+           "<dt>Generated</dt><dd>" + escape_html(report.generated_at_utc) +
            "</dd></dl><table><thead><tr><th>Step</th><th>Port</th><th>File</th><th>Type</th>"
            "<th>Bytes</th><th>SHA-256</th></tr></thead><tbody>" +
            rows + "</tbody></table></main></body></html>";

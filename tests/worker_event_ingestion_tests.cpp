@@ -170,6 +170,13 @@ public:
     const auto result = session.ingest(failed);
     return result.action == WorkerEventIngestionAction::job_failed &&
            result.persisted_job.has_value() && result.persisted_job->status() == JobStatus::failed &&
+           result.persisted_job->failure().has_value() &&
+           result.persisted_job->failure()->kind() ==
+               biocore::domain::JobFailureKind::worker_reported_failure &&
+           result.persisted_job->failure()->message() == "startup failed" &&
+           result.persisted_job->failure()->exit_code() == std::optional<std::int64_t>{17} &&
+           result.persisted_job->failure()->worker_timestamp_utc() ==
+               std::optional<std::string>{"worker-time"} &&
            !session.ready_received() && session.terminal_received();
 }
 
@@ -185,6 +192,10 @@ public:
     const auto finalized = session.finalize_process_exit(19);
     if (finalized.matched_terminal_event || !finalized.persisted_job.has_value() ||
         finalized.persisted_job->status() != JobStatus::interrupted ||
+        !finalized.persisted_job->failure().has_value() ||
+        finalized.persisted_job->failure()->kind() !=
+            biocore::domain::JobFailureKind::process_exit_without_terminal ||
+        finalized.persisted_job->failure()->exit_code() != std::optional<std::int64_t>{19} ||
         !session.terminal_received()) {
         return false;
     }

@@ -215,6 +215,30 @@
                   </div>
                 </div>
 
+                <section class="telemetry-card failure-evidence" id="failure-evidence" hidden>
+                  <div class="telemetry-heading">
+                    <div>
+                      <div class="kicker">Durable diagnostic</div>
+                      <h4>Failure evidence</h4>
+                    </div>
+                    <span id="failure-kind">—</span>
+                  </div>
+                  <div class="detail-grid">
+                    <div class="detail-field">
+                      <span>Exit code</span>
+                      <strong id="failure-exit">—</strong>
+                    </div>
+                    <div class="detail-field">
+                      <span>Observed</span>
+                      <strong id="failure-observed">—</strong>
+                    </div>
+                  </div>
+                  <p class="failure-message" id="failure-message"></p>
+                  <p class="telemetry-note">
+                    This diagnostic is stored with the job and remains available after refresh or restart.
+                  </p>
+                </section>
+
                 <div class="detail-actions">
                   <a class="button button-quiet" id="report-json-link" href="#" target="_blank" rel="noopener">JSON report</a>
                   <a class="button button-quiet" id="report-html-link" href="#" target="_blank" rel="noopener">HTML report</a>

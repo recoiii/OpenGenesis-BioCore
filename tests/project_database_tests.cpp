@@ -285,11 +285,19 @@ private:
         JobStatus::interrupted,
     };
     for (std::size_t index = 0; index < job_statuses.size(); ++index) {
+        const bool has_failure = job_statuses[index] == JobStatus::failed ||
+                                 job_statuses[index] == JobStatus::interrupted;
         connection.execute(
-            "INSERT INTO jobs(id, status, progress, created_at_utc, updated_at_utc) VALUES "
-            "('job-" +
-            std::to_string(index) + "', '" + std::string{to_string(job_statuses[index])} +
-            "', 0.25, 't', 't');"
+            "INSERT INTO jobs(id, status, progress, created_at_utc, updated_at_utc" +
+            std::string{has_failure
+                ? ", failure_kind, failure_message, failure_recorded_at_utc"
+                : ""} +
+            ") VALUES ('job-" + std::to_string(index) + "', '" +
+            std::string{to_string(job_statuses[index])} + "', 0.25, 't', 't'" +
+            std::string{has_failure
+                ? ", 'legacy_terminal_state', 'test terminal evidence', 't'"
+                : ""} +
+            ");"
         );
     }
 

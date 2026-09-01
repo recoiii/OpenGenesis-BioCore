@@ -216,6 +216,22 @@ public:
     };
 }
 
+[[nodiscard]] biocore::domain::Job failed_job() {
+    return biocore::domain::Job{
+        "job-failed", std::string{"analysis-failed"}, "pipe", "1.0.0",
+        biocore::domain::JobStatus::failed, biocore::domain::JobPriority::high,
+        0.4, std::nullopt, "2026-01-01T00:00:00Z", "2026-01-01T00:01:00Z",
+        "2026-01-01T00:00:01Z", "2026-01-01T00:01:00Z", 4,
+        biocore::domain::JobFailure{
+            biocore::domain::JobFailureKind::worker_reported_failure,
+            "plugin rejected malformed FASTQ record",
+            17,
+            std::string{"2026-01-01T00:00:59Z"},
+            "2026-01-01T00:01:00Z",
+        }
+    };
+}
+
 [[nodiscard]] biocore::domain::Job cancellable_job(
     std::string id,
     const biocore::domain::JobStatus status,
@@ -265,6 +281,7 @@ int main() {
     FakeIdGenerator ids;
     FakeJobRepository jobs_repo;
     jobs_repo.jobs.push_back(existing_job());
+    jobs_repo.jobs.push_back(failed_job());
     jobs_repo.jobs.push_back(cancellable_job(
         "job-run", biocore::domain::JobStatus::running, 0.5
     ));
@@ -471,7 +488,27 @@ int main() {
     require(api.websocket_authorized(auth, {}, {}),
             "existing bearer WebSocket compatibility must remain");
     const auto list = api.handle({.method = biocore::presentation::HttpMethod::get, .target = "/api/v1/jobs", .authorization = auth, .body = {}});
-    require(list.status == 200 && list.body.find("job-a") != std::string::npos, "authorized job list");
+    require(list.status == 200 && list.body.find("job-a") != std::string::npos,
+            "authorized job list");
+    require(list.body.find("\"failure\":null") != std::string::npos &&
+                list.body.find("\"kind\":\"worker_reported_failure\"") != std::string::npos &&
+                list.body.find("plugin rejected malformed FASTQ record") != std::string::npos &&
+                list.body.find("\"exitCode\":17") != std::string::npos &&
+                list.body.find("\"workerTimestampUtc\":\"2026-01-01T00:00:59Z\"") !=
+                    std::string::npos,
+            "job list must expose nullable structured durable failure evidence");
+
+    const auto failed_detail = api.handle({
+        .method = biocore::presentation::HttpMethod::get,
+        .target = "/api/v1/jobs/job-failed",
+        .authorization = auth,
+        .body = {},
+    });
+    require(failed_detail.status == 200 &&
+                failed_detail.body.find("\"failure\":{") != std::string::npos &&
+                failed_detail.body.find("\"recordedAtUtc\":\"2026-01-01T00:01:00Z\"") !=
+                    std::string::npos,
+            "job detail must expose structured durable failure evidence");
 
     const auto create = api.handle({
         .method = biocore::presentation::HttpMethod::post,
@@ -655,7 +692,10 @@ int main() {
     require(!api.websocket_authorized("Bearer wrong"), "websocket bearer auth helper must reject wrong token");
     require(!api.websocket_snapshot("Bearer wrong").has_value(), "websocket wrong auth must fail");
     const auto ws = api.websocket_snapshot(auth);
-    require(ws.has_value() && ws->find("jobs.snapshot") != std::string::npos && ws->find("job-a") != std::string::npos, "websocket initial snapshot");
+    require(ws.has_value() && ws->find("jobs.snapshot") != std::string::npos &&
+                ws->find("job-a") != std::string::npos &&
+                ws->find("worker_reported_failure") != std::string::npos,
+            "websocket initial snapshot must include durable failure evidence");
 
     std::cout << "Local API tests passed\n";
     return 0;

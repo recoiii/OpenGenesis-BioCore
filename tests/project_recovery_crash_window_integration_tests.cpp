@@ -155,6 +155,8 @@ public:
     const auto final_job = sqlite_jobs.find_by_id("job-1");
     return recovered.recovered_jobs.size() == 1U && recovered.issues.empty() &&
            final_job.has_value() && final_job->status() == domain::JobStatus::interrupted &&
+           final_job->failure().has_value() &&
+           final_job->failure()->kind() == domain::JobFailureKind::startup_recovery &&
            final_job->progress() == 0.6 && final_job->revision() == 5;
 }
 

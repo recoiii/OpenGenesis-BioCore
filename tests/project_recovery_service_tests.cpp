@@ -156,6 +156,8 @@ public:
     const auto queued = jobs_repo.find_by_id("queued");
     if (first.recovered_jobs.size() != 1U || !running.has_value() ||
         running->status() != domain::JobStatus::interrupted || running->progress() != 0.65 ||
+        !running->failure().has_value() ||
+        running->failure()->kind() != domain::JobFailureKind::startup_recovery ||
         !queued.has_value() || queued->status() != domain::JobStatus::queued ||
         cleaner.calls != std::vector<std::string>({"old-interrupted", "running"}) ||
         !first.retention.has_value() || first.retention->purged_relative_paths.size() != 1U ||
@@ -189,6 +191,9 @@ public:
     return result.recovered_jobs.size() == 1U && result.recovered_jobs.front().job_id == "good" &&
            jobs_repo.find_by_id("bad")->status() == domain::JobStatus::running &&
            jobs_repo.find_by_id("good")->status() == domain::JobStatus::interrupted &&
+           jobs_repo.find_by_id("good")->failure().has_value() &&
+           jobs_repo.find_by_id("good")->failure()->kind() ==
+               domain::JobFailureKind::startup_recovery &&
            result.issues.size() == 1U &&
            result.issues.front().stage == application::ProjectRecoveryIssueStage::checkpoint_read;
 }

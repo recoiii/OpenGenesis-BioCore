@@ -538,3 +538,15 @@ footer {
 @media (max-width: 760px) {
   .file-import-grid, .managed-file-picker, .paired-fastq-picker { grid-template-columns: 1fr; }
 }
+.failure-evidence {
+  margin-top: 1rem;
+  border-color: rgba(244, 114, 182, 0.28);
+  background: rgba(76, 29, 71, 0.18);
+}
+
+.failure-message {
+  margin: 0.85rem 0 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: var(--text);
+}

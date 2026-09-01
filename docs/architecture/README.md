@@ -59,6 +59,7 @@ Framework, database, filesystem, clock, and random-generator implementations rem
 - Iteration 020 adds exact pipeline catalog submission, atomic queued-Job/execution-plan association, scheduler plan gating, separate API/runtime SQLite ownership, and automatic WorkerRuntime activation.
 - Iteration 034 adds the native ungapped reference-alignment plugin contract, SAM/JSON/TSV artifacts, single/paired FASTQ alignment, reverse-complement search, mismatch bounds, and explicit correctness-first performance limits without expanding Core architecture.
 - Iteration 041 hardens long-running native execution with in-plugin heartbeats, strict liveness semantics, bounded worker stream draining/background observation retention, and an authenticated cancellation path that finalizes terminated work as `cancelled`.
+- Iteration 047 adds schema-v7 atomic Job failure evidence, typed worker/process/timeout/recovery diagnostics, and durable API/report/browser presentation.
 
 See [Data Persistence v1](data-persistence-v1.md), [Project Creation v1](project-creation-v1.md), [Project Workspace v1](project-workspace-v1.md), [Project Database v1](project-database-v1.md), and [Job Repository v1](job-repository-v1.md), [Managed File Registration v1](managed-file-registration-v1.md), [Job Scheduler v1](job-scheduler-v1.md), [Worker Supervisor v1](worker-supervisor-v1.md), and
 [Worker Event Transport v1](worker-event-transport-v1.md), [Autonomous Worker Runtime v1](autonomous-worker-runtime-v1.md),
@@ -72,4 +73,5 @@ See [Data Persistence v1](data-persistence-v1.md), [Project Creation v1](project
 [Local Web Server and Composition Root v1](local-web-server-v1.md), and
 [Prepared Job Submission and Runtime Activation v1](prepared-job-runtime-activation-v1.md), and
 [Native Ungapped Reference Alignment v1](native-ungapped-alignment-v1.md), and
-[Worker Runtime Resilience v2](worker-runtime-resilience-v2.md) for the boundary documents.
+[Worker Runtime Resilience v2](worker-runtime-resilience-v2.md), and
+[Job Failure Diagnostics v1](job-failure-diagnostics-v1.md) for the boundary documents.

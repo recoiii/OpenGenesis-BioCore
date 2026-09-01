@@ -108,6 +108,8 @@ public:
     const auto recovered = jobs_repo.find_by_id("job-1");
     if (first.recovered_jobs.size() != 1U || !first.issues.empty() || !recovered.has_value() ||
         recovered->status() != domain::JobStatus::interrupted || recovered->progress() != 0.65 ||
+        !recovered->failure().has_value() ||
+        recovered->failure()->kind() != domain::JobFailureKind::startup_recovery ||
         recovered->revision() != 5) {
         return false;
     }

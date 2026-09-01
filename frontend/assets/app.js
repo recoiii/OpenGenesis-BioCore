@@ -16,6 +16,26 @@
       return new Set(["draft", "queued", "preparing", "running", "paused", "interrupted"]).has(status);
     },
 
+    normalizeFailure(failure) {
+      if (!failure || typeof failure !== "object" ||
+          typeof failure.kind !== "string" || failure.kind.length === 0 ||
+          typeof failure.message !== "string" || failure.message.length === 0 ||
+          typeof failure.recordedAtUtc !== "string" || failure.recordedAtUtc.length === 0) {
+        return null;
+      }
+      return {
+        kind: failure.kind,
+        message: failure.message,
+        exitCode: Number.isInteger(failure.exitCode) && failure.exitCode >= 0
+          ? failure.exitCode
+          : null,
+        workerTimestampUtc: typeof failure.workerTimestampUtc === "string"
+          ? failure.workerTimestampUtc
+          : null,
+        recordedAtUtc: failure.recordedAtUtc
+      };
+    },
+
     normalizeJob(job) {
       if (!job || typeof job !== "object" || typeof job.id !== "string" || job.id.length === 0) {
         return null;
@@ -33,7 +53,8 @@
         updatedAtUtc: typeof job.updatedAtUtc === "string" ? job.updatedAtUtc : "",
         startedAtUtc: typeof job.startedAtUtc === "string" ? job.startedAtUtc : null,
         finishedAtUtc: typeof job.finishedAtUtc === "string" ? job.finishedAtUtc : null,
-        revision: Number.isInteger(job.revision) ? job.revision : 0
+        revision: Number.isInteger(job.revision) ? job.revision : 0,
+        failure: core.normalizeFailure(job.failure)
       };
     },
 
@@ -97,7 +118,8 @@
         updatedAtUtc: "",
         startedAtUtc: null,
         finishedAtUtc: null,
-        revision: 0
+        revision: 0,
+        failure: null
       };
 
       if (typeof event.workerTimestampUtc === "string" &&
@@ -124,12 +146,28 @@
             job.status = "completed";
             job.progress = 1;
             job.activeStepId = null;
+            job.failure = null;
           }
           break;
         case "failed":
           if (mutableLifecycle || job.status === "failed") {
             job.status = "failed";
             job.activeStepId = null;
+            if (typeof event.message === "string" && event.message.length > 0) {
+              job.failure = {
+                kind: "worker_reported_failure",
+                message: event.message,
+                exitCode: Number.isInteger(event.exitCode) && event.exitCode >= 0
+                  ? event.exitCode
+                  : null,
+                workerTimestampUtc: typeof event.workerTimestampUtc === "string"
+                  ? event.workerTimestampUtc
+                  : null,
+                recordedAtUtc: typeof event.workerTimestampUtc === "string"
+                  ? event.workerTimestampUtc
+                  : job.updatedAtUtc
+              };
+            }
           }
           break;
         default:
@@ -1107,6 +1145,7 @@
       byId("detail-title").textContent = "No job selected";
       byId("detail-status").textContent = "Idle";
       byId("detail-status").className = "status-badge status-idle";
+      byId("failure-evidence").hidden = true;
       return;
     }
 
@@ -1122,6 +1161,19 @@
     const percent = Math.round(core.clampProgress(job.progress) * 100);
     byId("detail-progress-label").textContent = `${percent}%`;
     byId("detail-progress-bar").style.width = `${percent}%`;
+
+    const failurePanel = byId("failure-evidence");
+    failurePanel.hidden = job.failure === null;
+    if (job.failure !== null) {
+      byId("failure-kind").textContent = job.failure.kind.replaceAll("_", " ");
+      byId("failure-exit").textContent = job.failure.exitCode === null
+        ? "—"
+        : String(job.failure.exitCode);
+      byId("failure-observed").textContent = humanTime(
+        job.failure.workerTimestampUtc || job.failure.recordedAtUtc
+      );
+      byId("failure-message").textContent = job.failure.message;
+    }
 
     byId("report-json-link").href = `/api/v1/jobs/${job.id}/report.json`;
     byId("report-html-link").href = `/api/v1/jobs/${job.id}/report.html`;

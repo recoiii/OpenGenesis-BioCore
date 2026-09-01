@@ -55,6 +55,7 @@ using biocore::application::WorkerRuntimeIssueStage;
 using biocore::application::WorkerRuntimePolicy;
 using biocore::application::WorkerTerminationResult;
 using biocore::domain::Job;
+using biocore::domain::JobFailureKind;
 using biocore::domain::JobPriority;
 using biocore::domain::JobStatus;
 
@@ -435,6 +436,9 @@ public:
     if (timeout_cycle.timed_out_job_ids != std::vector<std::string>{"job-timeout"} ||
         !timeout_cycle.scheduler.launched_job_ids.empty() ||
         !timed_out.has_value() || timed_out->status() != JobStatus::interrupted ||
+        !timed_out->failure().has_value() ||
+        timed_out->failure()->kind() != JobFailureKind::heartbeat_timeout ||
+        timed_out->failure()->exit_code().has_value() ||
         supervisor.terminated_ids != std::vector<std::string>{"job-timeout"}) {
         return false;
     }
@@ -546,6 +550,8 @@ public:
     const auto stored = jobs.find_by_id("job-log-spam");
     return timed_out.timed_out_job_ids == std::vector<std::string>{"job-log-spam"} &&
            stored.has_value() && stored->status() == JobStatus::interrupted &&
+           stored->failure().has_value() &&
+           stored->failure()->kind() == JobFailureKind::heartbeat_timeout &&
            supervisor.terminated_ids == std::vector<std::string>{"job-log-spam"};
 }
 
@@ -708,7 +714,10 @@ public:
     const auto exit_cycle = runtime.run_cycle();
     const auto interrupted = jobs.find_by_id("job-already-exited");
     return exit_cycle.exited_job_ids == std::vector<std::string>{"job-already-exited"} &&
-           interrupted.has_value() && interrupted->status() == JobStatus::interrupted;
+           interrupted.has_value() && interrupted->status() == JobStatus::interrupted &&
+           interrupted->failure().has_value() &&
+           interrupted->failure()->kind() == JobFailureKind::process_exit_without_terminal &&
+           interrupted->failure()->exit_code() == std::optional<std::int64_t>{0};
 }
 
 [[nodiscard]] bool concurrent_cycle_guard_contract() {
