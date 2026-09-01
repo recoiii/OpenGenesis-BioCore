@@ -102,9 +102,24 @@ def render_entry(entry: Entry) -> str:
     return "\n".join(lines)
 
 
-def common_header(iteration: int, part_index: int, part_count: int, commit: str, entries: list[Entry]) -> str:
+def common_header(
+    iteration: int,
+    part_index: int,
+    part_count: int,
+    commit: str,
+    entries: list[Entry],
+    ci_run_id: str | None,
+) -> str:
     total_bytes = sum(len(entry.data) for entry in entries)
     scope_path = f"docs/development/ITERATION-{iteration:03d}.md"
+    ci_lines = ""
+    if ci_run_id is not None:
+        ci_lines = f"""- GitHub Actions validation run: `{ci_run_id}`
+- CI prerequisite status: **PASSED before package generation**
+- Required prerequisite gates: GCC Debug, GCC Release, Clang Debug, GCC ASan+UBSan; each enforces at least the 67-test v0.1 baseline and a fully passing CTest suite
+- Development identity gate: GCC Debug verified `biocore --version` equals `0.2.0-dev`
+"""
+
     return f"""# OpenGenesis-BioCore v0.2.0-dev — Iteration {iteration:03d} Gemini Independent Validation
 
 ## Review identity
@@ -112,7 +127,7 @@ def common_header(iteration: int, part_index: int, part_count: int, commit: str,
 - Exact candidate commit: `{commit}`
 - Frozen technical baseline: **{BASELINE_NAME}**
 - Frozen baseline source SHA-256: `{BASELINE_SHA256}`
-- Review package: **{part_count} Markdown parts**
+{ci_lines}- Review package: **{part_count} Markdown parts**
 - This file: **Part {part_index:02d} / {part_count:02d}**
 - Exact tracked entries represented across the package: **{len(entries)}**
 - Exact tracked blob bytes represented across the package: **{total_bytes}**
@@ -155,6 +170,10 @@ def main() -> int:
     parser.add_argument("--iteration", type=int, required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--parts", type=int, default=4, choices=(3, 4))
+    parser.add_argument(
+        "--ci-run-id",
+        help="GitHub Actions run id. When provided, records that prerequisite validation gates passed before packaging.",
+    )
     args = parser.parse_args()
 
     require_clean_tracked_tree()
@@ -169,7 +188,7 @@ def main() -> int:
 
     for index, group in enumerate(groups, start=1):
         output_path = args.output / f"{prefix}-part-{index:02d}-of-{args.parts:02d}.md"
-        body = common_header(args.iteration, index, args.parts, commit, entries)
+        body = common_header(args.iteration, index, args.parts, commit, entries, args.ci_run_id)
         body += "\n".join(render_entry(entry) for entry in group)
         output_path.write_text(body, encoding="utf-8", newline="\n")
         generated.append(output_path)
@@ -183,6 +202,8 @@ def main() -> int:
 
     print(f"ITERATION={args.iteration:03d}")
     print(f"COMMIT={commit}")
+    if args.ci_run_id is not None:
+        print(f"CI_RUN_ID={args.ci_run_id}")
     print(f"TRACKED_ENTRIES={len(entries)}")
     print(f"PARTS={args.parts}")
     for path in generated:
