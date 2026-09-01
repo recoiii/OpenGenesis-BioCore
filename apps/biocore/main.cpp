@@ -9,6 +9,7 @@
 #include "local_server_bootstrap.hpp"
 #include "project_init_bootstrap.hpp"
 #include "biocore/application/build_info.hpp"
+#include "biocore/application/job_scheduler.hpp"
 #include "biocore/application/health_snapshot.hpp"
 #include "biocore/infrastructure/system_clock.hpp"
 #include "biocore/presentation/health_json.hpp"
@@ -22,6 +23,7 @@ constexpr std::string_view init_project_argument = "--init-project";
 constexpr std::string_view name_argument = "--name";
 constexpr std::string_view catalog_argument = "--catalog";
 constexpr std::string_view port_argument = "--port";
+constexpr std::string_view maximum_concurrent_jobs_argument = "--max-concurrent-jobs";
 
 void print_usage() {
     std::cout << "OpenGenesis-BioCore local-first executable\n"
@@ -29,7 +31,8 @@ void print_usage() {
               << "  biocore --health\n"
               << "  biocore --version\n"
               << "  biocore --init-project <project-root> --name <name> --catalog <catalog.sqlite>\n"
-              << "  biocore --serve <project-root> [--port <1-65535>]\n";
+              << "  biocore --serve <project-root> [--port <1-65535>] "
+                 "[--max-concurrent-jobs <1-64>]\n";
 }
 
 [[nodiscard]] std::uint16_t parse_port(const std::string_view value) {
@@ -39,6 +42,20 @@ void print_usage() {
         throw std::invalid_argument("Server port must be an integer between 1 and 65535");
     }
     return static_cast<std::uint16_t>(parsed);
+}
+
+[[nodiscard]] std::size_t parse_maximum_concurrent_jobs(const std::string_view value) {
+    std::size_t parsed = 0U;
+    const auto result = std::from_chars(value.data(), value.data() + value.size(), parsed);
+    if (result.ec != std::errc{} || result.ptr != value.data() + value.size() ||
+        parsed == 0U ||
+        parsed > biocore::application::JobScheduler::maximum_supported_concurrent_jobs) {
+        throw std::invalid_argument(
+            "Maximum concurrent jobs must be an integer between 1 and " +
+            std::to_string(biocore::application::JobScheduler::maximum_supported_concurrent_jobs)
+        );
+    }
+    return parsed;
 }
 
 [[nodiscard]] biocore::bootstrap::ProjectInitArguments parse_init_project_arguments(
@@ -57,7 +74,9 @@ void print_usage() {
 }
 
 [[nodiscard]] biocore::bootstrap::ServeArguments parse_serve_arguments(const int argc, const char* const argv[]) {
-    if (argc != 3 && argc != 5) throw std::invalid_argument("Invalid --serve arguments");
+    if (argc < 3 || argc > 7 || ((argc - 3) % 2) != 0) {
+        throw std::invalid_argument("Invalid --serve arguments");
+    }
     biocore::bootstrap::ServeArguments arguments{
         .project_root = argv[2],
         .port = 8421U,
@@ -66,11 +85,24 @@ void print_usage() {
         .plugin_root = std::nullopt,
         .worker_executable = std::nullopt,
         .frontend_root = std::nullopt,
-        .maximum_concurrent_jobs = 2U,
+        .maximum_concurrent_jobs = biocore::application::JobScheduler::default_maximum_concurrent_jobs,
     };
-    if (argc == 5) {
-        if (std::string_view{argv[3]} != port_argument) throw std::invalid_argument("Expected --port after project root");
-        arguments.port = parse_port(argv[4]);
+    bool port_seen = false;
+    bool concurrency_seen = false;
+    for (int index = 3; index < argc; index += 2) {
+        const std::string_view option{argv[index]};
+        const std::string_view value{argv[index + 1]};
+        if (option == port_argument && !port_seen) {
+            arguments.port = parse_port(value);
+            port_seen = true;
+            continue;
+        }
+        if (option == maximum_concurrent_jobs_argument && !concurrency_seen) {
+            arguments.maximum_concurrent_jobs = parse_maximum_concurrent_jobs(value);
+            concurrency_seen = true;
+            continue;
+        }
+        throw std::invalid_argument("Unknown or duplicate --serve option");
     }
     return arguments;
 }

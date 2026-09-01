@@ -5,6 +5,7 @@
 #include <deque>
 #include <functional>
 #include <map>
+#include <memory>
 #include <mutex>
 #include <string>
 #include <string_view>
@@ -23,6 +24,7 @@ class WorkerLifecycleEventBroadcastHub final
 public:
     using SubscriptionId = std::uint64_t;
     using Consumer = std::function<void(std::string_view)>;
+    using SharedMessage = std::shared_ptr<const std::string>;
 
     static constexpr std::size_t maximum_subscribers = 64U;
     static constexpr std::size_t maximum_pending_messages = 1024U;
@@ -39,7 +41,7 @@ private:
         Consumer consumer;
         bool active{false};
         bool draining{false};
-        std::deque<std::string> pending;
+        std::deque<SharedMessage> pending;
     };
 
     [[nodiscard]] bool drain(SubscriptionId subscription_id);

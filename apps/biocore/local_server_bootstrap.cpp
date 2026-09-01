@@ -203,8 +203,13 @@ int run_local_server(
         standard_error << "OpenGenesis-BioCore local server unavailable: this build does not include Drogon.\n";
         return 3;
     }
-    if (arguments.maximum_concurrent_jobs == 0U) {
-        throw std::invalid_argument("Maximum concurrent jobs must be greater than zero");
+    if (arguments.maximum_concurrent_jobs == 0U ||
+        arguments.maximum_concurrent_jobs >
+            application::JobScheduler::maximum_supported_concurrent_jobs) {
+        throw std::invalid_argument(
+            "Maximum concurrent jobs must be between 1 and " +
+            std::to_string(application::JobScheduler::maximum_supported_concurrent_jobs)
+        );
     }
 
     const std::filesystem::path root = validated_project_root(arguments.project_root);
@@ -292,6 +297,10 @@ int run_local_server(
                     << " stale job(s) interrupted, " << recovery_result.issues.size() << " issue(s).\n";
     standard_output << "OpenGenesis-BioCore pipelines: " << pipeline_report.loaded_pipelines
                     << ", plugin modules: " << plugin_report.loaded_modules << ".\n";
+    standard_output << "OpenGenesis-BioCore worker concurrency: "
+                    << arguments.maximum_concurrent_jobs << " / "
+                    << application::JobScheduler::maximum_supported_concurrent_jobs
+                    << " hard maximum.\n";
     standard_output << "OpenGenesis-BioCore local API: http://127.0.0.1:" << arguments.port << "/api/v1/health\n";
     standard_output << "OpenGenesis-BioCore UI: http://127.0.0.1:" << arguments.port << "/\n";
     standard_output << "Bootstrap bearer token: " << token << '\n';

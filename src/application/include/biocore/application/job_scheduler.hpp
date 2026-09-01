@@ -26,6 +26,9 @@ struct JobSchedulerTickResult final {
 
 class JobScheduler final {
 public:
+    static constexpr std::size_t default_maximum_concurrent_jobs = 2U;
+    static constexpr std::size_t maximum_supported_concurrent_jobs = 64U;
+
     JobScheduler(
         JobService& job_service,
         IPreparedJobStore& prepared_jobs,

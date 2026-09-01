@@ -247,8 +247,11 @@ std::size_t WorkerLifecycleEventBroadcastHub::subscriber_count() const {
 void WorkerLifecycleEventBroadcastHub::publish(
     const application::WorkerLifecycleEvent& event
 ) {
-    const std::string message = render_worker_lifecycle_event_json(event);
+    const auto message = std::make_shared<const std::string>(
+        render_worker_lifecycle_event_json(event)
+    );
     std::vector<SubscriptionId> drains;
+    drains.reserve(maximum_subscribers);
 
     {
         std::scoped_lock lock{mutex_};
@@ -276,7 +279,7 @@ void WorkerLifecycleEventBroadcastHub::publish(
 bool WorkerLifecycleEventBroadcastHub::drain(const SubscriptionId subscription_id) {
     for (;;) {
         Consumer consumer;
-        std::string message;
+        SharedMessage message;
         {
             std::scoped_lock lock{mutex_};
             const auto iterator = subscriptions_.find(subscription_id);
@@ -300,7 +303,7 @@ bool WorkerLifecycleEventBroadcastHub::drain(const SubscriptionId subscription_i
         }
 
         try {
-            consumer(message);
+            consumer(*message);
         } catch (...) {
             std::scoped_lock lock{mutex_};
             subscriptions_.erase(subscription_id);

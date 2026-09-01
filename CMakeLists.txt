@@ -161,6 +161,19 @@ if(BIOCORE_BUILD_TESTS)
         NAME integration.frontend_operational_visibility
         COMMAND biocore-frontend-operational-visibility-tests
     )
+
+    add_executable(
+        biocore-resource-performance-hardening-tests
+        tests/resource_performance_hardening_tests.cpp
+    )
+    target_link_libraries(
+        biocore-resource-performance-hardening-tests
+        PRIVATE BioCore::application BioCore::presentation BioCore::project_warnings BioCore::sanitizers
+    )
+    add_test(
+        NAME integration.resource_performance_hardening
+        COMMAND biocore-resource-performance-hardening-tests
+    )
 endif()
 
 if(WIN32)

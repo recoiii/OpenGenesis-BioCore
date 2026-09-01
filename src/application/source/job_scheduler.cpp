@@ -110,8 +110,12 @@ JobScheduler::JobScheduler(
       prepared_jobs_{prepared_jobs},
       worker_supervisor_{worker_supervisor},
       maximum_concurrent_jobs_{maximum_concurrent_jobs} {
-    if (maximum_concurrent_jobs_ == 0U) {
-        throw std::invalid_argument("Maximum concurrent jobs must be greater than zero");
+    if (maximum_concurrent_jobs_ == 0U ||
+        maximum_concurrent_jobs_ > maximum_supported_concurrent_jobs) {
+        throw std::invalid_argument(
+            "Maximum concurrent jobs must be between 1 and " +
+            std::to_string(maximum_supported_concurrent_jobs)
+        );
     }
 }
 

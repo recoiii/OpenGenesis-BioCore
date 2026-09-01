@@ -11,8 +11,8 @@ on:
   workflow_dispatch:
 
 env:
-  BIOCORE_ITERATION: "052"
-  BIOCORE_TEST_FLOOR: "74"
+  BIOCORE_ITERATION: "053"
+  BIOCORE_TEST_FLOOR: "75"
 
 permissions:
   contents: read
@@ -142,6 +142,21 @@ jobs:
               }, manifest) !== 'mismatch') process.exit(4);
           console.log('Frontend operational visibility behavior PASS');
           JS
+
+      - name: Verify resource and concurrency hardening contract
+        if: matrix.preset == 'linux-gcc-debug'
+        shell: bash
+        run: |
+          set +e
+          invalid_output="$(build/linux-gcc-debug/apps/biocore/biocore --serve . --max-concurrent-jobs 65 2>&1)"
+          invalid_status=$?
+          set -e
+          test "${invalid_status}" -eq 1
+          grep -F "Maximum concurrent jobs must be an integer between 1 and 64" <<<"${invalid_output}"
+          grep -F "default_maximum_concurrent_jobs = 2U" src/application/include/biocore/application/job_scheduler.hpp
+          grep -F "maximum_supported_concurrent_jobs = 64U" src/application/include/biocore/application/job_scheduler.hpp
+          grep -F "using SharedMessage = std::shared_ptr<const std::string>" src/presentation/include/biocore/presentation/worker_lifecycle_event_broadcast.hpp
+          echo "Resource and concurrency hardening contract PASS"
 
       - name: Verify exact pipeline plugin-version pins
         if: matrix.preset == 'linux-gcc-debug'
