@@ -50,6 +50,10 @@ Iteration 047 must not:
 11. `0.2.0-dev`, Worker Protocol v2, security boundaries and biological behavior remain unchanged.
 12. Independent Gemini review returns `ACCEPT` before Iteration 047 is frozen.
 
+## Validation correction note
+
+The first Iteration 047 CI candidate exposed two regression-test fixture defects rather than runtime failures. The worker pre-ready failure test expected a placeholder timestamp instead of the lifecycle event timestamp, and the synthetic schema-v3 database fixture omitted job columns that had already been introduced by schema v2. Both fixtures were corrected to match the established contracts before the final validation candidate was produced. No runtime, schema, protocol or biological behavior was relaxed to make these tests pass.
+
 ## Freeze rule
 
 Iteration 047 remains open until the exact final candidate passes the complete Linux validation matrix and independent Gemini review. Any blocking finding requires a revised candidate and a fresh exact review package.
