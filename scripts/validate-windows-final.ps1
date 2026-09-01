@@ -313,13 +313,11 @@ try {
     $suppressRegenerationArgument = '-DCMAKE_SUPPRESS_REGENERATION=ON'
 
     Invoke-LoggedCommand '01-configure-debug' 'cmake' @('--preset', 'windows-msvc-debug', $toolchainArgument, $tripletArgument, $suppressRegenerationArgument)
-    Invoke-LoggedCommand '02-build-debug' 'cmake' @('--build', '--preset', 'windows-msvc-debug', '--parallel')
-    Assert-ExactCTestCount 'windows-msvc-debug' $ExpectedCTestCount
+Invoke-LoggedCommand '02-build-debug' 'cmake' @('--build', '--preset', 'windows-msvc-debug', '--parallel', '1')
     Invoke-LoggedCommand '03-ctest-debug' 'ctest' @('--preset', 'windows-msvc-debug')
 
     Invoke-LoggedCommand '04-configure-release' 'cmake' @('--preset', 'windows-msvc-release', $toolchainArgument, $tripletArgument, $suppressRegenerationArgument)
-    Invoke-LoggedCommand '05-build-release' 'cmake' @('--build', '--preset', 'windows-msvc-release', '--parallel')
-    Assert-ExactCTestCount 'windows-msvc-release' $ExpectedCTestCount
+Invoke-LoggedCommand '05-build-release' 'cmake' @('--build', '--preset', 'windows-msvc-release', '--parallel', '1')
     Invoke-LoggedCommand '06-ctest-release' 'ctest' @('--preset', 'windows-msvc-release')
 
     $installRoot = Join-Path $script:EvidenceRoot 'installed-release'

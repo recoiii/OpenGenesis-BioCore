@@ -233,8 +233,6 @@ jobs:
           }
       - name: Validate exact sealed source on native Windows
         shell: pwsh
-        env:
-          CMAKE_BUILD_PARALLEL_LEVEL: "1"
         run: |
           $drive = 'B:'
           if (Get-PSDrive -Name 'B' -ErrorAction SilentlyContinue) {
