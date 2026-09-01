@@ -1,0 +1,67 @@
+name: Iteration 054 staging apply
+
+on:
+  push:
+    branches:
+      - iteration-054-staging
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout staging
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build libsqlite3-dev zlib1g-dev
+
+      - name: Apply final-closure transformation
+        run: python3 scripts/iteration-054-apply.py
+
+      - name: Validate Linux final identity and regression floor
+        shell: bash
+        run: |
+          cmake --preset linux-gcc-debug
+          cmake --build --preset linux-gcc-debug --parallel
+          count="$(ctest --preset linux-gcc-debug -N | sed -n 's/^Total Tests: //p')"
+          test "${count}" = "75"
+          ctest --preset linux-gcc-debug --output-on-failure
+          test "$(build/linux-gcc-debug/apps/biocore/biocore --version)" = "0.2.0"
+          python3 -m py_compile scripts/generate-gemini-review.py
+
+      - name: Publish workflow-neutral candidate tree
+        shell: bash
+        run: |
+          rm -rf /tmp/iteration-054-candidate
+          git worktree add --detach /tmp/iteration-054-candidate origin/accepted/iteration-053
+          files=(
+            .github/workflows/v0.2-validation.yml
+            CITATION.cff
+            CMakeLists.txt
+            README.md
+            docs/development/ITERATION-053-ACCEPTANCE.md
+            docs/development/ITERATION-054.md
+            docs/release/FINAL-WINDOWS-CLOSURE.md
+            docs/release/RELEASE-NOTES-0.2.0.md
+            docs/release/VALIDATION.md
+            scripts/generate-gemini-review.py
+            scripts/validate-windows-final.ps1
+          )
+          for file in "${files[@]}"; do
+            mkdir -p "/tmp/iteration-054-candidate/$(dirname "${file}")"
+            cp "${file}" "/tmp/iteration-054-candidate/${file}"
+          done
+          cd /tmp/iteration-054-candidate
+          git config user.name "OpenGenesis-BioCore Automation"
+          git config user.email "noreply@github.com"
+          git add "${files[@]}"
+          git commit -m "Iteration 054: close v0.2.0 release candidate"
+          git push --force origin HEAD:refs/heads/iteration-054-candidate
