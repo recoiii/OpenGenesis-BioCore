@@ -1,0 +1,71 @@
+name: Iteration 053 staging apply
+
+on:
+  push:
+    branches:
+      - iteration-053-staging
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout staging
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build libsqlite3-dev zlib1g-dev
+
+      - name: Build Iteration 053 candidate tree
+        shell: bash
+        run: |
+          python3 scripts/iteration-053-apply.py
+          cmake --preset linux-gcc-debug
+          cmake --build --preset linux-gcc-debug --parallel
+          count="$(ctest --preset linux-gcc-debug -N | sed -n 's/^Total Tests: //p')"
+          test "${count}" -ge 75
+          echo "CTest count: ${count}"
+          ctest --preset linux-gcc-debug --output-on-failure
+          test "$(build/linux-gcc-debug/apps/biocore/biocore --version)" = "0.2.0-dev"
+
+          set +e
+          invalid_output="$(build/linux-gcc-debug/apps/biocore/biocore --serve . --max-concurrent-jobs 65 2>&1)"
+          invalid_status=$?
+          set -e
+          test "${invalid_status}" -eq 1
+          grep -F "Maximum concurrent jobs must be an integer between 1 and 64" <<<"${invalid_output}"
+
+      - name: Publish workflow-neutral candidate tree
+        shell: bash
+        run: |
+          rm -rf /tmp/iteration-053-candidate
+          git worktree add --detach /tmp/iteration-053-candidate accepted/iteration-052
+          files=(
+            CMakeLists.txt
+            apps/biocore/main.cpp
+            apps/biocore/local_server_bootstrap.cpp
+            src/application/include/biocore/application/job_scheduler.hpp
+            src/application/source/job_scheduler.cpp
+            src/presentation/include/biocore/presentation/worker_lifecycle_event_broadcast.hpp
+            src/presentation/source/worker_lifecycle_event_broadcast.cpp
+            tests/resource_performance_hardening_tests.cpp
+            docs/development/ITERATION-052-ACCEPTANCE.md
+            docs/development/ITERATION-053.md
+          )
+          for file in "${files[@]}"; do
+            mkdir -p "/tmp/iteration-053-candidate/$(dirname "${file}")"
+            cp "${file}" "/tmp/iteration-053-candidate/${file}"
+          done
+          cd /tmp/iteration-053-candidate
+          git config user.name "OpenGenesis-BioCore Automation"
+          git config user.email "noreply@github.com"
+          git add "${files[@]}"
+          git commit -m "Iteration 053: harden resource and performance contracts"
+          git push --force origin HEAD:refs/heads/iteration-053-candidate
