@@ -11,8 +11,8 @@ on:
   workflow_dispatch:
 
 env:
-  BIOCORE_ITERATION: "051"
-  BIOCORE_TEST_FLOOR: "73"
+  BIOCORE_ITERATION: "052"
+  BIOCORE_TEST_FLOOR: "74"
 
 permissions:
   contents: read
@@ -105,6 +105,42 @@ jobs:
               state.jobs.get('failure-ui').failure?.kind !== 'worker_reported_failure' ||
               state.jobs.get('failure-ui').failure?.exitCode !== 9) process.exit(2);
           console.log('Browser failure evidence contract PASS');
+          JS
+
+      - name: Verify frontend operational visibility contract
+        if: matrix.preset == 'linux-gcc-debug'
+        shell: bash
+        run: |
+          node --check frontend/assets/app.js
+          node - <<'JS'
+          const { core } = require('./frontend/assets/app.js');
+          const job = core.normalizeJob({
+            id: 'job-visibility', status: 'interrupted', attemptNumber: 3, revision: 9,
+            progress: 0.4, failure: {
+              kind: 'heartbeat_timeout', message: 'worker heartbeat expired',
+              exitCode: null, workerTimestampUtc: null, recordedAtUtc: '2026-09-01T10:00:00Z'
+            }
+          });
+          if (!job || job.attemptNumber !== 3 || !core.canRetryJob(job.status) ||
+              core.canRetryJob('failed') || !core.canVerifyExport('completed') ||
+              core.canVerifyExport('running')) process.exit(1);
+          const digest = 'a'.repeat(64);
+          const manifest = core.normalizeExportManifest({
+            schemaVersion: 1,
+            producer: { name: 'OpenGenesis-BioCore', version: '0.2.0-dev' },
+            stableSnapshot: true,
+            artifactCount: 1,
+            report: { jobId: 'job-visibility', attemptNumber: 3 },
+            artifacts: [{ metadata: { managedFileId: 'artifact-1' }, verifiedSha256: digest }]
+          });
+          if (!manifest || manifest.attemptNumber !== 3 || manifest.artifacts.length !== 1) process.exit(2);
+          if (core.artifactVerificationState({
+                managedFileId: 'artifact-1', checksumAlgorithm: 'sha256', checksumValue: digest
+              }, manifest) !== 'verified') process.exit(3);
+          if (core.artifactVerificationState({
+                managedFileId: 'artifact-1', checksumAlgorithm: 'sha256', checksumValue: 'b'.repeat(64)
+              }, manifest) !== 'mismatch') process.exit(4);
+          console.log('Frontend operational visibility behavior PASS');
           JS
 
       - name: Verify exact pipeline plugin-version pins
