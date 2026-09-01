@@ -1,0 +1,52 @@
+name: Iteration 051 staging apply
+
+on:
+  push:
+    branches:
+      - iteration-051-staging
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout staging
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build libsqlite3-dev zlib1g-dev
+
+      - name: Build Iteration 051 candidate tree
+        shell: bash
+        run: |
+          python3 scripts/finalize-iteration-051.py
+          test ! -e scripts/finalize-iteration-051.py
+          rm .github/workflows/iteration-051-apply.yml
+          cmake --preset linux-gcc-debug
+          cmake --build --preset linux-gcc-debug --parallel
+          count="$(ctest --preset linux-gcc-debug -N | sed -n 's/^Total Tests: //p')"
+          test "${count}" -ge 73
+          ctest --preset linux-gcc-debug --output-on-failure
+          test "$(build/linux-gcc-debug/apps/biocore/biocore --version)" = "0.2.0-dev"
+
+      - name: Publish workflow-neutral candidate tree
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          BASE="e4dceeaf80b3f42bb26064cbf592129576f03fce"
+          git config user.name "OpenGenesis-BioCore Automation"
+          git config user.email "noreply@github.com"
+          git checkout "${BASE}" -- .github/workflows/v0.2-validation.yml
+          git add -A
+          TREE="$(git write-tree)"
+          COMMIT="$(printf '%s\n' 'Iteration 051: add export and report foundation' | git commit-tree "${TREE}" -p "${BASE}")"
+          git push origin "${COMMIT}:refs/heads/iteration-051-candidate" --force
+          echo "Candidate transport commit: ${COMMIT}"
