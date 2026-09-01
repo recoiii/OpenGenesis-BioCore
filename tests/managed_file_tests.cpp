@@ -47,7 +47,7 @@ using biocore::domain::StorageMode;
         std::string{"/proje/inputs/file-1/örnek.fastq"},
         std::string{"inputs/file-1/örnek.fastq"},
         std::string{"sha256"},
-        std::string{"abc123"}
+        std::string{"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}
     );
     return file.id() == "file-1" && file.display_name() == "input.fastq" &&
            file.storage_mode() == StorageMode::managed_copy && file.size_bytes() == 42 &&

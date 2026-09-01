@@ -11,6 +11,7 @@
 #include <unordered_map>
 #include <vector>
 
+#include "biocore/application/i_input_file_storage.hpp"
 #include "biocore/domain/managed_file.hpp"
 
 namespace biocore::application {
@@ -68,6 +69,9 @@ public:
     );
     [[nodiscard]] std::vector<domain::ManagedFile> list();
     [[nodiscard]] std::optional<domain::ManagedFile> find_by_id(std::string_view id);
+    [[nodiscard]] std::optional<ManagedFileIntegrityResult> verify_integrity(
+        std::string_view id
+    );
 
     [[nodiscard]] ManagedFileUploadSession begin_upload(
         const BeginManagedFileUploadRequest& request

@@ -24,6 +24,9 @@ using biocore::infrastructure::sqlite::SqliteConnection;
 using biocore::infrastructure::sqlite::SqliteError;
 using biocore::infrastructure::sqlite::SqliteManagedFileRepository;
 
+constexpr std::string_view repository_checksum =
+    "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd";
+
 [[nodiscard]] ManagedFile make_file(std::string id, std::string relative, std::string created) {
     return ManagedFile{
         std::move(id),
@@ -36,7 +39,7 @@ using biocore::infrastructure::sqlite::SqliteManagedFileRepository;
         123,
         std::string{"2026-08-06T21:00:00Z"},
         std::string{"sha256"},
-        std::string{"deadbeef"},
+        std::string{repository_checksum},
         created,
         created,
     };
@@ -56,7 +59,7 @@ using biocore::infrastructure::sqlite::SqliteManagedFileRepository;
     const auto by_path = repository.find_by_relative_project_path("inputs/file-a/örnek.fastq");
     if (!fetched.has_value() || !by_path.has_value() || fetched->display_name() != "örnek-'α.fastq" ||
         fetched->size_bytes() != 123 || !fetched->checksum_value().has_value() ||
-        *fetched->checksum_value() != "deadbeef" || by_path->id() != first.id()) {
+        *fetched->checksum_value() != repository_checksum || by_path->id() != first.id()) {
         return false;
     }
 
@@ -66,7 +69,6 @@ using biocore::infrastructure::sqlite::SqliteManagedFileRepository;
     const ManagedFile path_conflict = make_file("different-id", "inputs/file-a/örnek.fastq", "2026-08-06T21:02:00Z");
     return !repository.add(path_conflict) && !repository.find_by_id("missing").has_value();
 }
-
 
 [[nodiscard]] ManagedFile make_mode_file(const StorageMode mode, std::string id) {
     std::optional<std::string> original;

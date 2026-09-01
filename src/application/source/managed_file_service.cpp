@@ -120,8 +120,8 @@ domain::ManagedFile ManagedFileService::persist_import(
         std::move(file_type),
         prepared.size_bytes,
         std::nullopt,
-        std::nullopt,
-        std::nullopt,
+        prepared.checksum_algorithm,
+        prepared.checksum_value,
         timestamp,
         timestamp,
     };
@@ -173,6 +173,16 @@ std::optional<domain::ManagedFile> ManagedFileService::find_by_id(
     const std::string_view id
 ) {
     return repository_.find_by_id(id);
+}
+
+std::optional<ManagedFileIntegrityResult> ManagedFileService::verify_integrity(
+    const std::string_view id
+) {
+    const auto file = repository_.find_by_id(id);
+    if (!file.has_value() || file->storage_mode() != domain::StorageMode::managed_copy) {
+        return std::nullopt;
+    }
+    return input_storage_.verify_managed_file(*file);
 }
 
 ManagedFileUploadSession ManagedFileService::begin_upload(
