@@ -1,0 +1,81 @@
+name: Iteration 052 staging apply
+
+on:
+  push:
+    branches:
+      - iteration-052-staging
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout staging
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build libsqlite3-dev zlib1g-dev
+
+      - name: Build Iteration 052 candidate tree
+        shell: bash
+        run: |
+          python3 scripts/finalize-iteration-052.py
+          test ! -e scripts/finalize-iteration-052.py
+          rm .github/workflows/iteration-052-apply.yml
+          cmake --preset linux-gcc-debug
+          cmake --build --preset linux-gcc-debug --parallel
+          count="$(ctest --preset linux-gcc-debug -N | sed -n 's/^Total Tests: //p')"
+          test "${count}" -ge 74
+          ctest --preset linux-gcc-debug --output-on-failure
+          node --check frontend/assets/app.js
+          node - <<'JS'
+          const { core } = require('./frontend/assets/app.js');
+          const job = core.normalizeJob({
+            id: 'job-visibility', status: 'interrupted', attemptNumber: 3, revision: 9,
+            progress: 0.4, failure: {
+              kind: 'heartbeat_timeout', message: 'worker heartbeat expired',
+              exitCode: null, workerTimestampUtc: null, recordedAtUtc: '2026-09-01T10:00:00Z'
+            }
+          });
+          if (!job || job.attemptNumber !== 3 || !core.canRetryJob(job.status) ||
+              core.canRetryJob('failed') || !core.canVerifyExport('completed') ||
+              core.canVerifyExport('running')) process.exit(1);
+          const digest = 'a'.repeat(64);
+          const manifest = core.normalizeExportManifest({
+            schemaVersion: 1,
+            producer: { name: 'OpenGenesis-BioCore', version: '0.2.0-dev' },
+            stableSnapshot: true,
+            artifactCount: 1,
+            report: { jobId: 'job-visibility', attemptNumber: 3 },
+            artifacts: [{ metadata: { managedFileId: 'artifact-1' }, verifiedSha256: digest }]
+          });
+          if (!manifest || manifest.attemptNumber !== 3 || manifest.artifacts.length !== 1) process.exit(2);
+          if (core.artifactVerificationState({
+                managedFileId: 'artifact-1', checksumAlgorithm: 'sha256', checksumValue: digest
+              }, manifest) !== 'verified') process.exit(3);
+          if (core.artifactVerificationState({
+                managedFileId: 'artifact-1', checksumAlgorithm: 'sha256', checksumValue: 'b'.repeat(64)
+              }, manifest) !== 'mismatch') process.exit(4);
+          console.log('Frontend operational visibility behavior PASS');
+          JS
+          test "$(build/linux-gcc-debug/apps/biocore/biocore --version)" = "0.2.0-dev"
+
+      - name: Publish workflow-neutral candidate tree
+        shell: bash
+        run: |
+          BASE="7fb8b3445b773176a1990009054e6c40ad287c86"
+          git config user.name "OpenGenesis-BioCore Automation"
+          git config user.email "noreply@github.com"
+          git checkout "${BASE}" -- .github/workflows/v0.2-validation.yml
+          git add -A
+          TREE="$(git write-tree)"
+          COMMIT="$(printf '%s\n' 'Iteration 052: add frontend operational visibility' | git commit-tree "${TREE}" -p "${BASE}")"
+          git push origin "${COMMIT}:refs/heads/iteration-052-candidate" --force
+          echo "Candidate transport commit: ${COMMIT}"
