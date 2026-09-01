@@ -1,0 +1,35 @@
+name: Iteration 048 staging apply
+
+on:
+  push:
+    branches:
+      - iteration-048-staging
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.event.head_commit.message == 'Iteration 048 staging apply workflow'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          ref: iteration-048-staging
+
+      - name: Apply Iteration 048 transformations
+        run: python3 scripts/iteration-048-apply.py
+
+      - name: Create exact single-parent candidate commit
+        shell: bash
+        env:
+          BASE_SHA: c7c74402a5385f8974000ff5713c51784454b52f
+        run: |
+          git config user.name "OpenGenesis-BioCore Automation"
+          git config user.email "noreply@github.com"
+          git add -A
+          tree="$(git write-tree)"
+          commit="$(printf '%s\n' 'Iteration 048: add explicit retry and recovery semantics' | git commit-tree "${tree}" -p "${BASE_SHA}")"
+          echo "Candidate commit: ${commit}"
+          git push origin "${commit}:refs/heads/v0.2.0-dev"
