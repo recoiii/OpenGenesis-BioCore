@@ -3,6 +3,7 @@
 #include <sqlite3.h>
 
 #include <cstdint>
+#include <limits>
 #include <optional>
 #include <stdexcept>
 #include <string>
@@ -74,11 +75,30 @@ void require_done(sqlite3* database, Statement& statement, std::string_view oper
 
 void validate(const domain::Job& job, const application::PreparedJobExecution& execution) {
     if (job.status() != domain::JobStatus::queued || job.revision() <= 0 ||
+        job.attempt_number() != 1 || execution.attempt_number != 1 ||
         execution.job_id != job.id() || execution.launch_revision != job.revision() + 1 ||
         !job.pipeline_id().has_value() || !job.pipeline_version().has_value() ||
         execution.pipeline_id != *job.pipeline_id() || execution.pipeline_version != *job.pipeline_version() ||
         execution.execution_plan_path.empty() || execution.prepared_at_utc.empty()) {
         throw std::invalid_argument("Prepared-job execution does not match the queued Job");
+    }
+}
+
+void validate_retry(
+    const domain::Job& job,
+    const std::int64_t expected_revision,
+    const application::PreparedJobExecution& execution
+) {
+    if (expected_revision < 0 || job.status() != domain::JobStatus::queued ||
+        job.revision() != expected_revision + 1 || job.attempt_number() <= 1 ||
+        execution.attempt_number != job.attempt_number() || execution.job_id != job.id() ||
+        job.revision() == std::numeric_limits<std::int64_t>::max() ||
+        execution.launch_revision != job.revision() + 1 ||
+        !job.pipeline_id().has_value() || !job.pipeline_version().has_value() ||
+        execution.pipeline_id != *job.pipeline_id() ||
+        execution.pipeline_version != *job.pipeline_version() ||
+        execution.execution_plan_path.empty() || execution.prepared_at_utc.empty()) {
+        throw std::invalid_argument("Retry execution does not match the queued Job");
     }
 }
 
@@ -99,8 +119,8 @@ bool SqlitePreparedJobStore::add_prepared_job(
         INSERT INTO jobs(
             id, analysis_id, pipeline_id, pipeline_version, status, priority, progress,
             active_step_id, created_at_utc, updated_at_utc, started_at_utc,
-            finished_at_utc, revision
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            finished_at_utc, revision, attempt_number
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(id) DO NOTHING;
     )sql";
     Statement job_statement{database, insert_job};
@@ -117,6 +137,7 @@ bool SqlitePreparedJobStore::add_prepared_job(
     job_statement.bind_optional_text(11, job.started_at_utc());
     job_statement.bind_optional_text(12, job.finished_at_utc());
     job_statement.bind_integer(13, job.revision());
+    job_statement.bind_integer(14, job.attempt_number());
     require_done(database, job_statement, "Unable to insert prepared job");
     if (sqlite3_changes(database) != 1) {
         return false;
@@ -141,13 +162,63 @@ bool SqlitePreparedJobStore::add_prepared_job(
     return true;
 }
 
+bool SqlitePreparedJobStore::retry_prepared_job(
+    const domain::Job& job,
+    const std::int64_t expected_revision,
+    const application::PreparedJobExecution& execution
+) {
+    validate_retry(job, expected_revision, execution);
+    sqlite3* database = connection_.native_handle();
+    Transaction transaction{connection_};
+
+    constexpr const char* update_job = R"sql(
+        UPDATE jobs SET
+            status = ?, progress = ?, active_step_id = ?, updated_at_utc = ?,
+            started_at_utc = ?, finished_at_utc = ?, revision = ?, attempt_number = ?,
+            failure_kind = NULL, failure_message = NULL, failure_exit_code = NULL,
+            failure_worker_timestamp_utc = NULL, failure_recorded_at_utc = NULL
+        WHERE id = ? AND revision = ? AND status = 'interrupted';
+    )sql";
+    Statement job_statement{database, update_job};
+    job_statement.bind_text(1, domain::to_string(job.status()));
+    job_statement.bind_double(2, job.progress());
+    job_statement.bind_optional_text(3, job.active_step_id());
+    job_statement.bind_text(4, job.updated_at_utc());
+    job_statement.bind_optional_text(5, job.started_at_utc());
+    job_statement.bind_optional_text(6, job.finished_at_utc());
+    job_statement.bind_integer(7, job.revision());
+    job_statement.bind_integer(8, job.attempt_number());
+    job_statement.bind_text(9, job.id());
+    job_statement.bind_integer(10, expected_revision);
+    require_done(database, job_statement, "Unable to persist retried job");
+    if (sqlite3_changes(database) != 1) {
+        return false;
+    }
+
+    constexpr const char* update_execution = R"sql(
+        UPDATE job_execution_plans SET launch_revision = ? WHERE job_id = ?;
+    )sql";
+    Statement execution_statement{database, update_execution};
+    execution_statement.bind_integer(1, execution.launch_revision);
+    execution_statement.bind_text(2, execution.job_id);
+    require_done(database, execution_statement, "Unable to advance retry launch revision");
+    if (sqlite3_changes(database) != 1) {
+        throw SqliteError{SQLITE_CONSTRAINT, "Prepared execution association is missing during retry"};
+    }
+
+    transaction.commit();
+    return true;
+}
+
 std::optional<application::PreparedJobExecution> SqlitePreparedJobStore::find_execution(
     const std::string_view job_id
 ) {
     constexpr const char* sql = R"sql(
-        SELECT job_id, launch_revision, pipeline_id, pipeline_version,
-               execution_plan_path, prepared_at_utc
-        FROM job_execution_plans WHERE job_id = ?;
+        SELECT p.job_id, j.attempt_number, p.launch_revision, p.pipeline_id, p.pipeline_version,
+               p.execution_plan_path, p.prepared_at_utc
+        FROM job_execution_plans AS p
+        JOIN jobs AS j ON j.id = p.job_id
+        WHERE p.job_id = ?;
     )sql";
     Statement statement{connection_.native_handle(), sql};
     statement.bind_text(1, job_id);
@@ -158,11 +229,12 @@ std::optional<application::PreparedJobExecution> SqlitePreparedJobStore::find_ex
     }
     return application::PreparedJobExecution{
         .job_id = statement.text(0),
-        .launch_revision = statement.integer(1),
-        .pipeline_id = statement.text(2),
-        .pipeline_version = statement.text(3),
-        .execution_plan_path = statement.text(4),
-        .prepared_at_utc = statement.text(5),
+        .attempt_number = statement.integer(1),
+        .launch_revision = statement.integer(2),
+        .pipeline_id = statement.text(3),
+        .pipeline_version = statement.text(4),
+        .execution_plan_path = statement.text(5),
+        .prepared_at_utc = statement.text(6),
     };
 }
 

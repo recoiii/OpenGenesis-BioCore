@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstdint>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -21,12 +22,23 @@ public:
         const biocore::application::PreparedJobExecution&
     ) override { return true; }
 
+    bool retry_prepared_job(
+        const biocore::domain::Job& queued_job,
+        const std::int64_t,
+        const biocore::application::PreparedJobExecution& execution
+    ) override {
+        attempt_number = queued_job.attempt_number();
+        launch_revision = execution.launch_revision;
+        return true;
+    }
+
     std::optional<biocore::application::PreparedJobExecution> find_execution(
         const std::string_view job_id
     ) override {
         if (missing_job_id.has_value() && *missing_job_id == job_id) return std::nullopt;
         return biocore::application::PreparedJobExecution{
             .job_id = std::string{job_id},
+            .attempt_number = attempt_number,
             .launch_revision = launch_revision,
             .pipeline_id = pipeline_id,
             .pipeline_version = pipeline_version,
@@ -35,6 +47,7 @@ public:
         };
     }
 
+    std::int64_t attempt_number{1};
     std::int64_t launch_revision{1};
     std::string pipeline_id;
     std::string pipeline_version;

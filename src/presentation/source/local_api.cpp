@@ -18,6 +18,7 @@
 #include "biocore/application/build_info.hpp"
 #include "biocore/application/health_snapshot.hpp"
 #include "biocore/application/i_utc_clock.hpp"
+#include "biocore/application/job_retry_service.hpp"
 #include "biocore/application/job_service.hpp"
 #include "biocore/application/job_service_error.hpp"
 #include "biocore/application/i_job_submitter.hpp"
@@ -118,6 +119,7 @@ namespace {
            ",\"startedAtUtc\":" + optional_json(job.started_at_utc()) +
            ",\"finishedAtUtc\":" + optional_json(job.finished_at_utc()) +
            ",\"revision\":" + std::to_string(job.revision()) +
+           ",\"attemptNumber\":" + std::to_string(job.attempt_number()) +
            ",\"failure\":" + render_failure(job.failure()) + "}";
 }
 
@@ -917,9 +919,10 @@ LocalApiController::LocalApiController(
     application::ArtifactPresentationService& artifacts,
     application::IUtcClock& clock,
     std::string bootstrap_token,
-    LocalBrowserSession& browser_session
+    LocalBrowserSession& browser_session,
+    application::JobRetryService* retries
 )
-    : jobs_{jobs}, submissions_{submissions}, managed_files_{managed_files}, artifacts_{artifacts}, clock_{clock},
+    : jobs_{jobs}, retries_{retries}, submissions_{submissions}, managed_files_{managed_files}, artifacts_{artifacts}, clock_{clock},
       bootstrap_token_{std::move(bootstrap_token)}, browser_session_{browser_session} {
     if (bootstrap_token_.size() < 32U || bootstrap_token_.size() > 2048U) {
         throw std::invalid_argument("Bootstrap token length is invalid");
@@ -1101,6 +1104,17 @@ if (path.size() == 6U && path[2] == "files" && path[3] == "uploads" &&
                 if (!job.has_value()) return error_response(404, "job_not_found", "Job was not found");
                 return json_response(200, render_job(*job));
             }
+            if (path.size() == 5U && path[4] == "retry" &&
+                request.method == HttpMethod::post) {
+                if (!request.body.empty()) {
+                    throw std::invalid_argument("Job retry request body must be empty");
+                }
+                if (retries_ == nullptr) {
+                    return error_response(503, "job_retry_unavailable", "Job retry service is unavailable");
+                }
+                const auto retried = retries_->retry(job_id);
+                return json_response(202, render_job(retried.job));
+            }
             if (path.size() == 5U && path[4] == "cancel" &&
                 request.method == HttpMethod::post) {
                 if (!request.body.empty()) {
@@ -1224,6 +1238,12 @@ if (path.size() == 6U && path[2] == "files" && path[3] == "uploads" &&
         }
         if (error.code() == application::JobServiceErrorCode::concurrent_update) {
             return error_response(409, "concurrent_update", error.what());
+        }
+        if (error.code() == application::JobServiceErrorCode::job_not_retryable) {
+            return error_response(409, "job_not_retryable", error.what());
+        }
+        if (error.code() == application::JobServiceErrorCode::prepared_execution_missing) {
+            return error_response(409, "job_retry_unavailable", error.what());
         }
         return error_response(500, "job_service_error", error.what());
     } catch (const std::invalid_argument& error) {

@@ -23,7 +23,15 @@ biocore::domain::Job queued(std::string id, std::int64_t revision = 1) {
 }
 
 biocore::application::PreparedJobExecution execution(std::string job, std::string path) {
-    return {std::move(job), 2, "pipe", "1.0", std::move(path), "2026-08-07T00:00:01Z"};
+    return {
+        .job_id = std::move(job),
+        .attempt_number = 1,
+        .launch_revision = 2,
+        .pipeline_id = "pipe",
+        .pipeline_version = "1.0",
+        .execution_plan_path = std::move(path),
+        .prepared_at_utc = "2026-08-07T00:00:01Z",
+    };
 }
 
 void require(bool value, std::string_view message) {
@@ -40,13 +48,15 @@ int main() {
     biocore::infrastructure::sqlite::SqliteConnection connection{db};
     biocore::infrastructure::sqlite::ProjectMigrationRunner migrations{connection};
     migrations.apply_pending();
-    require(migrations.current_version() == 7, "schema v7 required");
+    require(migrations.current_version() == 8, "schema v8 required");
     biocore::infrastructure::sqlite::SqlitePreparedJobStore prepared{connection};
     biocore::infrastructure::sqlite::SqliteJobRepository jobs{connection};
 
     require(prepared.add_prepared_job(queued("job-a"), execution("job-a", "/project/.biocore/runtime/jobs/job-a/execution-plan-r2.json")), "prepared insert");
     const auto found = prepared.find_execution("job-a");
-    require(found.has_value() && found->launch_revision == 2 && found->pipeline_id == "pipe", "prepared lookup");
+    require(found.has_value() && found->attempt_number == 1 && found->launch_revision == 2 &&
+                found->pipeline_id == "pipe",
+            "prepared lookup");
     require(!prepared.add_prepared_job(queued("job-a"), execution("job-a", "/another.json")), "duplicate id must return false");
 
     bool conflict = false;

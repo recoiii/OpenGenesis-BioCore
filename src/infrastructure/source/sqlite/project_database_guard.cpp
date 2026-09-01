@@ -20,7 +20,7 @@ struct ExpectedMigration final {
     std::string_view name;
 };
 
-constexpr std::array<ExpectedMigration, 7> expected_migrations{{
+constexpr std::array<ExpectedMigration, 8> expected_migrations{{
     {1, "create_project_core_tables"},
     {2, "extend_jobs_for_repository"},
     {3, "register_generated_output_artifacts"},
@@ -28,6 +28,7 @@ constexpr std::array<ExpectedMigration, 7> expected_migrations{{
     {5, "require_generated_output_sha256"},
     {6, "associate_prepared_job_execution_plans"},
     {7, "persist_structured_job_failure_evidence"},
+    {8, "add_explicit_retry_attempt_semantics"},
 }};
 
 struct RequiredSchemaObject final {
@@ -35,7 +36,7 @@ struct RequiredSchemaObject final {
     std::string_view name;
 };
 
-constexpr std::array<RequiredSchemaObject, 13> required_current_objects{{
+constexpr std::array<RequiredSchemaObject, 16> required_current_objects{{
     {"table", "schema_migrations"},
     {"table", "project_metadata"},
     {"table", "managed_files"},
@@ -49,6 +50,9 @@ constexpr std::array<RequiredSchemaObject, 13> required_current_objects{{
     {"trigger", "job_execution_plans_validate_update"},
     {"trigger", "jobs_validate_failure_evidence_insert"},
     {"trigger", "jobs_validate_failure_evidence_update"},
+    {"trigger", "jobs_validate_attempt_update"},
+    {"trigger", "job_execution_plans_immutable_fields_update"},
+    {"trigger", "job_execution_plans_launch_revision_monotonic"},
 }};
 
 class Statement final {

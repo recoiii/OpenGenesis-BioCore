@@ -413,6 +413,55 @@ void apply_version_seven(SqliteConnection& connection) {
         INSERT INTO schema_migrations(version, name, applied_at_utc)
         VALUES (7, 'persist_structured_job_failure_evidence', strftime('%Y-%m-%dT%H:%M:%fZ', 'now'));
     )sql");
+ }
+
+void apply_version_eight(SqliteConnection& connection) {
+    connection.execute(R"sql(
+        ALTER TABLE jobs ADD COLUMN attempt_number INTEGER NOT NULL DEFAULT 1
+            CHECK(attempt_number >= 1);
+
+        CREATE TRIGGER jobs_validate_attempt_update
+        BEFORE UPDATE ON jobs
+        WHEN (
+            (OLD.status = 'interrupted' AND NEW.status = 'queued' AND (
+                NEW.attempt_number != OLD.attempt_number + 1 OR
+                NEW.progress != 0.0 OR
+                NEW.active_step_id IS NOT NULL OR
+                NEW.started_at_utc IS NOT NULL OR
+                NEW.finished_at_utc IS NOT NULL OR
+                NEW.failure_kind IS NOT NULL OR NEW.failure_message IS NOT NULL OR
+                NEW.failure_exit_code IS NOT NULL OR
+                NEW.failure_worker_timestamp_utc IS NOT NULL OR
+                NEW.failure_recorded_at_utc IS NOT NULL
+            )) OR
+            (NOT (OLD.status = 'interrupted' AND NEW.status = 'queued') AND
+                NEW.attempt_number != OLD.attempt_number)
+        )
+        BEGIN
+            SELECT RAISE(ABORT, 'job attempt number may only advance on a clean interrupted retry');
+        END;
+
+        CREATE TRIGGER job_execution_plans_immutable_fields_update
+        BEFORE UPDATE OF pipeline_id, pipeline_version, execution_plan_path, prepared_at_utc
+        ON job_execution_plans
+        WHEN NEW.pipeline_id != OLD.pipeline_id OR
+             NEW.pipeline_version != OLD.pipeline_version OR
+             NEW.execution_plan_path != OLD.execution_plan_path OR
+             NEW.prepared_at_utc != OLD.prepared_at_utc
+        BEGIN
+            SELECT RAISE(ABORT, 'prepared execution plan identity is immutable across retries');
+        END;
+
+        CREATE TRIGGER job_execution_plans_launch_revision_monotonic
+        BEFORE UPDATE OF launch_revision ON job_execution_plans
+        WHEN NEW.launch_revision <= OLD.launch_revision
+        BEGIN
+            SELECT RAISE(ABORT, 'prepared execution launch revision must advance monotonically');
+        END;
+
+        INSERT INTO schema_migrations(version, name, applied_at_utc)
+        VALUES (8, 'add_explicit_retry_attempt_semantics', strftime('%Y-%m-%dT%H:%M:%fZ', 'now'));
+    )sql");
 }
 
 }  // namespace
@@ -459,6 +508,9 @@ void ProjectMigrationRunner::apply_pending() {
     }
     if (version < 7) {
         apply_version_seven(connection_);
+    }
+    if (version < 8) {
+        apply_version_eight(connection_);
     }
     transaction.commit();
 }

@@ -110,29 +110,29 @@ private:
 };
 
 [[nodiscard]] std::optional<domain::JobFailure> read_failure(const Statement& statement) {
-    if (statement.is_null(13)) {
-        if (!statement.is_null(14) || !statement.is_null(15) || !statement.is_null(16) ||
-            !statement.is_null(17)) {
+    if (statement.is_null(14)) {
+        if (!statement.is_null(15) || !statement.is_null(16) || !statement.is_null(17) ||
+            !statement.is_null(18)) {
             throw SqliteError{SQLITE_MISMATCH, "Job failure record is only partially NULL"};
         }
         return std::nullopt;
     }
 
-    if (statement.is_null(14) || statement.is_null(17)) {
+    if (statement.is_null(15) || statement.is_null(18)) {
         throw SqliteError{SQLITE_MISMATCH, "Job failure record is incomplete"};
     }
-    const auto kind = domain::job_failure_kind_from_string(statement.text(13));
+    const auto kind = domain::job_failure_kind_from_string(statement.text(14));
     if (!kind.has_value()) {
         throw SqliteError{SQLITE_MISMATCH, "Job failure record contains an unsupported kind"};
     }
     try {
         return domain::JobFailure{
             *kind,
-            statement.text(14),
-            statement.is_null(15) ? std::nullopt
-                                  : std::optional<std::int64_t>{statement.integer(15)},
-            statement.optional_text(16),
-            statement.text(17),
+            statement.text(15),
+            statement.is_null(16) ? std::nullopt
+                                  : std::optional<std::int64_t>{statement.integer(16)},
+            statement.optional_text(17),
+            statement.text(18),
         };
     } catch (const std::invalid_argument& error) {
         throw SqliteError{
@@ -165,6 +165,7 @@ private:
             statement.optional_text(11),
             statement.integer(12),
             read_failure(statement),
+            statement.integer(13),
         };
     } catch (const std::invalid_argument& error) {
         throw SqliteError{
@@ -188,6 +189,7 @@ constexpr const char* select_columns = R"sql(
     started_at_utc,
     finished_at_utc,
     revision,
+    attempt_number,
     failure_kind,
     failure_message,
     failure_exit_code,
@@ -211,9 +213,9 @@ bool SqliteJobRepository::add(const domain::Job& job) {
         INSERT INTO jobs(
             id, analysis_id, pipeline_id, pipeline_version, status, priority, progress,
             active_step_id, created_at_utc, updated_at_utc, started_at_utc,
-            finished_at_utc, revision, failure_kind, failure_message, failure_exit_code,
+            finished_at_utc, revision, attempt_number, failure_kind, failure_message, failure_exit_code,
             failure_worker_timestamp_utc, failure_recorded_at_utc
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(id) DO NOTHING;
     )sql";
 
@@ -232,22 +234,23 @@ bool SqliteJobRepository::add(const domain::Job& job) {
     statement.bind_optional_text(11, job.started_at_utc());
     statement.bind_optional_text(12, job.finished_at_utc());
     statement.bind_integer(13, job.revision());
+    statement.bind_integer(14, job.attempt_number());
     if (job.failure().has_value()) {
-        statement.bind_text(14, domain::to_string(job.failure()->kind()));
-        statement.bind_text(15, job.failure()->message());
+        statement.bind_text(15, domain::to_string(job.failure()->kind()));
+        statement.bind_text(16, job.failure()->message());
         if (job.failure()->exit_code().has_value()) {
-            statement.bind_integer(16, *job.failure()->exit_code());
+            statement.bind_integer(17, *job.failure()->exit_code());
         } else {
-            statement.bind_null(16);
+            statement.bind_null(17);
         }
-        statement.bind_optional_text(17, job.failure()->worker_timestamp_utc());
-        statement.bind_text(18, job.failure()->recorded_at_utc());
+        statement.bind_optional_text(18, job.failure()->worker_timestamp_utc());
+        statement.bind_text(19, job.failure()->recorded_at_utc());
     } else {
-        statement.bind_null(14);
         statement.bind_null(15);
         statement.bind_null(16);
         statement.bind_null(17);
         statement.bind_null(18);
+        statement.bind_null(19);
     }
     require_done(database, statement, "Unable to insert job");
     return sqlite3_changes(database) == 1;
@@ -302,6 +305,7 @@ bool SqliteJobRepository::update_runtime_state(
             started_at_utc = ?,
             finished_at_utc = ?,
             revision = ?,
+            attempt_number = ?,
             failure_kind = ?,
             failure_message = ?,
             failure_exit_code = ?,
@@ -319,25 +323,26 @@ bool SqliteJobRepository::update_runtime_state(
     statement.bind_optional_text(5, job.started_at_utc());
     statement.bind_optional_text(6, job.finished_at_utc());
     statement.bind_integer(7, job.revision());
+    statement.bind_integer(8, job.attempt_number());
     if (job.failure().has_value()) {
-        statement.bind_text(8, domain::to_string(job.failure()->kind()));
-        statement.bind_text(9, job.failure()->message());
+        statement.bind_text(9, domain::to_string(job.failure()->kind()));
+        statement.bind_text(10, job.failure()->message());
         if (job.failure()->exit_code().has_value()) {
-            statement.bind_integer(10, *job.failure()->exit_code());
+            statement.bind_integer(11, *job.failure()->exit_code());
         } else {
-            statement.bind_null(10);
+            statement.bind_null(11);
         }
-        statement.bind_optional_text(11, job.failure()->worker_timestamp_utc());
-        statement.bind_text(12, job.failure()->recorded_at_utc());
+        statement.bind_optional_text(12, job.failure()->worker_timestamp_utc());
+        statement.bind_text(13, job.failure()->recorded_at_utc());
     } else {
-        statement.bind_null(8);
         statement.bind_null(9);
         statement.bind_null(10);
         statement.bind_null(11);
         statement.bind_null(12);
+        statement.bind_null(13);
     }
-    statement.bind_text(13, job.id());
-    statement.bind_integer(14, expected_revision);
+    statement.bind_text(14, job.id());
+    statement.bind_integer(15, expected_revision);
     require_done(database, statement, "Unable to update job runtime state");
     return sqlite3_changes(database) == 1;
 }

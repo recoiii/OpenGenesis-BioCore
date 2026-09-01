@@ -127,10 +127,14 @@ private:
     );
     if (!job.failure().has_value()) return false;
 
-    job = jobs.transition(job.id(), domain::JobStatus::queued, 0.2, std::nullopt);
+    try {
+        static_cast<void>(jobs.transition(job.id(), domain::JobStatus::queued, 0.0, std::nullopt));
+        return false;
+    } catch (const std::invalid_argument&) {
+    }
     const auto stored = repository.find_by_id(job.id());
-    return stored.has_value() && stored->status() == domain::JobStatus::queued &&
-           !stored->failure().has_value();
+    return stored.has_value() && stored->status() == domain::JobStatus::interrupted &&
+           stored->failure().has_value();
 }
 
 [[nodiscard]] bool version_six_backfills_legacy_terminal_evidence() {
@@ -169,11 +173,20 @@ private:
         ) VALUES
             ('legacy-failed', 'failed', 0.4, 'c', 'u', 's', 'f', 4),
             ('legacy-interrupted', 'interrupted', 0.7, 'c2', 'u2', 's2', NULL, 7);
+
+        CREATE TABLE job_execution_plans (
+            job_id TEXT PRIMARY KEY NOT NULL REFERENCES jobs(id) ON DELETE CASCADE,
+            launch_revision INTEGER NOT NULL,
+            pipeline_id TEXT NOT NULL,
+            pipeline_version TEXT NOT NULL,
+            execution_plan_path TEXT NOT NULL UNIQUE,
+            prepared_at_utc TEXT NOT NULL
+        );
     )sql");
 
     infrastructure::sqlite::ProjectMigrationRunner migrations{connection};
     migrations.apply_pending();
-    if (migrations.current_version() != 7) return false;
+    if (migrations.current_version() != 8) return false;
     infrastructure::sqlite::SqliteJobRepository repository{connection};
     const auto failed = repository.find_by_id("legacy-failed");
     const auto interrupted = repository.find_by_id("legacy-interrupted");

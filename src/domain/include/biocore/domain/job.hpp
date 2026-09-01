@@ -31,7 +31,8 @@ public:
         std::optional<std::string> started_at_utc,
         std::optional<std::string> finished_at_utc,
         std::int64_t revision,
-        std::optional<JobFailure> failure = std::nullopt
+        std::optional<JobFailure> failure = std::nullopt,
+        std::int64_t attempt_number = 1
     );
 
     [[nodiscard]] std::string_view id() const noexcept;
@@ -48,6 +49,7 @@ public:
     [[nodiscard]] const std::optional<std::string>& finished_at_utc() const noexcept;
     [[nodiscard]] std::int64_t revision() const noexcept;
     [[nodiscard]] const std::optional<JobFailure>& failure() const noexcept;
+    [[nodiscard]] std::int64_t attempt_number() const noexcept;
 
     void update_progress(
         double progress,
@@ -78,6 +80,7 @@ private:
     std::optional<std::string> finished_at_utc_;
     std::int64_t revision_;
     std::optional<JobFailure> failure_;
+    std::int64_t attempt_number_;
 };
 
 }  // namespace biocore::domain

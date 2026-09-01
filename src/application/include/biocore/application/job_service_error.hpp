@@ -8,7 +8,9 @@ namespace biocore::application {
 enum class JobServiceErrorCode {
     identifier_generation_exhausted,
     job_not_found,
-    concurrent_update
+    concurrent_update,
+    job_not_retryable,
+    prepared_execution_missing
 };
 
 class JobServiceError final : public std::runtime_error {

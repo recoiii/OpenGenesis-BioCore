@@ -10,6 +10,7 @@ target_sources(
         source/execution_plan.cpp
         source/job_scheduler.cpp
         source/job_scheduler_error.cpp
+        source/job_retry_service.cpp
         source/job_service.cpp
         source/job_service_error.cpp
         source/job_submission_service.cpp
@@ -63,6 +64,7 @@ target_sources(
             include/biocore/application/i_worker_lifecycle_event_sink.hpp
             include/biocore/application/job_scheduler.hpp
             include/biocore/application/job_scheduler_error.hpp
+            include/biocore/application/job_retry_service.hpp
             include/biocore/application/job_service.hpp
             include/biocore/application/job_service_error.hpp
             include/biocore/application/job_submission_service.hpp

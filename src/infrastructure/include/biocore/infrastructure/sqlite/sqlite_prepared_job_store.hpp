@@ -15,6 +15,12 @@ public:
         const application::PreparedJobExecution& execution
     ) override;
 
+    bool retry_prepared_job(
+        const domain::Job& queued_job,
+        std::int64_t expected_revision,
+        const application::PreparedJobExecution& execution
+    ) override;
+
     [[nodiscard]] std::optional<application::PreparedJobExecution> find_execution(
         std::string_view job_id
     ) override;

@@ -60,6 +60,9 @@ domain::Job JobService::transition(
         throw JobServiceError{JobServiceErrorCode::job_not_found, "Job was not found"};
     }
 
+    if (job->status() == domain::JobStatus::interrupted && target == domain::JobStatus::queued) {
+        throw std::invalid_argument("Interrupted jobs must be retried through JobRetryService");
+    }
     if (!domain::can_transition(job->status(), target)) {
         throw std::invalid_argument("Invalid job status transition");
     }

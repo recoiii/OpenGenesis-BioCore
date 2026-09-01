@@ -9,6 +9,7 @@
 
 #include "biocore/application/artifact_presentation_service.hpp"
 #include "biocore/application/job_scheduler.hpp"
+#include "biocore/application/job_retry_service.hpp"
 #include "biocore/application/job_service.hpp"
 #include "biocore/application/job_submission_service.hpp"
 #include "biocore/application/managed_file_service.hpp"
@@ -268,6 +269,7 @@ int run_local_server(
     infrastructure::JsonExecutionPlanStore execution_plans{root};
     application::PipelinePreparationService preparation{execution_plans, plugins, api_managed_files};
     application::JobSubmissionService submissions{api_prepared_jobs, pipelines, preparation, execution_plans, api_ids, clock};
+    application::JobRetryService retries{api_jobs, api_prepared_jobs, clock};
 
     infrastructure::PlatformWorkerSupervisor supervisor{assets.worker_executable, root};
     application::JobScheduler scheduler{runtime_jobs, runtime_prepared_jobs, supervisor, arguments.maximum_concurrent_jobs};
@@ -284,7 +286,7 @@ int run_local_server(
         arguments.port, infrastructure::generate_secure_token_hex()
     };
     presentation::LocalApiController api{
-        api_jobs, submissions, managed_files, artifacts, clock, token, browser_session
+        api_jobs, submissions, managed_files, artifacts, clock, token, browser_session, &retries
     };
     standard_output << "OpenGenesis-BioCore project recovery: " << recovery_result.recovered_jobs.size()
                     << " stale job(s) interrupted, " << recovery_result.issues.size() << " issue(s).\n";

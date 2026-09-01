@@ -42,6 +42,7 @@ namespace {
     const std::int64_t expected_launch_revision
 ) {
     return execution.job_id == job.id() &&
+           execution.attempt_number == job.attempt_number() &&
            execution.launch_revision == expected_launch_revision &&
            !execution.execution_plan_path.empty() &&
            job.pipeline_id().has_value() &&

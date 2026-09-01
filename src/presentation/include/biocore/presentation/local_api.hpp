@@ -10,6 +10,7 @@
 namespace biocore::application {
 class ArtifactPresentationService;
 class JobService;
+class JobRetryService;
 class ManagedFileService;
 class IJobSubmitter;
 class IUtcClock;
@@ -58,7 +59,8 @@ public:
         application::ArtifactPresentationService& artifacts,
         application::IUtcClock& clock,
         std::string bootstrap_token,
-        LocalBrowserSession& browser_session
+        LocalBrowserSession& browser_session,
+        application::JobRetryService* retries = nullptr
     );
 
     [[nodiscard]] LocalHttpResponse handle(const LocalHttpRequest& request);
@@ -81,6 +83,7 @@ public:
 
 private:
     application::JobService& jobs_;
+    application::JobRetryService* retries_;
     application::IJobSubmitter& submissions_;
     application::ManagedFileService& managed_files_;
     application::ArtifactPresentationService& artifacts_;

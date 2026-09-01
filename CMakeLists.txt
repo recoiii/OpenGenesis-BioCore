@@ -92,6 +92,19 @@ if(BIOCORE_BUILD_TESTS)
         NAME integration.job_failure_diagnostics
         COMMAND biocore-job-failure-diagnostics-tests
     )
+
+    add_executable(
+        biocore-job-retry-semantics-tests
+        tests/job_retry_semantics_tests.cpp
+    )
+    target_link_libraries(
+        biocore-job-retry-semantics-tests
+        PRIVATE BioCore::infrastructure BioCore::project_warnings BioCore::sanitizers
+    )
+    add_test(
+        NAME integration.job_retry_semantics
+        COMMAND biocore-job-retry-semantics-tests
+    )
 endif()
 
 if(WIN32)

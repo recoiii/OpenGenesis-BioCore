@@ -64,7 +64,8 @@ Job::Job(
     std::optional<std::string> started_at_utc,
     std::optional<std::string> finished_at_utc,
     const std::int64_t revision,
-    std::optional<JobFailure> failure
+    std::optional<JobFailure> failure,
+    const std::int64_t attempt_number
 )
     : id_{std::move(id)},
       analysis_id_{std::move(analysis_id)},
@@ -79,7 +80,8 @@ Job::Job(
       started_at_utc_{std::move(started_at_utc)},
       finished_at_utc_{std::move(finished_at_utc)},
       revision_{revision},
-      failure_{std::move(failure)} {
+      failure_{std::move(failure)},
+      attempt_number_{attempt_number} {
     require_text(id_, "Job id", maximum_id_length);
     require_optional_text(analysis_id_, "Job analysis id", maximum_id_length);
     require_optional_text(pipeline_id_, "Job pipeline id", maximum_metadata_length);
@@ -93,6 +95,9 @@ Job::Job(
 
     if (revision_ < 0) {
         throw std::invalid_argument("Job revision must not be negative");
+    }
+    if (attempt_number_ < 1) {
+        throw std::invalid_argument("Job attempt number must be at least one");
     }
     if (status_ == JobStatus::completed && progress_ != 1.0) {
         throw std::invalid_argument("Completed jobs must have progress 1");
@@ -176,6 +181,10 @@ const std::optional<JobFailure>& Job::failure() const noexcept {
     return failure_;
 }
 
+std::int64_t Job::attempt_number() const noexcept {
+    return attempt_number_;
+}
+
 void Job::update_progress(
     const double progress,
     std::optional<std::string> active_step_id,
@@ -218,6 +227,13 @@ void Job::transition_to(
         throw std::invalid_argument("Completed jobs must have progress 1");
     }
     const bool failure_target = target == JobStatus::failed || target == JobStatus::interrupted;
+    const bool retry_transition = status_ == JobStatus::interrupted && target == JobStatus::queued;
+    if (retry_transition && (progress != 0.0 || active_step_id.has_value())) {
+        throw std::invalid_argument("Retry transitions must restart from zero progress without an active step");
+    }
+    if (retry_transition && attempt_number_ == std::numeric_limits<std::int64_t>::max()) {
+        throw std::overflow_error("Job attempt number cannot be incremented");
+    }
     if (!failure_target && failure.has_value()) {
         throw std::invalid_argument("Failure evidence is only valid for failed or interrupted transitions");
     }
@@ -234,18 +250,25 @@ void Job::transition_to(
         throw std::overflow_error("Job revision cannot be incremented");
     }
 
-    if (!started_at_utc_.has_value() &&
-        (target == JobStatus::preparing || target == JobStatus::running ||
-         target == JobStatus::paused || target == JobStatus::cancelling)) {
-        started_at_utc_ = transition_at_utc;
-    }
-
-    if (is_terminal(target)) {
-        finished_at_utc_ = transition_at_utc;
-        active_step_id_.reset();
-    } else {
+    if (retry_transition) {
+        started_at_utc_.reset();
         finished_at_utc_.reset();
-        active_step_id_ = std::move(active_step_id);
+        active_step_id_.reset();
+        ++attempt_number_;
+    } else {
+        if (!started_at_utc_.has_value() &&
+            (target == JobStatus::preparing || target == JobStatus::running ||
+             target == JobStatus::paused || target == JobStatus::cancelling)) {
+            started_at_utc_ = transition_at_utc;
+        }
+
+        if (is_terminal(target)) {
+            finished_at_utc_ = transition_at_utc;
+            active_step_id_.reset();
+        } else {
+            finished_at_utc_.reset();
+            active_step_id_ = std::move(active_step_id);
+        }
     }
 
     status_ = target;
