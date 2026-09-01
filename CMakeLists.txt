@@ -144,6 +144,23 @@ if(BIOCORE_BUILD_TESTS)
         NAME integration.export_report_foundation
         COMMAND biocore-export-report-foundation-tests
     )
+
+    add_executable(
+        biocore-frontend-operational-visibility-tests
+        tests/frontend_operational_visibility_tests.cpp
+    )
+    target_compile_definitions(
+        biocore-frontend-operational-visibility-tests
+        PRIVATE BIOCORE_SOURCE_ROOT="${CMAKE_CURRENT_SOURCE_DIR}"
+    )
+    target_link_libraries(
+        biocore-frontend-operational-visibility-tests
+        PRIVATE BioCore::project_warnings BioCore::sanitizers
+    )
+    add_test(
+        NAME integration.frontend_operational_visibility
+        COMMAND biocore-frontend-operational-visibility-tests
+    )
 endif()
 
 if(WIN32)

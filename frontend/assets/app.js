@@ -16,6 +16,66 @@
       return new Set(["draft", "queued", "preparing", "running", "paused", "interrupted"]).has(status);
     },
 
+    canRetryJob(status) {
+      return status === "interrupted";
+    },
+
+    canVerifyExport(status) {
+      return TERMINAL_STATUSES.has(status);
+    },
+
+    normalizeExportManifest(manifest) {
+      const sha256 = value => typeof value === "string" && /^[0-9a-f]{64}$/i.test(value);
+      if (!manifest || typeof manifest !== "object" || manifest.schemaVersion !== 1 ||
+          !manifest.producer || typeof manifest.producer !== "object" ||
+          manifest.producer.name !== "OpenGenesis-BioCore" ||
+          typeof manifest.producer.version !== "string" || manifest.producer.version.length === 0 ||
+          typeof manifest.stableSnapshot !== "boolean" ||
+          !manifest.report || typeof manifest.report !== "object" ||
+          typeof manifest.report.jobId !== "string" || manifest.report.jobId.length === 0 ||
+          !Number.isSafeInteger(manifest.report.attemptNumber) || manifest.report.attemptNumber < 1 ||
+          !Array.isArray(manifest.artifacts)) {
+        return null;
+      }
+      const artifacts = [];
+      for (const entry of manifest.artifacts) {
+        if (!entry || typeof entry !== "object" ||
+            !entry.metadata || typeof entry.metadata !== "object" ||
+            typeof entry.metadata.managedFileId !== "string" ||
+            entry.metadata.managedFileId.length === 0 || !sha256(entry.verifiedSha256)) {
+          return null;
+        }
+        artifacts.push({
+          managedFileId: entry.metadata.managedFileId,
+          verifiedSha256: entry.verifiedSha256.toLowerCase()
+        });
+      }
+      if (Number.isSafeInteger(manifest.artifactCount) && manifest.artifactCount !== artifacts.length) {
+        return null;
+      }
+      return {
+        schemaVersion: 1,
+        producerVersion: manifest.producer.version,
+        stableSnapshot: manifest.stableSnapshot,
+        jobId: manifest.report.jobId,
+        attemptNumber: manifest.report.attemptNumber,
+        artifacts
+      };
+    },
+
+    artifactVerificationState(artifact, manifest) {
+      if (!artifact || !manifest || !Array.isArray(manifest.artifacts)) return "not_verified";
+      const entry = manifest.artifacts.find(item => item.managedFileId === artifact.managedFileId);
+      if (!entry) return "not_verified";
+      const recorded = artifact.checksumAlgorithm === "sha256" &&
+                       typeof artifact.checksumValue === "string" &&
+                       /^[0-9a-f]{64}$/i.test(artifact.checksumValue)
+        ? artifact.checksumValue.toLowerCase()
+        : null;
+      if (recorded !== null && recorded !== entry.verifiedSha256) return "mismatch";
+      return "verified";
+    },
+
     normalizeFailure(failure) {
       if (!failure || typeof failure !== "object" ||
           typeof failure.kind !== "string" || failure.kind.length === 0 ||
@@ -54,6 +114,9 @@
         startedAtUtc: typeof job.startedAtUtc === "string" ? job.startedAtUtc : null,
         finishedAtUtc: typeof job.finishedAtUtc === "string" ? job.finishedAtUtc : null,
         revision: Number.isInteger(job.revision) ? job.revision : 0,
+        attemptNumber: Number.isSafeInteger(job.attemptNumber) && job.attemptNumber >= 1
+          ? job.attemptNumber
+          : 1,
         failure: core.normalizeFailure(job.failure)
       };
     },
@@ -119,6 +182,7 @@
         startedAtUtc: null,
         finishedAtUtc: null,
         revision: 0,
+        attemptNumber: 1,
         failure: null
       };
 
@@ -844,6 +908,8 @@
     logs: new Map(),
     cursors: new Map(),
     artifacts: new Map(),
+    exportManifests: new Map(),
+    exportChecks: new Map(),
     managedFiles: new Map(),
     selectedJobId: null,
     filter: "all",
@@ -1010,9 +1076,10 @@
 
       const pipeline = document.createElement("div");
       pipeline.className = "job-pipeline";
-      pipeline.textContent = job.pipelineId && job.pipelineVersion
+      const pipelineIdentity = job.pipelineId && job.pipelineVersion
         ? `${job.pipelineId} · ${job.pipelineVersion}`
         : job.id;
+      pipeline.textContent = `${pipelineIdentity} · attempt ${job.attemptNumber}`;
 
       const bottom = document.createElement("div");
       bottom.className = "job-row-bottom";
@@ -1074,6 +1141,11 @@
   const renderArtifacts = jobId => {
     clearElement(artifactList);
     const artifacts = state.artifacts.get(jobId) ?? [];
+    const job = state.jobs.get(jobId);
+    const cachedManifest = state.exportManifests.get(jobId) ?? null;
+    const manifest = cachedManifest !== null && job && cachedManifest.attemptNumber === job.attemptNumber
+      ? cachedManifest
+      : null;
     byId("artifact-count").textContent = `${artifacts.length} file${artifacts.length === 1 ? "" : "s"}`;
     if (artifacts.length === 0) {
       const empty = document.createElement("div");
@@ -1114,7 +1186,13 @@
         const categoryBadge = document.createElement("em");
         categoryBadge.className = "artifact-category";
         categoryBadge.textContent = core.artifactCategoryLabel(category);
-        name.append(title, subtitle, categoryBadge);
+        const verification = core.artifactVerificationState(artifact, manifest);
+        const integrityBadge = document.createElement("em");
+        integrityBadge.className = `artifact-integrity artifact-integrity-${verification.replaceAll("_", "-")}`;
+        integrityBadge.textContent = verification === "verified"
+          ? "SHA-256 verified"
+          : verification === "mismatch" ? "Checksum mismatch" : "Not verified";
+        name.append(title, subtitle, categoryBadge, integrityBadge);
 
         if (core.safePathAtom(artifact.stepId) && core.safePathAtom(artifact.outputPort)) {
           const download = document.createElement("a");
@@ -1134,6 +1212,33 @@
       }
       artifactList.appendChild(group);
     }
+  };
+
+  const renderExportStatus = job => {
+    const cached = state.exportManifests.get(job.id) ?? null;
+    const manifest = cached !== null && cached.attemptNumber === job.attemptNumber ? cached : null;
+    const check = state.exportChecks.get(job.id) ?? { state: "idle", message: "Run verification to recompute artifact SHA-256 values on demand." };
+    const status = byId("export-status");
+    status.className = "status-badge status-idle";
+    if (check.state === "checking") {
+      status.textContent = "Checking";
+      status.className = "status-badge status-running";
+    } else if (check.state === "verified" && manifest !== null) {
+      status.textContent = manifest.stableSnapshot ? "Verified" : "Verified · active";
+      status.className = "status-badge status-completed";
+    } else if (check.state === "error") {
+      status.textContent = "Verification failed";
+      status.className = "status-badge status-failed";
+    } else {
+      status.textContent = "Not verified";
+    }
+    byId("export-artifacts").textContent = manifest === null
+      ? "Not checked"
+      : `${manifest.artifacts.length} verified`;
+    byId("export-producer").textContent = manifest === null
+      ? "—"
+      : `OpenGenesis-BioCore ${manifest.producerVersion}`;
+    byId("export-note").textContent = check.message;
   };
 
   const renderDetail = () => {
@@ -1156,6 +1261,8 @@
       ? `${job.pipelineId} · ${job.pipelineVersion}`
       : "—";
     byId("detail-priority").textContent = statusLabel(job.priority);
+    byId("detail-attempt").textContent = String(job.attemptNumber);
+    byId("detail-revision").textContent = String(job.revision);
     byId("detail-step").textContent = job.activeStepId || "—";
     byId("detail-updated").textContent = humanTime(job.updatedAtUtc);
     const percent = Math.round(core.clampProgress(job.progress) * 100);
@@ -1177,6 +1284,16 @@
 
     byId("report-json-link").href = `/api/v1/jobs/${job.id}/report.json`;
     byId("report-html-link").href = `/api/v1/jobs/${job.id}/report.html`;
+    byId("export-manifest-link").href = `/api/v1/jobs/${job.id}/export-manifest.json`;
+    const verifyButton = byId("verify-export");
+    const exportCheck = state.exportChecks.get(job.id);
+    verifyButton.disabled = !core.canVerifyExport(job.status) || exportCheck?.state === "checking";
+    verifyButton.textContent = exportCheck?.state === "checking" ? "Verifying…" : "Verify export";
+    const retryButton = byId("retry-job");
+    retryButton.hidden = !core.canRetryJob(job.status);
+    retryButton.disabled = false;
+    retryButton.textContent = "Retry interrupted job";
+    renderExportStatus(job);
     const cancelButton = byId("cancel-job");
     cancelButton.hidden = !(core.canCancelJob(job.status) || job.status === "cancelling");
     cancelButton.disabled = job.status === "cancelling";
@@ -1198,6 +1315,45 @@
     if (!Array.isArray(payload)) return;
     state.artifacts.set(jobId, payload);
     if (state.selectedJobId === jobId) renderArtifacts(jobId);
+  };
+
+  const verifyExport = async jobId => {
+    const job = state.jobs.get(jobId);
+    if (!job || !core.canVerifyExport(job.status)) return;
+    state.exportChecks.set(jobId, { state: "checking", message: "Recomputing artifact SHA-256 values from local storage…" });
+    if (state.selectedJobId === jobId) renderDetail();
+    try {
+      const response = await fetch(`/api/v1/jobs/${jobId}/export-manifest.json`, {
+        method: "GET",
+        cache: "no-store",
+        credentials: "same-origin",
+        headers: { "Accept": "application/json" }
+      });
+      let payload = null;
+      try { payload = await response.json(); } catch (_) { payload = null; }
+      if (!response.ok) {
+        const message = payload && payload.error && typeof payload.error.message === "string"
+          ? payload.error.message
+          : `Export verification failed (${response.status}).`;
+        throw new Error(message);
+      }
+      const manifest = core.normalizeExportManifest(payload);
+      if (manifest === null || manifest.jobId !== jobId || manifest.attemptNumber !== job.attemptNumber) {
+        throw new Error("Export manifest identity does not match the selected job attempt.");
+      }
+      state.exportManifests.set(jobId, manifest);
+      state.exportChecks.set(jobId, {
+        state: "verified",
+        message: `${manifest.artifacts.length} artifact SHA-256 value${manifest.artifacts.length === 1 ? "" : "s"} verified for attempt ${manifest.attemptNumber}.`
+      });
+    } catch (error) {
+      state.exportManifests.delete(jobId);
+      state.exportChecks.set(jobId, {
+        state: "error",
+        message: error instanceof Error ? error.message : "Export verification failed."
+      });
+    }
+    if (state.selectedJobId === jobId) renderDetail();
   };
 
   const handleSnapshot = payload => {
@@ -2104,6 +2260,51 @@
       window.setTimeout(() => loadJobs().catch(() => {}), 1500);
     } catch (error) {
       setFormMessage(error instanceof Error ? error.message : "Job cancellation failed.", "error");
+      renderDetail();
+    }
+  });
+
+  byId("verify-export").addEventListener("click", () => {
+    if (state.selectedJobId !== null) verifyExport(state.selectedJobId).catch(() => {});
+  });
+
+  byId("retry-job").addEventListener("click", async () => {
+    const job = state.selectedJobId ? state.jobs.get(state.selectedJobId) : null;
+    if (!job || !core.canRetryJob(job.status)) return;
+    const button = byId("retry-job");
+    button.disabled = true;
+    button.textContent = "Retrying…";
+    try {
+      const response = await fetch(`/api/v1/jobs/${job.id}/retry`, {
+        method: "POST",
+        cache: "no-store",
+        credentials: "same-origin",
+        headers: { "Accept": "application/json" }
+      });
+      let payload = null;
+      try { payload = await response.json(); } catch (_) { payload = null; }
+      if (!response.ok) {
+        const message = payload && payload.error && typeof payload.error.message === "string"
+          ? payload.error.message
+          : `Job retry failed (${response.status}).`;
+        throw new Error(message);
+      }
+      const updated = core.normalizeJob(payload);
+      if (updated === null || updated.id !== job.id || updated.attemptNumber <= job.attemptNumber) {
+        throw new Error("Retry response did not advance the job attempt.");
+      }
+      state.jobs.set(updated.id, updated);
+      state.exportManifests.delete(updated.id);
+      state.exportChecks.delete(updated.id);
+      renderJobs();
+      renderDetail();
+      refreshArtifacts(updated.id).catch(() => {});
+      window.setTimeout(() => loadJobs().catch(() => {}), 300);
+    } catch (error) {
+      state.exportChecks.set(job.id, {
+        state: "error",
+        message: error instanceof Error ? error.message : "Job retry failed."
+      });
       renderDetail();
     }
   });

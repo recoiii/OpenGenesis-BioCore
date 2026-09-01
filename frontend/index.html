@@ -36,7 +36,7 @@
 
   <main>
     <section class="hero hero-compact" aria-labelledby="hero-title">
-      <div class="eyebrow">PROJECT GENESIS · CORE 0.1</div>
+      <div class="eyebrow">OPENGENESIS · CORE 0.2 DEV</div>
       <h1 id="hero-title">Local workflows.<br><span>Live execution telemetry.</span></h1>
       <p class="hero-copy">
         Launch exact pipeline versions, follow native worker progress in real time,
@@ -196,6 +196,14 @@
                     <strong id="detail-priority">—</strong>
                   </div>
                   <div class="detail-field">
+                    <span>Attempt</span>
+                    <strong id="detail-attempt">—</strong>
+                  </div>
+                  <div class="detail-field">
+                    <span>Revision</span>
+                    <strong id="detail-revision">—</strong>
+                  </div>
+                  <div class="detail-field">
                     <span>Active step</span>
                     <strong id="detail-step">—</strong>
                   </div>
@@ -239,10 +247,36 @@
                   </p>
                 </section>
 
+                <section class="telemetry-card export-evidence" id="export-evidence">
+                  <div class="telemetry-heading">
+                    <div>
+                      <div class="kicker">Reproducibility</div>
+                      <h4>Export integrity</h4>
+                    </div>
+                    <span class="status-badge status-idle" id="export-status">Not verified</span>
+                  </div>
+                  <div class="detail-grid">
+                    <div class="detail-field">
+                      <span>Artifacts</span>
+                      <strong id="export-artifacts">Not checked</strong>
+                    </div>
+                    <div class="detail-field">
+                      <span>Producer</span>
+                      <strong id="export-producer">—</strong>
+                    </div>
+                  </div>
+                  <p class="telemetry-note" id="export-note">
+                    Verification is on demand so large artifacts are not re-hashed during ordinary dashboard refreshes.
+                  </p>
+                </section>
+
                 <div class="detail-actions">
                   <a class="button button-quiet" id="report-json-link" href="#" target="_blank" rel="noopener">JSON report</a>
                   <a class="button button-quiet" id="report-html-link" href="#" target="_blank" rel="noopener">HTML report</a>
+                  <a class="button button-quiet" id="export-manifest-link" href="#" target="_blank" rel="noopener">Export manifest</a>
+                  <button class="button button-quiet" id="verify-export" type="button">Verify export</button>
                   <button class="button button-quiet" id="refresh-artifacts" type="button">Refresh artifacts</button>
+                  <button class="button button-primary button-small" id="retry-job" type="button" hidden>Retry interrupted job</button>
                   <button class="button button-danger" id="cancel-job" type="button" hidden>Cancel job</button>
                 </div>
 

@@ -550,3 +550,21 @@ footer {
   overflow-wrap: anywhere;
   color: var(--text);
 }
+
+
+.export-evidence {
+  margin-top: 1rem;
+  border-color: rgba(131, 183, 232, .22);
+  background: rgba(31, 58, 83, .16);
+}
+.artifact-integrity {
+  display: inline-flex;
+  margin: 4px 0 0 5px;
+  padding: 2px 5px;
+  border-radius: 999px;
+  font-size: 8px;
+  font-style: normal;
+}
+.artifact-integrity-verified { background: rgba(76, 207, 145, .12); color: var(--mint); }
+.artifact-integrity-mismatch { background: rgba(244, 114, 182, .12); color: #f48fbf; }
+.artifact-integrity-not-verified { background: rgba(178, 214, 197, .07); color: var(--muted-2); }
