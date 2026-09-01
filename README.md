@@ -6,7 +6,8 @@ OpenGenesis-BioCore is a local-first C++20 bioinformatics platform with a localh
 processes, SQLite project persistence, plugin/pipeline execution, live job telemetry, durable artifacts,
 and an integrated FASTA/FASTQ-to-variant-analysis workflow suite.
 
-**Current release: v0.1.0**
+**Current stable release: v0.1.0**  
+**Active development line: v0.2.0-dev**
 
 ## Highlights
 
@@ -33,8 +34,12 @@ closure evidence. Historical Windows evidence is not reused for later source sta
 script validates MSVC Debug/Release, all eight native plugins, app-local runtimes, clean install, CPack ZIP
 and extracted-package smoke against the exact source SHA-256.
 
-See [`docs/release/VALIDATION.md`](docs/release/VALIDATION.md) and
-[`docs/release/FINAL-WINDOWS-CLOSURE.md`](docs/release/FINAL-WINDOWS-CLOSURE.md).
+The v0.2 development line continues the same small-iteration policy: implementation and regression validation,
+followed by independent Gemini review. An iteration is frozen only after an `ACCEPT` verdict.
+
+See [`docs/release/VALIDATION.md`](docs/release/VALIDATION.md),
+[`docs/release/FINAL-WINDOWS-CLOSURE.md`](docs/release/FINAL-WINDOWS-CLOSURE.md), and
+[`docs/development/V0.2-ROADMAP.md`](docs/development/V0.2-ROADMAP.md).
 
 ## Build on Linux
 
