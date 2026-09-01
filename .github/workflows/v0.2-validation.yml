@@ -62,6 +62,26 @@ jobs:
           test "${actual}" = "0.2.0-dev"
           echo "Development identity: ${actual}"
 
+      - name: Guard development preset identities
+        if: matrix.preset == 'linux-gcc-debug'
+        run: |
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          data = json.loads(Path("CMakePresets.json").read_text(encoding="utf-8"))
+          offenders = []
+          for preset in data.get("configurePresets", []):
+              variables = preset.get("cacheVariables", {})
+              if variables.get("BIOCORE_VERSION_SUFFIX") == "":
+                  offenders.append(preset.get("name", "<unnamed>"))
+          if offenders:
+              raise SystemExit(
+                  "Development preset(s) force an empty final-release suffix: " + ", ".join(offenders)
+              )
+          print("No normal development configure preset forces an empty version suffix.")
+          PY
+
   sanitizers:
     name: linux-gcc-debug-asan-ubsan
     runs-on: ubuntu-24.04
