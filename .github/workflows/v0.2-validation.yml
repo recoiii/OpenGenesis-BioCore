@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - v0.2.0-dev
+      - iteration-054-timeout-probe
   pull_request:
     branches:
       - main
