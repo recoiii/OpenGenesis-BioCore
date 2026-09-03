@@ -10,8 +10,8 @@ permissions:
   contents: read
 
 jobs:
-  windows-path-semantics-probe:
-    name: Windows filesystem path semantics probe
+  local-server-bootstrap-probe:
+    name: Windows local_server_bootstrap probe
     runs-on: windows-latest
     steps:
       - name: Checkout probe branch
@@ -19,76 +19,56 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Build and run isolated filesystem probe
+      - name: Resolve hosted vcpkg root
         shell: pwsh
         run: |
-          @'
-          #include <cwchar>
-          #include <filesystem>
-          #include <iostream>
-          #include <system_error>
-
-          int wmain() {
-              namespace fs = std::filesystem;
-              std::error_code ec;
-
-              const auto temp = fs::temp_directory_path();
-              const auto base = temp / L"biocore-path-semantics-probe";
-              fs::remove_all(base, ec);
-              ec.clear();
-              fs::create_directories(base, ec);
-              if (ec) {
-                  std::wcerr << L"create base failed: " << ec.value() << L'\n';
-                  return 2;
-              }
-
-              const auto requested = base / L"project-a";
-              const auto absolute = fs::absolute(requested, ec).lexically_normal();
-              if (ec) {
-                  std::wcerr << L"absolute failed: " << ec.value() << L'\n';
-                  return 3;
-              }
-
-              fs::create_directory(absolute, ec);
-              if (ec) {
-                  std::wcerr << L"create project failed: " << ec.value() << L'\n';
-                  return 4;
-              }
-
-              const auto canonical = fs::canonical(absolute, ec);
-              if (ec) {
-                  std::wcerr << L"canonical failed: " << ec.value() << L'\n';
-                  return 5;
-              }
-
-              const auto& absolute_native = absolute.native();
-              const auto& canonical_native = canonical.native();
-              const int text_compare = _wcsicmp(canonical_native.c_str(), absolute_native.c_str());
-
-              ec.clear();
-              const bool equivalent = fs::equivalent(canonical, absolute, ec);
-
-              std::wcout << L"temp=" << temp.native() << L'\n';
-              std::wcout << L"absolute=" << absolute_native << L'\n';
-              std::wcout << L"canonical=" << canonical_native << L'\n';
-              std::wcout << L"absolute_length=" << absolute_native.size() << L'\n';
-              std::wcout << L"canonical_length=" << canonical_native.size() << L'\n';
-              std::wcout << L"wcsicmp=" << text_compare << L'\n';
-              std::wcout << L"equivalent=" << (equivalent ? L"true" : L"false") << L'\n';
-              std::wcout << L"equivalent_error=" << ec.value() << L'\n';
-
-              std::error_code cleanup_ec;
-              fs::remove_all(base, cleanup_ec);
-
-              return equivalent && !ec ? 0 : 6;
+          if (-not $env:VCPKG_ROOT -and $env:VCPKG_INSTALLATION_ROOT) {
+            "VCPKG_ROOT=$env:VCPKG_INSTALLATION_ROOT" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           }
-          '@ | Set-Content -Path windows-path-semantics-probe.cpp -Encoding utf8
+          $cache = Join-Path $env:RUNNER_TEMP 'vcpkg-binary-cache'
+          New-Item -ItemType Directory -Force -Path $cache | Out-Null
+          "VCPKG_DEFAULT_BINARY_CACHE=$cache" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
-          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
-          $vsInstall = & $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
-          if (-not $vsInstall) { throw "Visual Studio C++ toolchain not found" }
-          $devCmd = Join-Path $vsInstall "Common7\Tools\VsDevCmd.bat"
+      - name: Restore vcpkg binary cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/vcpkg-binary-cache
+          key: biocore-windows-probe-vcpkg-x64-sqlite3-zlib-v1
 
-          $command = '"' + $devCmd + '" -arch=x64 -host_arch=x64 && cl /nologo /std:c++20 /EHsc windows-path-semantics-probe.cpp /Fe:windows-path-semantics-probe.exe && windows-path-semantics-probe.exe'
-          cmd.exe /d /s /c $command
+      - name: Install minimal probe dependencies
+        shell: pwsh
+        run: |
+          & "$env:VCPKG_ROOT\vcpkg.exe" install sqlite3:x64-windows zlib:x64-windows --disable-metrics
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Configure lightweight Windows probe
+        shell: pwsh
+        run: |
+          cmake -S . -B build/windows-probe -G "Visual Studio 18 2026" -A x64 `
+            -DBIOCORE_BUILD_TESTS=ON `
+            -DBIOCORE_WARNINGS_AS_ERRORS=ON `
+            -DBIOCORE_REQUIRE_DROGON=OFF `
+            -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_ROOT\scripts\buildsystems\vcpkg.cmake" `
+            -DVCPKG_TARGET_TRIPLET=x64-windows
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Build only local server bootstrap probe
+        shell: pwsh
+        run: |
+          cmake --build build/windows-probe --config Debug --target biocore-local-server-bootstrap-tests --parallel 2
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Run only local_server_bootstrap
+        shell: pwsh
+        run: |
+          ctest --test-dir build/windows-probe -C Debug -R "^integration\.local_server_bootstrap$" --output-on-failure --timeout 120 -V
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Upload probe CTest log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-local-server-bootstrap-probe-log
+          path: build/windows-probe/Testing/Temporary/LastTest.log
+          if-no-files-found: warn
+          retention-days: 7
