@@ -33,7 +33,21 @@ void trace_project_init(const char* message) {
     const std::filesystem::path& right
 ) noexcept {
 #ifdef _WIN32
-    return _wcsicmp(left.native().c_str(), right.native().c_str()) == 0;
+    trace_project_init("native paths equal: entry");
+    trace_project_init("native paths equal: before left.native");
+    const auto& left_native = left.native();
+    trace_project_init("native paths equal: after left.native");
+    std::cerr << "[project-init-probe] native paths equal: left native length="
+              << left_native.size() << '\n' << std::flush;
+    trace_project_init("native paths equal: before right.native");
+    const auto& right_native = right.native();
+    trace_project_init("native paths equal: after right.native");
+    std::cerr << "[project-init-probe] native paths equal: right native length="
+              << right_native.size() << '\n' << std::flush;
+    trace_project_init("native paths equal: before _wcsicmp");
+    const int comparison = _wcsicmp(left_native.c_str(), right_native.c_str());
+    trace_project_init("native paths equal: after _wcsicmp");
+    return comparison == 0;
 #else
     return left.native() == right.native();
 #endif
