@@ -1,5 +1,6 @@
 #include "project_init_bootstrap.hpp"
 
+#include <cwchar>
 #include <filesystem>
 #include <iostream>
 #include <stdexcept>
@@ -27,14 +28,37 @@ void trace_project_init(const char* message) {
     return {reinterpret_cast<const char*>(value.data()), value.size()};
 }
 
+[[nodiscard]] bool native_paths_equal(
+    const std::filesystem::path& left,
+    const std::filesystem::path& right
+) noexcept {
+#ifdef _WIN32
+    return _wcsicmp(left.native().c_str(), right.native().c_str()) == 0;
+#else
+    return left.native() == right.native();
+#endif
+}
+
 [[nodiscard]] bool path_is_within(
     const std::filesystem::path& parent,
     const std::filesystem::path& child
 ) {
-    const auto relative = child.lexically_relative(parent);
-    if (relative.empty() || relative.is_absolute()) return false;
-    const auto first = relative.begin();
-    return first != relative.end() && *first != "..";
+#ifdef _WIN32
+    const auto& parent_native = parent.native();
+    const auto& child_native = child.native();
+    if (child_native.size() <= parent_native.size()) return false;
+    if (_wcsnicmp(child_native.c_str(), parent_native.c_str(), parent_native.size()) != 0) {
+        return false;
+    }
+    const wchar_t boundary = child_native[parent_native.size()];
+    return boundary == L'\\' || boundary == L'/';
+#else
+    const auto& parent_native = parent.native();
+    const auto& child_native = child.native();
+    if (child_native.size() <= parent_native.size()) return false;
+    if (child_native.compare(0, parent_native.size(), parent_native) != 0) return false;
+    return child_native[parent_native.size()] == '/';
+#endif
 }
 
 [[nodiscard]] std::filesystem::path prepare_project_root(
@@ -93,7 +117,7 @@ void trace_project_init(const char* message) {
         throw std::invalid_argument("Project root must resolve without aliases");
     }
     trace_project_init("prepare root: before canonical equality");
-    if (canonical != absolute) {
+    if (!native_paths_equal(canonical, absolute)) {
         throw std::invalid_argument("Project root must resolve without aliases");
     }
     trace_project_init("prepare root: after canonical equality");
@@ -113,7 +137,7 @@ void trace_project_init(const char* message) {
     if (error || absolute.filename().empty()) {
         throw std::invalid_argument("Catalog database path is invalid");
     }
-    if (path_is_within(project_root, absolute) || absolute == project_root) {
+    if (path_is_within(project_root, absolute) || native_paths_equal(absolute, project_root)) {
         throw std::invalid_argument("Catalog database must remain outside the project workspace");
     }
 
@@ -131,7 +155,7 @@ void trace_project_init(const char* message) {
         throw std::invalid_argument("Catalog parent must be a non-symlink directory");
     }
     const auto canonical_parent = std::filesystem::canonical(parent, error);
-    if (error || canonical_parent != parent) {
+    if (error || !native_paths_equal(canonical_parent, parent)) {
         throw std::invalid_argument("Catalog parent must resolve without aliases");
     }
 
