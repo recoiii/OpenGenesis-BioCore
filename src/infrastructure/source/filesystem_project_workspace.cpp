@@ -52,6 +52,15 @@ void workspace_probe(const std::string_view stage) {
     return result;
 }
 
+[[nodiscard]] bool contains_dot_segment(const std::filesystem::path& path) {
+    for (const auto& component : path) {
+        if (component == "." || component == "..") {
+            return true;
+        }
+    }
+    return false;
+}
+
 [[nodiscard]] std::string escape_json(const std::string_view value) {
     std::ostringstream escaped;
     escaped << std::hex << std::setfill('0');
@@ -234,6 +243,26 @@ std::unique_ptr<application::IProjectWorkspaceTransaction> FilesystemProjectWork
     workspace_probe("initialize: entry");
     const std::filesystem::path requested_root = path_from_utf8(project.root_path());
     workspace_probe("initialize: root path decoded");
+
+    if (!requested_root.is_absolute() || contains_dot_segment(requested_root)) {
+        throw ProjectWorkspaceInitializationError{
+            "Project workspace initialization requires a canonical root path"};
+    }
+    if (requested_root.empty() || requested_root == requested_root.root_path()) {
+        throw ProjectWorkspaceInitializationError{
+            "A filesystem root cannot be initialized as an OpenGenesis-BioCore project workspace"};
+    }
+    workspace_probe("initialize: lexical root validated");
+
+    std::error_code requested_status_error;
+    const std::filesystem::file_status requested_status =
+        std::filesystem::symlink_status(requested_root, requested_status_error);
+    if (requested_status_error || requested_status.type() != std::filesystem::file_type::directory) {
+        throw ProjectWorkspaceInitializationError{
+            "Project root is no longer an existing non-symlink directory"};
+    }
+    workspace_probe("initialize: requested root status validated");
+
     std::error_code canonical_error;
     workspace_probe("initialize: before canonical");
     const std::filesystem::path root = std::filesystem::canonical(requested_root, canonical_error);
@@ -242,23 +271,7 @@ std::unique_ptr<application::IProjectWorkspaceTransaction> FilesystemProjectWork
         throw ProjectWorkspaceInitializationError{
             "Project root is no longer available: " + canonical_error.message()};
     }
-    if (path_to_utf8(root) != project.root_path()) {
-        throw ProjectWorkspaceInitializationError{
-            "Project workspace initialization requires a canonical root path"};
-    }
-    if (root.empty() || root == root.root_path()) {
-        throw ProjectWorkspaceInitializationError{
-            "A filesystem root cannot be initialized as an OpenGenesis-BioCore project workspace"};
-    }
-    workspace_probe("initialize: canonical root validated");
-
-    std::error_code status_error;
-    const std::filesystem::file_status root_status = std::filesystem::symlink_status(root, status_error);
-    if (status_error || root_status.type() != std::filesystem::file_type::directory) {
-        throw ProjectWorkspaceInitializationError{
-            "Project root is no longer an existing non-symlink directory: " + path_to_utf8(root)};
-    }
-    workspace_probe("initialize: root status validated");
+    workspace_probe("initialize: canonical root accepted");
 
     constexpr std::array<std::string_view, 6> reserved_entries{
         ".biocore", "inputs", "work", "outputs", "reports", "logs"};
