@@ -1,6 +1,7 @@
 #include "project_init_bootstrap.hpp"
 
 #include <filesystem>
+#include <iostream>
 #include <stdexcept>
 #include <string>
 #include <system_error>
@@ -16,6 +17,10 @@
 
 namespace biocore::bootstrap {
 namespace {
+
+void trace_project_init(const char* message) {
+    std::cerr << "[project-init-probe] " << message << '\n' << std::flush;
+}
 
 [[nodiscard]] std::string path_to_utf8(const std::filesystem::path& path) {
     const auto value = path.generic_u8string();
@@ -126,14 +131,21 @@ domain::Project initialize_project(
     const ProjectInitArguments& arguments,
     std::ostream& standard_output
 ) {
+    trace_project_init("initialize: begin");
     bool created_root = false;
+    trace_project_init("initialize: before prepare root");
     const auto root = prepare_project_root(arguments.project_root, created_root);
+    trace_project_init("initialize: after prepare root");
 
     try {
+        trace_project_init("initialize: before prepare catalog");
         const auto catalog_path = prepare_catalog_path(arguments.catalog_database_path, root);
+        trace_project_init("initialize: after prepare catalog");
         infrastructure::sqlite::SqliteConnection catalog_connection{catalog_path};
+        trace_project_init("initialize: catalog sqlite opened");
         infrastructure::sqlite::CatalogMigrationRunner catalog_migrations{catalog_connection};
         catalog_migrations.apply_pending();
+        trace_project_init("initialize: catalog migrations done");
         infrastructure::sqlite::SqliteProjectRepository projects{catalog_connection};
         infrastructure::UuidV4Generator ids;
         infrastructure::SystemClock clock;
@@ -143,20 +155,26 @@ domain::Project initialize_project(
             projects, ids, clock, canonicalizer, workspace
         };
 
+        trace_project_init("initialize: before service create");
         const domain::Project project = service.create({
             .name = arguments.project_name,
             .root_path = path_to_utf8(root),
         });
+        trace_project_init("initialize: after service create");
         standard_output << "OpenGenesis-BioCore project created: " << project.name() << '\n'
                         << "Project ID: " << project.id() << '\n'
                         << "Project root: " << project.root_path() << '\n'
                         << "Catalog: " << path_to_utf8(catalog_path) << '\n';
+        trace_project_init("initialize: returning");
         return project;
     } catch (...) {
+        trace_project_init("initialize: caught exception");
         if (created_root) {
             std::error_code ignored;
             static_cast<void>(std::filesystem::remove(root, ignored));
+            trace_project_init("initialize: created root cleanup attempted");
         }
+        trace_project_init("initialize: rethrowing");
         throw;
     }
 }
