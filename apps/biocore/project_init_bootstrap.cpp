@@ -23,6 +23,20 @@ void trace_project_init(const char* message) {
     std::cerr << "[project-init-probe] " << message << '\n' << std::flush;
 }
 
+#ifdef _WIN32
+void trace_native_path(const char* label, const std::wstring& value) {
+    std::cerr << "[project-init-probe] " << label << '=';
+    for (const wchar_t code_unit : value) {
+        if (code_unit >= 32 && code_unit <= 126) {
+            std::cerr << static_cast<char>(code_unit);
+        } else {
+            std::cerr << "\\u" << static_cast<unsigned int>(code_unit);
+        }
+    }
+    std::cerr << '\n' << std::flush;
+}
+#endif
+
 [[nodiscard]] std::string path_to_utf8(const std::filesystem::path& path) {
     const auto value = path.generic_u8string();
     return {reinterpret_cast<const char*>(value.data()), value.size()};
@@ -39,14 +53,18 @@ void trace_project_init(const char* message) {
     trace_project_init("native paths equal: after left.native");
     std::cerr << "[project-init-probe] native paths equal: left native length="
               << left_native.size() << '\n' << std::flush;
+    trace_native_path("native paths equal: left native", left_native);
     trace_project_init("native paths equal: before right.native");
     const auto& right_native = right.native();
     trace_project_init("native paths equal: after right.native");
     std::cerr << "[project-init-probe] native paths equal: right native length="
               << right_native.size() << '\n' << std::flush;
+    trace_native_path("native paths equal: right native", right_native);
     trace_project_init("native paths equal: before _wcsicmp");
     const int comparison = _wcsicmp(left_native.c_str(), right_native.c_str());
     trace_project_init("native paths equal: after _wcsicmp");
+    std::cerr << "[project-init-probe] native paths equal: comparison="
+              << comparison << '\n' << std::flush;
     return comparison == 0;
 #else
     return left.native() == right.native();
@@ -132,6 +150,7 @@ void trace_project_init(const char* message) {
     }
     trace_project_init("prepare root: before canonical equality");
     if (!native_paths_equal(canonical, absolute)) {
+        trace_project_init("prepare root: canonical equality false, before throw");
         throw std::invalid_argument("Project root must resolve without aliases");
     }
     trace_project_init("prepare root: after canonical equality");
