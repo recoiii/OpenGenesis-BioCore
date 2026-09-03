@@ -1,6 +1,5 @@
 #include "project_init_bootstrap.hpp"
 
-#include <cwchar>
 #include <filesystem>
 #include <iostream>
 #include <stdexcept>
@@ -23,74 +22,33 @@ void trace_project_init(const char* message) {
     std::cerr << "[project-init-probe] " << message << '\n' << std::flush;
 }
 
-#ifdef _WIN32
-void trace_native_path(const char* label, const std::wstring& value) {
-    std::cerr << "[project-init-probe] " << label << '=';
-    for (const wchar_t code_unit : value) {
-        if (code_unit >= 32 && code_unit <= 126) {
-            std::cerr << static_cast<char>(code_unit);
-        } else {
-            std::cerr << "\\u" << static_cast<unsigned int>(code_unit);
-        }
-    }
-    std::cerr << '\n' << std::flush;
-}
-#endif
-
 [[nodiscard]] std::string path_to_utf8(const std::filesystem::path& path) {
     const auto value = path.generic_u8string();
     return {reinterpret_cast<const char*>(value.data()), value.size()};
 }
 
-[[nodiscard]] bool native_paths_equal(
+[[nodiscard]] bool paths_equivalent(
     const std::filesystem::path& left,
     const std::filesystem::path& right
-) noexcept {
-#ifdef _WIN32
-    trace_project_init("native paths equal: entry");
-    trace_project_init("native paths equal: before left.native");
-    const auto& left_native = left.native();
-    trace_project_init("native paths equal: after left.native");
-    std::cerr << "[project-init-probe] native paths equal: left native length="
-              << left_native.size() << '\n' << std::flush;
-    trace_native_path("native paths equal: left native", left_native);
-    trace_project_init("native paths equal: before right.native");
-    const auto& right_native = right.native();
-    trace_project_init("native paths equal: after right.native");
-    std::cerr << "[project-init-probe] native paths equal: right native length="
-              << right_native.size() << '\n' << std::flush;
-    trace_native_path("native paths equal: right native", right_native);
-    trace_project_init("native paths equal: before _wcsicmp");
-    const int comparison = _wcsicmp(left_native.c_str(), right_native.c_str());
-    trace_project_init("native paths equal: after _wcsicmp");
-    std::cerr << "[project-init-probe] native paths equal: comparison="
-              << comparison << '\n' << std::flush;
-    return comparison == 0;
-#else
-    return left.native() == right.native();
-#endif
+) {
+    std::error_code error;
+    trace_project_init("paths equivalent: before filesystem equivalent");
+    const bool equivalent = std::filesystem::equivalent(left, right, error);
+    trace_project_init("paths equivalent: after filesystem equivalent");
+    std::cerr << "[project-init-probe] paths equivalent: result="
+              << (equivalent ? "true" : "false")
+              << " error=" << error.value() << '\n' << std::flush;
+    return !error && equivalent;
 }
 
 [[nodiscard]] bool path_is_within(
     const std::filesystem::path& parent,
     const std::filesystem::path& child
 ) {
-#ifdef _WIN32
-    const auto& parent_native = parent.native();
-    const auto& child_native = child.native();
-    if (child_native.size() <= parent_native.size()) return false;
-    if (_wcsnicmp(child_native.c_str(), parent_native.c_str(), parent_native.size()) != 0) {
-        return false;
-    }
-    const wchar_t boundary = child_native[parent_native.size()];
-    return boundary == L'\\' || boundary == L'/';
-#else
-    const auto& parent_native = parent.native();
-    const auto& child_native = child.native();
-    if (child_native.size() <= parent_native.size()) return false;
-    if (child_native.compare(0, parent_native.size(), parent_native) != 0) return false;
-    return child_native[parent_native.size()] == '/';
-#endif
+    const auto relative = child.lexically_relative(parent);
+    if (relative.empty() || relative.is_absolute()) return false;
+    const auto first = relative.begin();
+    return first != relative.end() && *first != "..";
 }
 
 [[nodiscard]] std::filesystem::path prepare_project_root(
@@ -145,15 +103,10 @@ void trace_native_path(const char* label, const std::wstring& value) {
     trace_project_init("prepare root: before canonical");
     const auto canonical = std::filesystem::canonical(absolute, error);
     trace_project_init("prepare root: after canonical");
-    if (error) {
-        throw std::invalid_argument("Project root must resolve without aliases");
+    if (error || !paths_equivalent(canonical, absolute)) {
+        throw std::invalid_argument("Project root must resolve to the created directory");
     }
-    trace_project_init("prepare root: before canonical equality");
-    if (!native_paths_equal(canonical, absolute)) {
-        trace_project_init("prepare root: canonical equality false, before throw");
-        throw std::invalid_argument("Project root must resolve without aliases");
-    }
-    trace_project_init("prepare root: after canonical equality");
+    trace_project_init("prepare root: semantic equivalence accepted");
     return canonical;
 }
 
@@ -161,6 +114,7 @@ void trace_native_path(const char* label, const std::wstring& value) {
     const std::filesystem::path& requested,
     const std::filesystem::path& project_root
 ) {
+    trace_project_init("prepare catalog: entry");
     if (requested.empty()) {
         throw std::invalid_argument("Catalog database path must not be empty");
     }
@@ -169,9 +123,6 @@ void trace_native_path(const char* label, const std::wstring& value) {
     const auto absolute = std::filesystem::absolute(requested, error).lexically_normal();
     if (error || absolute.filename().empty()) {
         throw std::invalid_argument("Catalog database path is invalid");
-    }
-    if (path_is_within(project_root, absolute) || native_paths_equal(absolute, project_root)) {
-        throw std::invalid_argument("Catalog database must remain outside the project workspace");
     }
 
     const auto parent = absolute.parent_path();
@@ -187,17 +138,26 @@ void trace_native_path(const char* label, const std::wstring& value) {
         std::filesystem::is_symlink(parent_status)) {
         throw std::invalid_argument("Catalog parent must be a non-symlink directory");
     }
+
     const auto canonical_parent = std::filesystem::canonical(parent, error);
-    if (error || !native_paths_equal(canonical_parent, parent)) {
-        throw std::invalid_argument("Catalog parent must resolve without aliases");
+    if (error || !paths_equivalent(canonical_parent, parent)) {
+        throw std::invalid_argument("Catalog parent must resolve to the requested directory");
     }
 
-    const auto status = std::filesystem::symlink_status(absolute, error);
+    const auto canonical_candidate =
+        (canonical_parent / absolute.filename()).lexically_normal();
+    if (path_is_within(project_root, canonical_candidate)) {
+        trace_project_init("prepare catalog: canonical candidate is inside project root");
+        throw std::invalid_argument("Catalog database must remain outside the project workspace");
+    }
+
+    const auto status = std::filesystem::symlink_status(canonical_candidate, error);
     if (!error && std::filesystem::exists(status) &&
         (std::filesystem::is_symlink(status) || !std::filesystem::is_regular_file(status))) {
         throw std::invalid_argument("Existing catalog path must be a non-symlink regular file");
     }
-    return absolute;
+    trace_project_init("prepare catalog: returning canonical candidate");
+    return canonical_candidate;
 }
 
 }  // namespace
