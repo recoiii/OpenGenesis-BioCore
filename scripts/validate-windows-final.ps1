@@ -314,12 +314,10 @@ try {
 
     Invoke-LoggedCommand '01-configure-debug' 'cmake' @('--preset', 'windows-msvc-debug', $toolchainArgument, $tripletArgument, $suppressRegenerationArgument)
 Invoke-LoggedCommand '02-build-debug' 'cmake' @('--build', '--preset', 'windows-msvc-debug', '--parallel', '1')
-    Invoke-LoggedCommand '03-ctest-debug' 'ctest' @('--preset', 'windows-msvc-debug')
-
+Invoke-LoggedCommand '03-ctest-debug' 'ctest' @('--preset', 'windows-msvc-debug', '--output-on-failure', '--timeout', '120', '--progress')
     Invoke-LoggedCommand '04-configure-release' 'cmake' @('--preset', 'windows-msvc-release', $toolchainArgument, $tripletArgument, $suppressRegenerationArgument)
 Invoke-LoggedCommand '05-build-release' 'cmake' @('--build', '--preset', 'windows-msvc-release', '--parallel', '1')
-    Invoke-LoggedCommand '06-ctest-release' 'ctest' @('--preset', 'windows-msvc-release')
-
+Invoke-LoggedCommand '06-ctest-release' 'ctest' @('--preset', 'windows-msvc-release', '--output-on-failure', '--timeout', '120', '--progress')
     $installRoot = Join-Path $script:EvidenceRoot 'installed-release'
     Invoke-LoggedCommand '07-install-release' 'cmake' @('--install', 'build/windows-msvc-release', '--config', 'Release', '--prefix', $installRoot)
     $installLayout = Test-InstalledLayout -InstallRoot $installRoot

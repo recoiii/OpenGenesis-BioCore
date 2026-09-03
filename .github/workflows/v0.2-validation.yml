@@ -250,6 +250,7 @@ jobs:
             subst $drive /D
           }
       - name: Upload Windows closure evidence
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: OpenGenesis-BioCore-iteration-${{ env.BIOCORE_ITERATION }}-windows-final-closure
