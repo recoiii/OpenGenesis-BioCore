@@ -24,6 +24,10 @@ using biocore::domain::Project;
 using biocore::infrastructure::FilesystemProjectWorkspace;
 using biocore::infrastructure::sqlite::SqliteConnection;
 
+void trace(const std::string_view message) {
+    std::cerr << "[workspace-probe] " << message << '\n' << std::flush;
+}
+
 class TemporaryDirectory final {
 public:
     explicit TemporaryDirectory(std::string_view suffix = {}) {
@@ -34,8 +38,11 @@ public:
     }
 
     ~TemporaryDirectory() {
+        std::cerr << "[workspace-probe] temp cleanup begin: " << path_ << '\n' << std::flush;
         std::error_code ignored;
         std::filesystem::remove_all(path_, ignored);
+        std::cerr << "[workspace-probe] temp cleanup end: " << path_ << " error=" << ignored.message()
+                  << '\n' << std::flush;
     }
 
     [[nodiscard]] const std::filesystem::path& path() const noexcept {
@@ -101,7 +108,9 @@ private:
     const std::filesystem::path& root,
     const Project& project
 ) {
+    trace("project_database_matches: open");
     SqliteConnection connection{root / ".biocore" / "project.sqlite"};
+    trace("project_database_matches: opened");
     sqlite3* const database = connection.native_handle();
     constexpr const char* sql = R"sql(
         SELECT project_id, name, root_path, created_at_utc, updated_at_utc
@@ -113,7 +122,9 @@ private:
     if (sqlite3_prepare_v2(database, sql, -1, &statement, nullptr) != SQLITE_OK) {
         return false;
     }
+    trace("project_database_matches: prepared");
     const int step_result = sqlite3_step(statement);
+    trace("project_database_matches: stepped");
     if (step_result != SQLITE_ROW) {
         sqlite3_finalize(statement);
         return false;
@@ -131,6 +142,7 @@ private:
                          column_matches(3, project.created_at_utc()) &&
                          column_matches(4, project.updated_at_utc());
     const int finalize_result = sqlite3_finalize(statement);
+    trace("project_database_matches: finalized");
     return matches && finalize_result == SQLITE_OK;
 }
 
@@ -151,6 +163,7 @@ private:
 }
 
 [[nodiscard]] bool commits_complete_workspace_and_preserves_unrelated_content() {
+    trace("commit case: begin");
     TemporaryDirectory temporary{"commit"};
     const std::filesystem::path unrelated = temporary.path() / "research-notes.txt";
     {
@@ -166,11 +179,17 @@ private:
 
     const Project project = make_project(temporary.path(), project_id);
     FilesystemProjectWorkspace workspace;
+    trace("commit case: before initialize");
     auto transaction = workspace.initialize(project);
-    if (!transaction || !has_expected_tree(temporary.path()) ||
-        !project_database_matches(temporary.path(), project)) {
+    trace("commit case: after initialize");
+    if (!transaction || !has_expected_tree(temporary.path())) {
         return false;
     }
+    trace("commit case: tree verified");
+    if (!project_database_matches(temporary.path(), project)) {
+        return false;
+    }
+    trace("commit case: database verified");
 
     const std::string metadata = read_all(temporary.path() / ".biocore" / "ownership.json");
     const std::string expected =
@@ -182,14 +201,20 @@ private:
     if (metadata != expected) {
         return false;
     }
+    trace("commit case: metadata verified");
 
     transaction->commit();
+    trace("commit case: transaction committed");
     transaction.reset();
-    return has_expected_tree(temporary.path()) && std::filesystem::is_regular_file(unrelated) &&
-           read_all(unrelated) == "preserve me";
+    trace("commit case: transaction reset");
+    const bool result = has_expected_tree(temporary.path()) && std::filesystem::is_regular_file(unrelated) &&
+                        read_all(unrelated) == "preserve me";
+    trace("commit case: final checks complete");
+    return result;
 }
 
 [[nodiscard]] bool rolls_back_uncommitted_workspace_only() {
+    trace("rollback case: begin");
     TemporaryDirectory temporary{"rollback"};
     const std::filesystem::path unrelated = temporary.path() / "existing-data.tsv";
     {
@@ -205,12 +230,14 @@ private:
         }
     }
 
-    return no_reserved_entries_exist(temporary.path()) && std::filesystem::is_regular_file(unrelated) &&
-           read_all(unrelated) == "existing";
+    const bool result = no_reserved_entries_exist(temporary.path()) && std::filesystem::is_regular_file(unrelated) &&
+                        read_all(unrelated) == "existing";
+    trace("rollback case: final checks complete");
+    return result;
 }
 
-
 [[nodiscard]] bool rollback_preserves_untracked_content() {
+    trace("untracked case: begin");
     TemporaryDirectory temporary{"untracked"};
     FilesystemProjectWorkspace workspace;
     auto transaction = workspace.initialize(make_project(temporary.path()));
@@ -225,15 +252,18 @@ private:
     }
 
     transaction.reset();
-    return std::filesystem::is_regular_file(untracked) && read_all(untracked) == "do not delete" &&
-           !std::filesystem::exists(temporary.path() / ".biocore") &&
-           !std::filesystem::exists(temporary.path() / "inputs") &&
-           !std::filesystem::exists(temporary.path() / "outputs") &&
-           !std::filesystem::exists(temporary.path() / "reports") &&
-           !std::filesystem::exists(temporary.path() / "logs");
+    const bool result = std::filesystem::is_regular_file(untracked) && read_all(untracked) == "do not delete" &&
+                        !std::filesystem::exists(temporary.path() / ".biocore") &&
+                        !std::filesystem::exists(temporary.path() / "inputs") &&
+                        !std::filesystem::exists(temporary.path() / "outputs") &&
+                        !std::filesystem::exists(temporary.path() / "reports") &&
+                        !std::filesystem::exists(temporary.path() / "logs");
+    trace("untracked case: final checks complete");
+    return result;
 }
 
 [[nodiscard]] bool rejects_every_reserved_top_level_entry_without_partial_creation() {
+    trace("reserved-entry case: begin");
     constexpr std::array<std::string_view, 6> entries{
         ".biocore", "inputs", "work", "outputs", "reports", "logs"};
 
@@ -258,10 +288,12 @@ private:
         }
         return false;
     }
+    trace("reserved-entry case: complete");
     return true;
 }
 
 [[nodiscard]] bool rejects_missing_or_symlink_project_roots() {
+    trace("invalid-root case: begin");
     TemporaryDirectory temporary{"invalid-root"};
     FilesystemProjectWorkspace workspace;
 
@@ -299,31 +331,38 @@ private:
     }
 #endif
 
+    trace("invalid-root case: complete");
     return true;
 }
 
 }  // namespace
 
 int main() {
+    trace("test main: start commit case");
     if (!commits_complete_workspace_and_preserves_unrelated_content()) {
         std::cerr << "Committed filesystem workspace contract failed\n";
         return EXIT_FAILURE;
     }
+    trace("test main: commit case passed");
     if (!rolls_back_uncommitted_workspace_only()) {
         std::cerr << "Filesystem workspace rollback contract failed\n";
         return EXIT_FAILURE;
     }
+    trace("test main: rollback case passed");
     if (!rollback_preserves_untracked_content()) {
         std::cerr << "Filesystem workspace rollback deleted untracked content\n";
         return EXIT_FAILURE;
     }
+    trace("test main: untracked case passed");
     if (!rejects_every_reserved_top_level_entry_without_partial_creation()) {
         std::cerr << "Filesystem workspace reserved-entry conflict contract failed\n";
         return EXIT_FAILURE;
     }
+    trace("test main: reserved-entry case passed");
     if (!rejects_missing_or_symlink_project_roots()) {
         std::cerr << "Filesystem workspace root validation contract failed\n";
         return EXIT_FAILURE;
     }
+    trace("test main: all cases passed");
     return EXIT_SUCCESS;
 }
