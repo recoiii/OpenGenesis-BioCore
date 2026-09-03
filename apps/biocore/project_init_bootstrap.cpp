@@ -41,18 +41,24 @@ void trace_project_init(const char* message) {
     const std::filesystem::path& requested,
     bool& created
 ) {
+    trace_project_init("prepare root: entry");
     if (requested.empty()) {
         throw std::invalid_argument("Project root must not be empty");
     }
 
     std::error_code error;
+    trace_project_init("prepare root: before absolute");
     const auto absolute = std::filesystem::absolute(requested, error).lexically_normal();
+    trace_project_init("prepare root: after absolute");
     if (error) {
         throw std::invalid_argument("Project root could not be resolved");
     }
 
+    trace_project_init("prepare root: before target status");
     const auto status = std::filesystem::symlink_status(absolute, error);
+    trace_project_init("prepare root: after target status");
     if (!error && std::filesystem::exists(status)) {
+        trace_project_init("prepare root: existing target branch");
         if (std::filesystem::is_symlink(status) || !std::filesystem::is_directory(status)) {
             throw std::invalid_argument(
                 "Project root must be an existing non-symlink directory or a new directory path"
@@ -60,25 +66,37 @@ void trace_project_init(const char* message) {
         }
         created = false;
     } else {
+        trace_project_init("prepare root: new target branch");
         error.clear();
         const auto parent = absolute.parent_path();
+        trace_project_init("prepare root: before parent status");
         const auto parent_status = std::filesystem::symlink_status(parent, error);
+        trace_project_init("prepare root: after parent status");
         if (error || !std::filesystem::is_directory(parent_status) ||
             std::filesystem::is_symlink(parent_status)) {
             throw std::invalid_argument(
                 "Project root parent must be an existing non-symlink directory"
             );
         }
+        trace_project_init("prepare root: before create directory");
         if (!std::filesystem::create_directory(absolute, error) || error) {
             throw std::runtime_error("Unable to create project root directory");
         }
+        trace_project_init("prepare root: after create directory");
         created = true;
     }
 
+    trace_project_init("prepare root: before canonical");
     const auto canonical = std::filesystem::canonical(absolute, error);
-    if (error || canonical != absolute) {
+    trace_project_init("prepare root: after canonical");
+    if (error) {
         throw std::invalid_argument("Project root must resolve without aliases");
     }
+    trace_project_init("prepare root: before canonical equality");
+    if (canonical != absolute) {
+        throw std::invalid_argument("Project root must resolve without aliases");
+    }
+    trace_project_init("prepare root: after canonical equality");
     return canonical;
 }
 
