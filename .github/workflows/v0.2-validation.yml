@@ -4,7 +4,7 @@ on:
   push:
     branches:
       - v0.2.0-dev
-      - iteration-054-timeout-probe
+      - iteration-054-timeout-probe # temporary diagnostic trigger
   pull_request:
     branches:
       - main
