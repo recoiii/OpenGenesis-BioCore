@@ -27,10 +27,6 @@
 
 namespace {
 
-void trace(const std::string_view message) {
-    std::cerr << "[local-server-probe] " << message << '\n' << std::flush;
-}
-
 void require(const bool condition, const std::string_view message) {
     if (!condition) {
         std::cerr << "FAIL: " << message << '\n';
@@ -47,7 +43,6 @@ public:
         biocore::presentation::WorkerLifecycleEventBroadcastHub& lifecycle_events,
         const biocore::presentation::LocalWebServerConfig& config
     ) override {
-        trace("fake server: entered");
         called = true;
         seen_config = config;
         biocore::presentation::FrontendAssetStore frontend{config.frontend_root};
@@ -55,7 +50,6 @@ public:
         require(frontend_index.has_value() &&
                     frontend_index->body.find("OpenGenesis-BioCore") != std::string::npos,
                 "frontend assets must be available before server run");
-        trace("fake server: frontend verified");
         std::mutex lifecycle_mutex;
         std::vector<std::string> lifecycle_messages;
         const auto lifecycle_subscription = lifecycle_events.subscribe_paused(
@@ -66,7 +60,6 @@ public:
         );
         require(lifecycle_events.activate(lifecycle_subscription),
                 "bootstrap lifecycle subscription activation");
-        trace("fake server: lifecycle activated");
         const std::string authorization = "Bearer " + std::string{api.bootstrap_token()};
         const std::string browser_origin =
             config.port == 80U ? "http://127.0.0.1" :
@@ -90,7 +83,6 @@ public:
                 "composition root must issue browser session cookie");
         require(cookie->second.find(std::string{api.bootstrap_token()}) == std::string::npos,
                 "composition root must not reuse bearer as browser-session secret");
-        trace("fake server: browser session verified");
         const auto response = api.handle({
             .method = biocore::presentation::HttpMethod::get,
             .target = "/api/v1/jobs/stale-job",
@@ -100,7 +92,6 @@ public:
         require(response.status == 200, "recovered job must be available before server run");
         require(response.body.find("\"status\":\"interrupted\"") != std::string::npos,
                 "startup recovery must run before server run");
-        trace("fake server: stale recovery verified");
 
         std::vector<std::string> locations;
         constexpr int submitted_jobs = 6;
@@ -121,7 +112,6 @@ public:
             require(!location.empty(), "prepared job response must include Location");
             locations.push_back(std::move(location));
         }
-        trace("fake server: six jobs submitted");
 
         std::vector<bool> completed(locations.size(), false);
         for (int attempt = 0; attempt < 900; ++attempt) {
@@ -146,7 +136,6 @@ public:
         for (const bool job_completed : completed) {
             require(job_completed, "background WorkerRuntime must execute every REST-created prepared job");
         }
-        trace("fake server: all jobs completed");
         bool completed_event_seen = false;
         for (int attempt = 0; attempt < 100 && !completed_event_seen; ++attempt) {
             {
@@ -163,12 +152,9 @@ public:
                 std::this_thread::sleep_for(std::chrono::milliseconds{5});
             }
         }
-        trace("fake server: before lifecycle unsubscribe");
         lifecycle_events.unsubscribe(lifecycle_subscription);
-        trace("fake server: after lifecycle unsubscribe");
         require(completed_event_seen,
                 "composition root must broadcast completed WorkerLifecycleEvent");
-        trace("fake server: returning");
     }
     bool called{false};
     biocore::presentation::LocalWebServerConfig seen_config{};
@@ -311,7 +297,6 @@ int main(const int argc, const char* const argv[]) {
     FakeServer server;
     std::ostringstream out;
     std::ostringstream err;
-    trace("main: before run_local_server");
     const int result = biocore::bootstrap::run_local_server(
         {
             .project_root = root,
@@ -324,7 +309,6 @@ int main(const int argc, const char* const argv[]) {
             .maximum_concurrent_jobs = 1U,
         }, server, out, err
     );
-    trace("main: after run_local_server");
     require(result == 0, "fake server bootstrap should succeed");
     require(server.called, "server run must be invoked");
     require(server.seen_config.bind_address == "127.0.0.1", "composition root must force loopback bind");
