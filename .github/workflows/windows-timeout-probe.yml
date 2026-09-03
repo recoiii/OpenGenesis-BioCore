@@ -10,8 +10,8 @@ permissions:
   contents: read
 
 jobs:
-  local-server-bootstrap-probe:
-    name: Windows local_server_bootstrap probe
+  windows-timeout-pair-verification:
+    name: Windows timeout pair clean verification
     runs-on: windows-latest
     steps:
       - name: Checkout probe branch
@@ -41,7 +41,7 @@ jobs:
           & "$env:VCPKG_ROOT\vcpkg.exe" install sqlite3:x64-windows zlib:x64-windows --disable-metrics
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-      - name: Configure lightweight Windows probe
+      - name: Configure lightweight Windows verification
         shell: pwsh
         run: |
           cmake -S . -B build/windows-probe -G "Visual Studio 18 2026" -A x64 `
@@ -52,23 +52,47 @@ jobs:
             -DVCPKG_TARGET_TRIPLET=x64-windows
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-      - name: Build only local server bootstrap probe
+      - name: Build timeout pair Debug
         shell: pwsh
         run: |
-          cmake --build build/windows-probe --config Debug --target biocore-local-server-bootstrap-tests --parallel 2
+          cmake --build build/windows-probe --config Debug `
+            --target biocore-filesystem-project-workspace-tests biocore-local-server-bootstrap-tests `
+            --parallel 2
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-      - name: Run only local_server_bootstrap
+      - name: Run timeout pair Debug
         shell: pwsh
         run: |
-          ctest --test-dir build/windows-probe -C Debug -R "^integration\.local_server_bootstrap$" --output-on-failure --timeout 120 -V
+          ctest --test-dir build/windows-probe -C Debug `
+            -R "^(infrastructure\.filesystem_project_workspace|integration\.local_server_bootstrap)$" `
+            --output-on-failure --timeout 120 -V
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Copy-Item build/windows-probe/Testing/Temporary/LastTest.log windows-timeout-pair-debug.log
+
+      - name: Build timeout pair Release
+        shell: pwsh
+        run: |
+          cmake --build build/windows-probe --config Release `
+            --target biocore-filesystem-project-workspace-tests biocore-local-server-bootstrap-tests `
+            --parallel 2
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-      - name: Upload probe CTest log
+      - name: Run timeout pair Release
+        shell: pwsh
+        run: |
+          ctest --test-dir build/windows-probe -C Release `
+            -R "^(infrastructure\.filesystem_project_workspace|integration\.local_server_bootstrap)$" `
+            --output-on-failure --timeout 120 -V
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Copy-Item build/windows-probe/Testing/Temporary/LastTest.log windows-timeout-pair-release.log
+
+      - name: Upload clean verification logs
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: windows-local-server-bootstrap-probe-log
-          path: build/windows-probe/Testing/Temporary/LastTest.log
+          name: windows-timeout-pair-clean-logs
+          path: |
+            windows-timeout-pair-debug.log
+            windows-timeout-pair-release.log
           if-no-files-found: warn
           retention-days: 7
