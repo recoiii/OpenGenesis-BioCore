@@ -1,4 +1,4 @@
-name: OpenGenesis-BioCore Windows timeout probe
+name: OpenGenesis-BioCore Iteration 054 final validation launcher
 
 on:
   push:
@@ -8,91 +8,25 @@ on:
 
 permissions:
   contents: read
+  actions: write
 
 jobs:
-  windows-timeout-pair-verification:
-    name: Windows timeout pair clean verification
-    runs-on: windows-latest
+  dispatch-exact-final-candidate:
+    name: Dispatch exact Iteration 054 candidate
+    runs-on: ubuntu-24.04
     steps:
-      - name: Checkout probe branch
-        uses: actions/checkout@v5
-        with:
-          fetch-depth: 0
-
-      - name: Resolve hosted vcpkg root
-        shell: pwsh
+      - name: Verify and dispatch exact candidate
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EXPECTED_SHA: 31691d65e4e4a7dab9be0730c886e24890043194
+          CANDIDATE_REF: iteration-054-final-candidate
+        shell: bash
         run: |
-          if (-not $env:VCPKG_ROOT -and $env:VCPKG_INSTALLATION_ROOT) {
-            "VCPKG_ROOT=$env:VCPKG_INSTALLATION_ROOT" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-          }
-          $cache = Join-Path $env:RUNNER_TEMP 'vcpkg-binary-cache'
-          New-Item -ItemType Directory -Force -Path $cache | Out-Null
-          "VCPKG_DEFAULT_BINARY_CACHE=$cache" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-
-      - name: Restore vcpkg binary cache
-        uses: actions/cache@v4
-        with:
-          path: ${{ runner.temp }}/vcpkg-binary-cache
-          key: biocore-windows-probe-vcpkg-x64-sqlite3-zlib-v1
-
-      - name: Install minimal probe dependencies
-        shell: pwsh
-        run: |
-          & "$env:VCPKG_ROOT\vcpkg.exe" install sqlite3:x64-windows zlib:x64-windows --disable-metrics
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-
-      - name: Configure lightweight Windows verification
-        shell: pwsh
-        run: |
-          cmake -S . -B build/windows-probe -G "Visual Studio 18 2026" -A x64 `
-            -DBIOCORE_BUILD_TESTS=ON `
-            -DBIOCORE_WARNINGS_AS_ERRORS=ON `
-            -DBIOCORE_REQUIRE_DROGON=OFF `
-            -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_ROOT\scripts\buildsystems\vcpkg.cmake" `
-            -DVCPKG_TARGET_TRIPLET=x64-windows
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-
-      - name: Build timeout pair Debug
-        shell: pwsh
-        run: |
-          cmake --build build/windows-probe --config Debug `
-            --target biocore-filesystem-project-workspace-tests biocore-local-server-bootstrap-tests `
-            --parallel 2
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-
-      - name: Run timeout pair Debug
-        shell: pwsh
-        run: |
-          ctest --test-dir build/windows-probe -C Debug `
-            -R "^(infrastructure\.filesystem_project_workspace|integration\.local_server_bootstrap)$" `
-            --output-on-failure --timeout 120 -V
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          Copy-Item build/windows-probe/Testing/Temporary/LastTest.log windows-timeout-pair-debug.log
-
-      - name: Build timeout pair Release
-        shell: pwsh
-        run: |
-          cmake --build build/windows-probe --config Release `
-            --target biocore-filesystem-project-workspace-tests biocore-local-server-bootstrap-tests `
-            --parallel 2
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-
-      - name: Run timeout pair Release
-        shell: pwsh
-        run: |
-          ctest --test-dir build/windows-probe -C Release `
-            -R "^(infrastructure\.filesystem_project_workspace|integration\.local_server_bootstrap)$" `
-            --output-on-failure --timeout 120 -V
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          Copy-Item build/windows-probe/Testing/Temporary/LastTest.log windows-timeout-pair-release.log
-
-      - name: Upload clean verification logs
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: windows-timeout-pair-clean-logs
-          path: |
-            windows-timeout-pair-debug.log
-            windows-timeout-pair-release.log
-          if-no-files-found: warn
-          retention-days: 7
+          set -euo pipefail
+          actual="$(gh api repos/${GITHUB_REPOSITORY}/git/ref/heads/${CANDIDATE_REF} --jq '.object.sha')"
+          test "${actual}" = "${EXPECTED_SHA}"
+          echo "Exact candidate verified: ${actual}"
+          gh workflow run v0.2-validation.yml \
+            --repo "${GITHUB_REPOSITORY}" \
+            --ref "${CANDIDATE_REF}"
+          echo "Official final validation dispatched for ${CANDIDATE_REF} at ${EXPECTED_SHA}"
