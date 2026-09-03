@@ -4,7 +4,6 @@
 #include <filesystem>
 #include <fstream>
 #include <iomanip>
-#include <iostream>
 #include <memory>
 #include <sstream>
 #include <string>
@@ -23,10 +22,6 @@ namespace {
 using application::IProjectWorkspaceTransaction;
 using application::ProjectWorkspaceConflictError;
 using application::ProjectWorkspaceInitializationError;
-
-void workspace_probe(const std::string_view stage) {
-    std::cerr << "[workspace-initialize-probe] " << stage << std::endl;
-}
 
 [[nodiscard]] std::filesystem::path path_from_utf8(const std::string_view value) {
 #ifdef _WIN32
@@ -149,7 +144,6 @@ void initialize_project_database(
     const domain::Project& project,
     std::vector<std::filesystem::path>& created_paths
 ) {
-    workspace_probe("database: begin");
     const std::filesystem::path database_path = biocore_directory / "project.sqlite";
     std::filesystem::path wal_path = database_path;
     wal_path += "-wal";
@@ -160,13 +154,9 @@ void initialize_project_database(
     created_paths.push_back(wal_path);
     created_paths.push_back(shared_memory_path);
 
-    workspace_probe("database: before connection");
     sqlite::SqliteConnection connection{database_path};
-    workspace_probe("database: after connection");
     sqlite::ProjectDatabaseInitializer initializer{connection};
-    workspace_probe("database: before initializer.initialize");
     initializer.initialize(project);
-    workspace_probe("database: after initializer.initialize");
 }
 
 void write_ownership_file(
@@ -174,39 +164,30 @@ void write_ownership_file(
     const domain::Project& project,
     std::vector<std::filesystem::path>& created_paths
 ) {
-    workspace_probe("ownership: begin");
     const std::filesystem::path temporary_path = biocore_directory / "ownership.json.tmp";
     const std::filesystem::path ownership_path = biocore_directory / "ownership.json";
 
-    workspace_probe("ownership: before open");
     std::ofstream output{temporary_path, std::ios::binary | std::ios::trunc};
     if (!output.is_open()) {
         throw ProjectWorkspaceInitializationError{
             "Unable to create project ownership metadata: " + path_to_utf8(temporary_path)};
     }
-    workspace_probe("ownership: after open");
     created_paths.push_back(temporary_path);
 
-    workspace_probe("ownership: before serialize/write");
     output << ownership_document(project);
-    workspace_probe("ownership: after serialize/write");
     output.flush();
-    workspace_probe("ownership: after flush");
     if (!output) {
         throw ProjectWorkspaceInitializationError{
             "Unable to write project ownership metadata: " + path_to_utf8(temporary_path)};
     }
     output.close();
-    workspace_probe("ownership: after close");
     if (!output) {
         throw ProjectWorkspaceInitializationError{
             "Unable to close project ownership metadata: " + path_to_utf8(temporary_path)};
     }
 
     std::error_code error;
-    workspace_probe("ownership: before rename");
     std::filesystem::rename(temporary_path, ownership_path, error);
-    workspace_probe("ownership: after rename");
     if (error) {
         throw ProjectWorkspaceInitializationError{
             "Unable to publish project ownership metadata: " + error.message()};
@@ -240,10 +221,7 @@ private:
 std::unique_ptr<application::IProjectWorkspaceTransaction> FilesystemProjectWorkspace::initialize(
     const domain::Project& project
 ) {
-    workspace_probe("initialize: entry");
     const std::filesystem::path requested_root = path_from_utf8(project.root_path());
-    workspace_probe("initialize: root path decoded");
-
     if (!requested_root.is_absolute() || contains_dot_segment(requested_root)) {
         throw ProjectWorkspaceInitializationError{
             "Project workspace initialization requires a canonical root path"};
@@ -252,26 +230,21 @@ std::unique_ptr<application::IProjectWorkspaceTransaction> FilesystemProjectWork
         throw ProjectWorkspaceInitializationError{
             "A filesystem root cannot be initialized as an OpenGenesis-BioCore project workspace"};
     }
-    workspace_probe("initialize: lexical root validated");
 
-    std::error_code requested_status_error;
+    std::error_code status_error;
     const std::filesystem::file_status requested_status =
-        std::filesystem::symlink_status(requested_root, requested_status_error);
-    if (requested_status_error || requested_status.type() != std::filesystem::file_type::directory) {
+        std::filesystem::symlink_status(requested_root, status_error);
+    if (status_error || requested_status.type() != std::filesystem::file_type::directory) {
         throw ProjectWorkspaceInitializationError{
             "Project root is no longer an existing non-symlink directory"};
     }
-    workspace_probe("initialize: requested root status validated");
 
     std::error_code canonical_error;
-    workspace_probe("initialize: before canonical");
     const std::filesystem::path root = std::filesystem::canonical(requested_root, canonical_error);
-    workspace_probe("initialize: after canonical");
     if (canonical_error) {
         throw ProjectWorkspaceInitializationError{
             "Project root is no longer available: " + canonical_error.message()};
     }
-    workspace_probe("initialize: canonical root accepted");
 
     constexpr std::array<std::string_view, 6> reserved_entries{
         ".biocore", "inputs", "work", "outputs", "reports", "logs"};
@@ -280,7 +253,6 @@ std::unique_ptr<application::IProjectWorkspaceTransaction> FilesystemProjectWork
             throw ProjectWorkspaceConflictError{std::string{entry}};
         }
     }
-    workspace_probe("initialize: reserved entries checked");
 
     std::vector<std::filesystem::path> created_paths;
     created_paths.reserve(15U);
@@ -289,7 +261,6 @@ std::unique_ptr<application::IProjectWorkspaceTransaction> FilesystemProjectWork
         const std::filesystem::path biocore_directory = root / ".biocore";
         const std::filesystem::path work_directory = root / "work";
 
-        workspace_probe("initialize: before directory creation");
         create_directory(biocore_directory, created_paths);
         create_directory(biocore_directory / "locks", created_paths);
         create_directory(biocore_directory / "runtime", created_paths);
@@ -301,18 +272,13 @@ std::unique_ptr<application::IProjectWorkspaceTransaction> FilesystemProjectWork
         create_directory(root / "outputs", created_paths);
         create_directory(root / "reports", created_paths);
         create_directory(root / "logs", created_paths);
-        workspace_probe("initialize: directories created");
         initialize_project_database(biocore_directory, project, created_paths);
-        workspace_probe("initialize: database helper returned");
         write_ownership_file(biocore_directory, project, created_paths);
-        workspace_probe("initialize: ownership helper returned");
     } catch (...) {
-        workspace_probe("initialize: exception, rolling back");
         rollback_paths(created_paths);
         throw;
     }
 
-    workspace_probe("initialize: before transaction return");
     return std::make_unique<FilesystemWorkspaceTransaction>(std::move(created_paths));
 }
 
