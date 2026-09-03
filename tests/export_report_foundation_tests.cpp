@@ -124,7 +124,7 @@ public:
     application::ArtifactPresentationService service{files, jobs, content, clock};
 
     const auto manifest = service.build_job_export_manifest("job-export");
-    if (manifest.schema_version != 1U || manifest.producer_version != "0.2.0-dev" ||
+    if (manifest.schema_version != 1U || manifest.producer_version != "0.2.0" ||
         !manifest.stable_snapshot || manifest.report.attempt_number != 3U ||
         manifest.artifacts.size() != 2U || content.calls != 2 ||
         manifest.artifacts[0].metadata.step_id != "step-a" ||
@@ -134,7 +134,7 @@ public:
 
     const std::string json = presentation::render_pipeline_export_manifest_json(manifest);
     return json.find("\"schemaVersion\":1") != std::string::npos &&
-           json.find("\"version\":\"0.2.0-dev\"") != std::string::npos &&
+           json.find("\"version\":\"0.2.0\"") != std::string::npos &&
            json.find("\"stableSnapshot\":true") != std::string::npos &&
            json.find("\"artifactCount\":2") != std::string::npos &&
            json.find("\"attemptNumber\":3") != std::string::npos &&

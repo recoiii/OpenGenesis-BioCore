@@ -3,13 +3,13 @@ message: "If you use OpenGenesis-BioCore in your research, please cite the softw
 
 title: "OpenGenesis-BioCore"
 type: software
-version: "0.1.0"
-date-released: "2026-08-18"
+version: "0.2.0"
+date-released: "2026-09-01"
 license: MIT
 
 repository-code: "https://github.com/recoiii/OpenGenesis-BioCore"
-doi: "10.5281/zenodo.22012038"
-url: "https://doi.org/10.5281/zenodo.22012038"
+doi: "10.5281/zenodo.22012037"
+url: "https://doi.org/10.5281/zenodo.22012037"
 
 authors:
   - family-names: "Çelik"
@@ -36,17 +36,18 @@ abstract: >-
   platform combines a C++20 native core with a localhost browser interface,
   SQLite-backed project persistence, managed files, versioned plugins and
   pipelines, immutable execution-plan snapshots, asynchronous job scheduling,
-  supervised worker processes, durable recovery, live progress reporting, and
-  output artifact tracking.
+  supervised worker processes, durable recovery, live progress reporting,
+  managed-file integrity verification, export/report generation, and output
+  artifact tracking.
 
 preferred-citation:
   type: software
-  title: "OpenGenesis-BioCore v0.1.0"
+  title: "OpenGenesis-BioCore v0.2.0"
   authors:
     - family-names: "Çelik"
       given-names: "Recep"
       orcid: "https://orcid.org/0009-0003-2939-1009"
-  version: "0.1.0"
-  date-released: "2026-08-18"
-  doi: "10.5281/zenodo.22012038"
-  url: "https://doi.org/10.5281/zenodo.22012038"
+  version: "0.2.0"
+  date-released: "2026-09-01"
+  doi: "10.5281/zenodo.22012037"
+  url: "https://doi.org/10.5281/zenodo.22012037"

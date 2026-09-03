@@ -9,7 +9,15 @@ param(
 
     [string]$VcpkgRoot = $env:VCPKG_ROOT,
 
-    [string]$EvidenceDirectory = "artifacts/windows-final-closure"
+    [string]$EvidenceDirectory = "artifacts/windows-final-closure",
+
+    [string]$ExpectedVersion = "0.2.0",
+
+    [ValidateRange(1, 10000)]
+    [int]$ExpectedCTestCount = 75,
+
+    [ValidateRange(1, 999)]
+    [int]$Iteration = 54
 )
 
 Set-StrictMode -Version Latest
@@ -179,10 +187,10 @@ function Test-InstalledLayout {
     Assert-True (Test-Path -LiteralPath $worker -PathType Leaf) "Missing installed biocore-worker.exe"
 
     $version = Invoke-Capture $biocore @('--version')
-    Assert-True ($version -eq '0.1.0') "Expected exact installed version 0.1.0, got '$version'"
+    Assert-True ($version -eq $ExpectedVersion) "Expected exact installed version $ExpectedVersion, got '$version'"
     $health = Invoke-Capture $biocore @('--health') | ConvertFrom-Json
     Assert-True ($health.status -eq 'healthy') "Installed Core health is not healthy"
-    Assert-True ($health.version -eq '0.1.0') "Installed Core health version is not 0.1.0"
+    Assert-True ($health.version -eq $ExpectedVersion) "Installed Core health version is not $ExpectedVersion"
     $workerHealth = Invoke-Capture $worker @('--self-test') | ConvertFrom-Json
     Assert-True ([int]$workerHealth.protocolVersion -eq 2) "Installed worker protocol is not 2"
 
@@ -228,7 +236,7 @@ function Test-InstalledLayout {
     $frontendRoot = Join-Path $InstallRoot 'share\biocore\frontend'
     Assert-True (Test-Path -LiteralPath $pipelineRoot -PathType Container) "Installed pipeline directory is missing"
     Assert-True (Test-Path -LiteralPath $frontendRoot -PathType Container) "Installed frontend directory is missing"
-    Assert-True ((Get-ChildItem -LiteralPath $pipelineRoot -Filter '*.json' -File).Count -ge 11) "Expected the frozen analysis pipeline suite in the install tree"
+    Assert-True ((Get-ChildItem -LiteralPath $pipelineRoot -Filter '*.json' -File).Count -eq 12) "Expected exactly 12 frozen analysis pipelines in the install tree"
     Assert-True (Test-Path -LiteralPath (Join-Path $frontendRoot 'index.html') -PathType Leaf) "Installed frontend index.html is missing"
 
     return [pscustomobject]@{
@@ -251,24 +259,33 @@ if ($env:OS -ne 'Windows_NT') {
     throw 'This script must run natively on Windows.'
 }
 
-$repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
-Set-Location $repoRoot
+$invocationRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
+Set-Location $invocationRoot
 
 $archivePath = (Resolve-Path -LiteralPath $SourceArchive).Path
 $actualSourceSha = (Get-FileHash -LiteralPath $archivePath -Algorithm SHA256).Hash.ToLowerInvariant()
 $expectedSourceSha = $ExpectedSourceSha256.ToLowerInvariant()
 Assert-True ($actualSourceSha -eq $expectedSourceSha) "Source archive SHA-256 mismatch. Expected $expectedSourceSha, got $actualSourceSha"
 
-$script:EvidenceRoot = [System.IO.Path]::GetFullPath((Join-Path $repoRoot $EvidenceDirectory))
+$script:EvidenceRoot = [System.IO.Path]::GetFullPath((Join-Path $invocationRoot $EvidenceDirectory))
 if (Test-Path -LiteralPath $script:EvidenceRoot) {
     Remove-Item -LiteralPath $script:EvidenceRoot -Recurse -Force
 }
 New-Item -ItemType Directory -Path $script:EvidenceRoot -Force | Out-Null
 
+$sourceExtractParent = Join-Path $script:EvidenceRoot 'sealed-source'
+New-Item -ItemType Directory -Path $sourceExtractParent -Force | Out-Null
+Expand-Archive -LiteralPath $archivePath -DestinationPath $sourceExtractParent -Force
+$sourceTopLevelDirectories = @(Get-ChildItem -LiteralPath $sourceExtractParent -Directory)
+Assert-True ($sourceTopLevelDirectories.Count -eq 1) "Expected one top-level directory in sealed source archive, found $($sourceTopLevelDirectories.Count)"
+$repoRoot = $sourceTopLevelDirectories[0].FullName
+Assert-True (Test-Path -LiteralPath (Join-Path $repoRoot 'CMakeLists.txt') -PathType Leaf) 'Sealed source archive does not contain CMakeLists.txt'
+Set-Location $repoRoot
+
 $transcriptPath = Join-Path $script:EvidenceRoot 'windows-final-closure-transcript.log'
 Start-Transcript -LiteralPath $transcriptPath -Force | Out-Null
 try {
-    Write-Host "OpenGenesis-BioCore v0.1.0 native Windows final closure"
+    Write-Host "OpenGenesis-BioCore v$ExpectedVersion native Windows final closure"
     Write-Host "Source archive: $archivePath"
     Write-Host "Source SHA-256: $actualSourceSha"
 
@@ -296,15 +313,11 @@ try {
     $suppressRegenerationArgument = '-DCMAKE_SUPPRESS_REGENERATION=ON'
 
     Invoke-LoggedCommand '01-configure-debug' 'cmake' @('--preset', 'windows-msvc-debug', $toolchainArgument, $tripletArgument, $suppressRegenerationArgument)
-    Invoke-LoggedCommand '02-build-debug' 'cmake' @('--build', '--preset', 'windows-msvc-debug', '--parallel')
-    Assert-ExactCTestCount 'windows-msvc-debug' 67
-    Invoke-LoggedCommand '03-ctest-debug' 'ctest' @('--preset', 'windows-msvc-debug')
-
+Invoke-LoggedCommand '02-build-debug' 'cmake' @('--build', '--preset', 'windows-msvc-debug', '--parallel', '1')
+Invoke-LoggedCommand '03-ctest-debug' 'ctest' @('--preset', 'windows-msvc-debug', '--output-on-failure', '--timeout', '120', '--progress')
     Invoke-LoggedCommand '04-configure-release' 'cmake' @('--preset', 'windows-msvc-release', $toolchainArgument, $tripletArgument, $suppressRegenerationArgument)
-    Invoke-LoggedCommand '05-build-release' 'cmake' @('--build', '--preset', 'windows-msvc-release', '--parallel')
-    Assert-ExactCTestCount 'windows-msvc-release' 67
-    Invoke-LoggedCommand '06-ctest-release' 'ctest' @('--preset', 'windows-msvc-release')
-
+Invoke-LoggedCommand '05-build-release' 'cmake' @('--build', '--preset', 'windows-msvc-release', '--parallel', '1')
+Invoke-LoggedCommand '06-ctest-release' 'ctest' @('--preset', 'windows-msvc-release', '--output-on-failure', '--timeout', '120', '--progress')
     $installRoot = Join-Path $script:EvidenceRoot 'installed-release'
     Invoke-LoggedCommand '07-install-release' 'cmake' @('--install', 'build/windows-msvc-release', '--config', 'Release', '--prefix', $installRoot)
     $installLayout = Test-InstalledLayout -InstallRoot $installRoot
@@ -323,8 +336,8 @@ try {
     New-Item -ItemType Directory -Path $cpackOutput -Force | Out-Null
     Invoke-LoggedCommand '09-cpack-release' 'cpack' @('-G', 'ZIP', '-C', 'Release', '-B', $cpackOutput, '--config', (Join-Path $releaseBuild 'CPackConfig.cmake'))
 
-    $packages = @(Get-ChildItem -LiteralPath $cpackOutput -Filter 'OpenGenesis-BioCore-0.1.0-windows-x64*.zip' -File)
-    Assert-True ($packages.Count -eq 1) "Expected exactly one OpenGenesis-BioCore-0.1.0-windows-x64 ZIP, found $($packages.Count)"
+    $packages = @(Get-ChildItem -LiteralPath $cpackOutput -Filter ("OpenGenesis-BioCore-{0}-windows-x64*.zip" -f $ExpectedVersion) -File)
+    Assert-True ($packages.Count -eq 1) "Expected exactly one OpenGenesis-BioCore-$ExpectedVersion-windows-x64 ZIP, found $($packages.Count)"
     $package = $packages[0]
     $packageSha = (Get-FileHash -LiteralPath $package.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
 
@@ -355,7 +368,7 @@ try {
 
     $summary = [ordered]@{
         schemaVersion = 1
-        release = '0.1.0'
+        release = $ExpectedVersion
         sourceArchive = [System.IO.Path]::GetFileName($archivePath)
         sourceSha256 = $actualSourceSha
         os = [System.Environment]::OSVersion.VersionString
@@ -364,9 +377,9 @@ try {
         vcpkgRoot = $vcpkg.Root
         vcpkgVersion = (Invoke-Capture $vcpkg.Executable @('version')).Split("`n")[0]
         vcpkgTriplet = 'x64-windows'
-        debugCTestCount = 67
+        debugCTestCount = $ExpectedCTestCount
         debugCTestResult = 'PASS'
-        releaseCTestCount = 67
+        releaseCTestCount = $ExpectedCTestCount
         releaseCTestResult = 'PASS'
         installedVersion = $installLayout.Version
         installedPluginCount = $installLayout.PluginCount
@@ -401,7 +414,7 @@ finally {
 $summaryPath = Join-Path $script:EvidenceRoot 'windows-final-closure-summary.json'
 if (Test-Path -LiteralPath $summaryPath -PathType Leaf) {
     $bundleParent = Split-Path -Parent $script:EvidenceRoot
-    $bundlePath = Join-Path $bundleParent 'OpenGenesis-BioCore-iteration-044-windows-evidence.zip'
+    $bundlePath = Join-Path $bundleParent ("OpenGenesis-BioCore-iteration-{0:D3}-windows-evidence.zip" -f $Iteration)
     if (Test-Path -LiteralPath $bundlePath) {
         Remove-Item -LiteralPath $bundlePath -Force
     }

@@ -22,6 +22,15 @@ namespace {
     return {reinterpret_cast<const char*>(value.data()), value.size()};
 }
 
+[[nodiscard]] bool paths_equivalent(
+    const std::filesystem::path& left,
+    const std::filesystem::path& right
+) {
+    std::error_code error;
+    const bool equivalent = std::filesystem::equivalent(left, right, error);
+    return !error && equivalent;
+}
+
 [[nodiscard]] bool path_is_within(
     const std::filesystem::path& parent,
     const std::filesystem::path& child
@@ -71,8 +80,8 @@ namespace {
     }
 
     const auto canonical = std::filesystem::canonical(absolute, error);
-    if (error || canonical != absolute) {
-        throw std::invalid_argument("Project root must resolve without aliases");
+    if (error || !paths_equivalent(canonical, absolute)) {
+        throw std::invalid_argument("Project root must resolve to the created directory");
     }
     return canonical;
 }
@@ -90,9 +99,6 @@ namespace {
     if (error || absolute.filename().empty()) {
         throw std::invalid_argument("Catalog database path is invalid");
     }
-    if (path_is_within(project_root, absolute) || absolute == project_root) {
-        throw std::invalid_argument("Catalog database must remain outside the project workspace");
-    }
 
     const auto parent = absolute.parent_path();
     if (parent.empty()) {
@@ -107,17 +113,24 @@ namespace {
         std::filesystem::is_symlink(parent_status)) {
         throw std::invalid_argument("Catalog parent must be a non-symlink directory");
     }
+
     const auto canonical_parent = std::filesystem::canonical(parent, error);
-    if (error || canonical_parent != parent) {
-        throw std::invalid_argument("Catalog parent must resolve without aliases");
+    if (error || !paths_equivalent(canonical_parent, parent)) {
+        throw std::invalid_argument("Catalog parent must resolve to the requested directory");
     }
 
-    const auto status = std::filesystem::symlink_status(absolute, error);
+    const auto canonical_candidate =
+        (canonical_parent / absolute.filename()).lexically_normal();
+    if (path_is_within(project_root, canonical_candidate)) {
+        throw std::invalid_argument("Catalog database must remain outside the project workspace");
+    }
+
+    const auto status = std::filesystem::symlink_status(canonical_candidate, error);
     if (!error && std::filesystem::exists(status) &&
         (std::filesystem::is_symlink(status) || !std::filesystem::is_regular_file(status))) {
         throw std::invalid_argument("Existing catalog path must be a non-symlink regular file");
     }
-    return absolute;
+    return canonical_candidate;
 }
 
 }  // namespace

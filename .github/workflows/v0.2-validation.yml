@@ -1,4 +1,4 @@
-name: OpenGenesis-BioCore v0.2 validation
+name: OpenGenesis-BioCore v0.2 final validation
 
 on:
   push:
@@ -11,13 +11,40 @@ on:
   workflow_dispatch:
 
 env:
-  BIOCORE_ITERATION: "053"
+  BIOCORE_ITERATION: "054"
   BIOCORE_TEST_FLOOR: "75"
+  BIOCORE_RELEASE_VERSION: "0.2.0"
 
 permissions:
   contents: read
 
 jobs:
+  source-candidate:
+    name: Exact source candidate
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Create SHA-256 sealed source archive
+        shell: bash
+        run: |
+          mkdir -p artifacts/source
+          archive="artifacts/source/OpenGenesis-BioCore-iteration-${BIOCORE_ITERATION}-source-CANDIDATE.zip"
+          git archive --format=zip --prefix="bc/" --output="${archive}" HEAD
+          sha256sum "${archive}" | tee artifacts/source/SHA256SUMS.txt
+          git rev-parse HEAD | tee artifacts/source/COMMIT.txt
+
+      - name: Upload exact source candidate
+        uses: actions/upload-artifact@v4
+        with:
+          name: OpenGenesis-BioCore-iteration-${{ env.BIOCORE_ITERATION }}-source-CANDIDATE
+          path: artifacts/source/
+          if-no-files-found: error
+          retention-days: 30
+
   linux-matrix:
     name: ${{ matrix.preset }}
     runs-on: ubuntu-24.04
@@ -45,26 +72,24 @@ jobs:
       - name: Build
         run: cmake --build --preset "${{ matrix.preset }}" --parallel
 
-      - name: Preserve active test floor
+      - name: Require exact active test suite
         shell: bash
         run: |
           count="$(ctest --preset "${{ matrix.preset }}" -N | sed -n 's/^Total Tests: //p')"
-          if [[ -z "${count}" || "${count}" -lt "${BIOCORE_TEST_FLOOR}" ]]; then
-            echo "Expected at least ${BIOCORE_TEST_FLOOR} tests (v0.1 baseline: 67); found '${count:-unknown}'." >&2
-            exit 1
-          fi
+          test "${count}" = "${BIOCORE_TEST_FLOOR}"
           echo "CTest count: ${count}"
 
       - name: Run regression suite
         run: ctest --preset "${{ matrix.preset }}" --output-on-failure
 
-      - name: Verify v0.2 development identity
+      - name: Verify exact v0.2.0 release identity
         if: matrix.preset == 'linux-gcc-debug'
         shell: bash
         run: |
           actual="$(build/linux-gcc-debug/apps/biocore/biocore --version)"
-          test "${actual}" = "0.2.0-dev"
-          echo "Development identity: ${actual}"
+          test "${actual}" = "${BIOCORE_RELEASE_VERSION}"
+          grep -F 'set(BIOCORE_VERSION_SUFFIX "" CACHE STRING' CMakeLists.txt
+          echo "Final release identity: ${actual}"
 
       - name: Verify browser failure evidence contract
         if: matrix.preset == 'linux-gcc-debug'
@@ -74,36 +99,18 @@ jobs:
           node - <<'JS'
           const { core } = require('./frontend/assets/app.js');
           const normalized = core.normalizeJob({
-            id: 'failure-ui',
-            status: 'failed',
-            failure: {
-              kind: 'worker_reported_failure',
-              message: 'worker failed',
-              exitCode: 17,
-              workerTimestampUtc: '2026-09-01T08:00:00Z',
-              recordedAtUtc: '2026-09-01T08:00:01Z'
+            id: 'failure-ui', status: 'failed', failure: {
+              kind: 'worker_reported_failure', message: 'worker failed', exitCode: 17,
+              workerTimestampUtc: '2026-09-01T08:00:00Z', recordedAtUtc: '2026-09-01T08:00:01Z'
             }
           });
-          if (!normalized || normalized.failure?.exitCode !== 17 ||
-              normalized.failure?.message !== 'worker failed') process.exit(1);
-          const state = {
-            jobs: new Map([['failure-ui', { ...normalized, status: 'running', failure: null }]]),
-            logs: new Map(),
-            cursors: new Map()
-          };
+          if (!normalized || normalized.failure?.exitCode !== 17 || normalized.failure?.message !== 'worker failed') process.exit(1);
+          const state = { jobs: new Map([['failure-ui', { ...normalized, status: 'running', failure: null }]]), logs: new Map(), cursors: new Map() };
           const result = core.applyLifecycle(state, {
-            type: 'worker.lifecycle',
-            eventType: 'failed',
-            jobId: 'failure-ui',
-            launchRevision: 1,
-            sequence: 1,
-            workerTimestampUtc: '2026-09-01T08:00:02Z',
-            message: 'terminal failure',
-            exitCode: 9
+            type: 'worker.lifecycle', eventType: 'failed', jobId: 'failure-ui', launchRevision: 1,
+            sequence: 1, workerTimestampUtc: '2026-09-01T08:00:02Z', message: 'terminal failure', exitCode: 9
           });
-          if (!result.accepted ||
-              state.jobs.get('failure-ui').failure?.kind !== 'worker_reported_failure' ||
-              state.jobs.get('failure-ui').failure?.exitCode !== 9) process.exit(2);
+          if (!result.accepted || state.jobs.get('failure-ui').failure?.kind !== 'worker_reported_failure' || state.jobs.get('failure-ui').failure?.exitCode !== 9) process.exit(2);
           console.log('Browser failure evidence contract PASS');
           JS
 
@@ -115,31 +122,19 @@ jobs:
           node - <<'JS'
           const { core } = require('./frontend/assets/app.js');
           const job = core.normalizeJob({
-            id: 'job-visibility', status: 'interrupted', attemptNumber: 3, revision: 9,
-            progress: 0.4, failure: {
-              kind: 'heartbeat_timeout', message: 'worker heartbeat expired',
-              exitCode: null, workerTimestampUtc: null, recordedAtUtc: '2026-09-01T10:00:00Z'
-            }
+            id: 'job-visibility', status: 'interrupted', attemptNumber: 3, revision: 9, progress: 0.4,
+            failure: { kind: 'heartbeat_timeout', message: 'worker heartbeat expired', exitCode: null, workerTimestampUtc: null, recordedAtUtc: '2026-09-01T10:00:00Z' }
           });
-          if (!job || job.attemptNumber !== 3 || !core.canRetryJob(job.status) ||
-              core.canRetryJob('failed') || !core.canVerifyExport('completed') ||
-              core.canVerifyExport('running')) process.exit(1);
+          if (!job || job.attemptNumber !== 3 || !core.canRetryJob(job.status) || core.canRetryJob('failed') || !core.canVerifyExport('completed') || core.canVerifyExport('running')) process.exit(1);
           const digest = 'a'.repeat(64);
           const manifest = core.normalizeExportManifest({
-            schemaVersion: 1,
-            producer: { name: 'OpenGenesis-BioCore', version: '0.2.0-dev' },
-            stableSnapshot: true,
-            artifactCount: 1,
-            report: { jobId: 'job-visibility', attemptNumber: 3 },
+            schemaVersion: 1, producer: { name: 'OpenGenesis-BioCore', version: '0.2.0' }, stableSnapshot: true,
+            artifactCount: 1, report: { jobId: 'job-visibility', attemptNumber: 3 },
             artifacts: [{ metadata: { managedFileId: 'artifact-1' }, verifiedSha256: digest }]
           });
           if (!manifest || manifest.attemptNumber !== 3 || manifest.artifacts.length !== 1) process.exit(2);
-          if (core.artifactVerificationState({
-                managedFileId: 'artifact-1', checksumAlgorithm: 'sha256', checksumValue: digest
-              }, manifest) !== 'verified') process.exit(3);
-          if (core.artifactVerificationState({
-                managedFileId: 'artifact-1', checksumAlgorithm: 'sha256', checksumValue: 'b'.repeat(64)
-              }, manifest) !== 'mismatch') process.exit(4);
+          if (core.artifactVerificationState({ managedFileId: 'artifact-1', checksumAlgorithm: 'sha256', checksumValue: digest }, manifest) !== 'verified') process.exit(3);
+          if (core.artifactVerificationState({ managedFileId: 'artifact-1', checksumAlgorithm: 'sha256', checksumValue: 'b'.repeat(64) }, manifest) !== 'mismatch') process.exit(4);
           console.log('Frontend operational visibility behavior PASS');
           JS
 
@@ -156,7 +151,6 @@ jobs:
           grep -F "default_maximum_concurrent_jobs = 2U" src/application/include/biocore/application/job_scheduler.hpp
           grep -F "maximum_supported_concurrent_jobs = 64U" src/application/include/biocore/application/job_scheduler.hpp
           grep -F "using SharedMessage = std::shared_ptr<const std::string>" src/presentation/include/biocore/presentation/worker_lifecycle_event_broadcast.hpp
-          echo "Resource and concurrency hardening contract PASS"
 
       - name: Verify exact pipeline plugin-version pins
         if: matrix.preset == 'linux-gcc-debug'
@@ -165,17 +159,14 @@ jobs:
           python3 - <<'PY'
           import json
           from pathlib import Path
-
           module_versions = {}
           for manifest_path in Path('plugins').glob('*/plugin.json'):
               manifest = json.loads(manifest_path.read_text(encoding='utf-8'))
               for module in manifest['modules']:
                   module_versions[module['id']] = manifest['version']
-
           pipelines = sorted(Path('pipelines').glob('*.json'))
           if len(pipelines) != 12:
               raise SystemExit(f'Expected 12 bundled pipelines; found {len(pipelines)}')
-
           for path in pipelines:
               document = json.loads(path.read_text(encoding='utf-8'))
               if document.get('schemaVersion') != 2:
@@ -184,28 +175,7 @@ jobs:
                   expected = module_versions.get(step['module'])
                   if expected is None or step.get('pluginVersion') != expected:
                       raise SystemExit(f"{path}: plugin pin mismatch for {step['module']}")
-
           print('Pipeline plugin-version pin contract PASS')
-          PY
-
-      - name: Guard development preset identities
-        if: matrix.preset == 'linux-gcc-debug'
-        run: |
-          python3 - <<'PY'
-          import json
-          from pathlib import Path
-
-          data = json.loads(Path("CMakePresets.json").read_text(encoding="utf-8"))
-          offenders = []
-          for preset in data.get("configurePresets", []):
-              variables = preset.get("cacheVariables", {})
-              if variables.get("BIOCORE_VERSION_SUFFIX") == "":
-                  offenders.append(preset.get("name", "<unnamed>"))
-          if offenders:
-              raise SystemExit(
-                  "Development preset(s) force an empty final-release suffix: " + ", ".join(offenders)
-              )
-          print("No normal development configure preset forces an empty version suffix.")
           PY
 
   sanitizers:
@@ -216,53 +186,93 @@ jobs:
         uses: actions/checkout@v5
         with:
           fetch-depth: 0
-
       - name: Install build dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y ninja-build libsqlite3-dev zlib1g-dev
-
       - name: Configure ASan + UBSan
         run: |
           cmake -S . -B build/linux-gcc-asan-ubsan -G Ninja \
-            -DCMAKE_BUILD_TYPE=Debug \
-            -DCMAKE_CXX_COMPILER=g++ \
-            -DBIOCORE_BUILD_TESTS=ON \
-            -DBIOCORE_WARNINGS_AS_ERRORS=ON \
-            -DBIOCORE_ENABLE_ASAN=ON \
-            -DBIOCORE_ENABLE_UBSAN=ON
-
+            -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_COMPILER=g++ \
+            -DBIOCORE_BUILD_TESTS=ON -DBIOCORE_WARNINGS_AS_ERRORS=ON \
+            -DBIOCORE_ENABLE_ASAN=ON -DBIOCORE_ENABLE_UBSAN=ON \
+            -DBIOCORE_VERSION_SUFFIX=
       - name: Build ASan + UBSan
         run: cmake --build build/linux-gcc-asan-ubsan --parallel
-
-      - name: Preserve active test floor
+      - name: Require exact active test suite
         shell: bash
         run: |
           count="$(ctest --test-dir build/linux-gcc-asan-ubsan -N | sed -n 's/^Total Tests: //p')"
-          if [[ -z "${count}" || "${count}" -lt "${BIOCORE_TEST_FLOOR}" ]]; then
-            echo "Expected at least ${BIOCORE_TEST_FLOOR} tests (v0.1 baseline: 67); found '${count:-unknown}'." >&2
-            exit 1
-          fi
-          echo "CTest count: ${count}"
-
+          test "${count}" = "${BIOCORE_TEST_FLOOR}"
       - name: Run ASan + UBSan regression suite
         env:
           ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
           UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
         run: ctest --test-dir build/linux-gcc-asan-ubsan --output-on-failure
 
+  windows-native-closure:
+    name: Native Windows final closure
+    needs:
+      - source-candidate
+    runs-on: windows-latest
+    steps:
+      - name: Checkout closure launcher
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - name: Download exact source candidate
+        uses: actions/download-artifact@v5
+        with:
+          name: OpenGenesis-BioCore-iteration-${{ env.BIOCORE_ITERATION }}-source-CANDIDATE
+          path: artifacts/source
+      - name: Resolve hosted vcpkg root
+        shell: pwsh
+        run: |
+          if (-not $env:VCPKG_ROOT -and $env:VCPKG_INSTALLATION_ROOT) {
+            "VCPKG_ROOT=$env:VCPKG_INSTALLATION_ROOT" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          }
+      - name: Validate exact sealed source on native Windows
+        shell: pwsh
+        run: |
+          $drive = 'B:'
+          if (Get-PSDrive -Name 'B' -ErrorAction SilentlyContinue) {
+            throw 'Required short-path drive B: is already in use.'
+          }
+          subst $drive $env:GITHUB_WORKSPACE
+          try {
+            $archive = Get-ChildItem "$drive\artifacts\source\OpenGenesis-BioCore-iteration-054-source-CANDIDATE.zip" | Select-Object -First 1
+            $line = Get-Content "$drive\artifacts\source\SHA256SUMS.txt" | Select-Object -First 1
+            $sha = ($line -split '\s+')[0]
+            & "$drive\scripts\validate-windows-final.ps1" -SourceArchive $archive.FullName -ExpectedSourceSha256 $sha -ExpectedVersion "0.2.0" -ExpectedCTestCount 75 -Iteration 54
+          }
+          finally {
+            Set-Location $env:GITHUB_WORKSPACE
+            subst $drive /D
+          }
+      - name: Upload Windows closure evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: OpenGenesis-BioCore-iteration-${{ env.BIOCORE_ITERATION }}-windows-final-closure
+          path: |
+            artifacts/windows-final-closure/
+            artifacts/OpenGenesis-BioCore-iteration-054-windows-evidence.zip
+          if-no-files-found: error
+          retention-days: 30
+
   gemini-review-package:
     name: Gemini four-part review package
     needs:
+      - source-candidate
       - linux-matrix
       - sanitizers
+      - windows-native-closure
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout exact validated candidate
         uses: actions/checkout@v5
         with:
           fetch-depth: 0
-
       - name: Generate exact four-part Markdown package
         run: |
           python3 scripts/generate-gemini-review.py \
@@ -270,7 +280,6 @@ jobs:
             --parts 4 \
             --ci-run-id "${{ github.run_id }}" \
             --output artifacts/gemini-review
-
       - name: Verify package shape and checksums
         shell: bash
         run: |
@@ -278,7 +287,6 @@ jobs:
           test "${#parts[@]}" -eq 4
           cd artifacts/gemini-review
           sha256sum -c "OpenGenesis-BioCore-iteration-${BIOCORE_ITERATION}-GEMINI-review-SHA256SUMS.txt"
-
       - name: Upload Gemini review package
         uses: actions/upload-artifact@v4
         with:
