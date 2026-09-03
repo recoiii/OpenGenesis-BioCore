@@ -1,9 +1,6 @@
 name: OpenGenesis-BioCore Windows timeout probe
 
 on:
-  push:
-    branches:
-      - iteration-054-timeout-probe
   workflow_dispatch:
 
 permissions:
