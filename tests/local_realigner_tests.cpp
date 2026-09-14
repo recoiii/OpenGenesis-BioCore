@@ -42,6 +42,9 @@ int main() {
     const auto contig = reference.contigs().resolve("chr1");
     if (!require(contig.has_value(), "chr1 was not resolved")) return 1;
 
+    // Deletion of reference "AG" at positions 5..6 (0-based 4..5), anchored by C at position 4.
+    // Two reads expose the deletion in CIGAR; a third carries the deletion haplotype but is represented
+    // without D and is rescued by haplotype realignment.
     std::vector<ReadAlignment> reads;
     reads.push_back(make_read(*contig, "seed-fwd", 0U, "4M2D8M", "ACGT" "TACGTACG"));
     reads.push_back(make_read(*contig, "seed-rev", 0U, "4M2D8M", "ACGT" "TACGTACG", true));
@@ -57,6 +60,7 @@ int main() {
     if (!require(candidate.evidence.alternate_support >= 2U, "seed reads were not supported by realignment")) return 1;
     if (!require(candidate.evidence.informative_realignments == 3U, "expected all three reads to be locally realigned")) return 1;
 
+    // Filtered reads must not contribute to seed or realignment support.
     auto duplicate = reads.front();
     duplicate.read_name = "duplicate";
     duplicate.duplicate = true;
