@@ -5,6 +5,8 @@ target_sources(
     biocore-domain
     PRIVATE
         source/component_identity.cpp
+        source/contig_table.cpp
+        source/genotype.cpp
         source/job.cpp
         source/job_failure.cpp
         source/job_priority.cpp
@@ -18,11 +20,16 @@ target_sources(
         source/pipeline_step.cpp
         source/project.cpp
         source/storage_mode.cpp
+        source/variant_record.cpp
+        source/variant_types.cpp
     PUBLIC
         FILE_SET HEADERS
         BASE_DIRS include
         FILES
             include/biocore/domain/component_identity.hpp
+            include/biocore/domain/contig_table.hpp
+            include/biocore/domain/genotype.hpp
+            include/biocore/domain/inline_values.hpp
             include/biocore/domain/job.hpp
             include/biocore/domain/job_failure.hpp
             include/biocore/domain/job_priority.hpp
@@ -36,6 +43,8 @@ target_sources(
             include/biocore/domain/pipeline_step.hpp
             include/biocore/domain/project.hpp
             include/biocore/domain/storage_mode.hpp
+            include/biocore/domain/variant_record.hpp
+            include/biocore/domain/variant_types.hpp
 )
 
 target_link_libraries(
@@ -43,3 +52,41 @@ target_link_libraries(
     PUBLIC BioCore::project_options
     PRIVATE BioCore::project_warnings BioCore::sanitizers
 )
+
+if(BIOCORE_BUILD_TESTS)
+    add_executable(biocore-variant-types-tests ${PROJECT_SOURCE_DIR}/tests/variant_types_tests.cpp)
+    target_link_libraries(
+        biocore-variant-types-tests
+        PRIVATE BioCore::domain BioCore::project_options BioCore::project_warnings BioCore::sanitizers
+    )
+    add_test(NAME domain.variant_types COMMAND biocore-variant-types-tests)
+
+    add_executable(
+        biocore-genotype-representation-tests
+        ${PROJECT_SOURCE_DIR}/tests/genotype_representation_tests.cpp
+    )
+    target_link_libraries(
+        biocore-genotype-representation-tests
+        PRIVATE BioCore::domain BioCore::project_options BioCore::project_warnings BioCore::sanitizers
+    )
+    add_test(NAME domain.genotype_representation COMMAND biocore-genotype-representation-tests)
+
+    add_executable(
+        biocore-contig-normalization-tests
+        ${PROJECT_SOURCE_DIR}/tests/contig_normalization_tests.cpp
+    )
+    target_link_libraries(
+        biocore-contig-normalization-tests
+        PRIVATE BioCore::domain BioCore::project_options BioCore::project_warnings BioCore::sanitizers
+    )
+    add_test(NAME domain.contig_normalization COMMAND biocore-contig-normalization-tests)
+
+    add_executable(
+        biocore-variant-model-memory-benchmark
+        ${PROJECT_SOURCE_DIR}/tests/variant_model_memory_benchmark.cpp
+    )
+    target_link_libraries(
+        biocore-variant-model-memory-benchmark
+        PRIVATE BioCore::domain BioCore::project_options BioCore::project_warnings BioCore::sanitizers
+    )
+endif()
