@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate deterministic four-part Markdown source packages for v0.3 Gemini review."""
+"""Generate deterministic, size-bounded four-part Markdown review packages for v0.3."""
 
 from __future__ import annotations
 
@@ -11,15 +11,19 @@ from pathlib import Path
 
 BASELINE_NAME = "OpenGenesis-BioCore v0.2.0"
 BASELINE_COMMIT = "31691d65e4e4a7dab9be0730c886e24890043194"
+PART_COUNT = 4
+MAX_PART_BYTES = 120_000
 
 
 @dataclass(frozen=True)
 class Entry:
     path: str
+    status: str
     mode: str
     object_type: str
     object_sha: str
     data: bytes
+    deleted: bool = False
 
     @property
     def sha256(self) -> str:
@@ -38,40 +42,53 @@ def require_clean_tracked_tree() -> None:
     subprocess.run(["git", "diff", "--cached", "--quiet", "HEAD", "--"], check=True)
 
 
-def load_entries() -> list[Entry]:
-    raw = git("ls-tree", "-r", "-z", "--full-tree", "HEAD", binary=True)
+def tree_metadata(ref: str, path: str) -> tuple[str, str, str] | None:
+    raw = git("ls-tree", ref, "--", path)
+    assert isinstance(raw, str)
+    if not raw:
+        return None
+    metadata, _ = raw.split("\t", 1)
+    mode, object_type, object_sha = metadata.split(" ", 2)
+    return mode, object_type, object_sha
+
+
+def changed_paths() -> list[str]:
+    raw = git("diff", "--name-only", "-z", BASELINE_COMMIT, "HEAD", "--", binary=True)
     assert isinstance(raw, bytes)
+    paths = [item.decode("utf-8") for item in raw.split(b"\0") if item]
+    if not paths:
+        raise RuntimeError("No files differ from the frozen v0.2.0 baseline")
+    if len(paths) != len(set(paths)):
+        raise RuntimeError("Duplicate changed paths reported by git")
+    return sorted(paths)
+
+
+def load_changed_entries() -> list[Entry]:
     entries: list[Entry] = []
-    for record in raw.split(b"\0"):
-        if not record:
-            continue
-        metadata, raw_path = record.split(b"\t", 1)
-        mode, object_type, object_sha = metadata.decode("ascii").split(" ", 2)
-        path = raw_path.decode("utf-8")
-        data = git("cat-file", "blob", object_sha, binary=True) if object_type == "blob" else b""
+    for path in changed_paths():
+        status_raw = git("diff", "--name-status", BASELINE_COMMIT, "HEAD", "--", path)
+        assert isinstance(status_raw, str)
+        status = status_raw.split("\t", 1)[0] if status_raw else "?"
+        metadata = tree_metadata("HEAD", path)
+        deleted = metadata is None
+        if deleted:
+            metadata = tree_metadata(BASELINE_COMMIT, path)
+            if metadata is None:
+                raise RuntimeError(f"Cannot resolve deleted path metadata: {path}")
+            mode, object_type, object_sha = metadata
+            data = git("cat-file", "blob", object_sha, binary=True)
+        else:
+            mode, object_type, object_sha = metadata
+            data = git("cat-file", "blob", object_sha, binary=True) if object_type == "blob" else b""
         assert isinstance(data, bytes)
-        entries.append(Entry(path, mode, object_type, object_sha, data))
+        entries.append(Entry(path, status, mode, object_type, object_sha, data, deleted))
     return entries
-
-
-def split_entries(entries: list[Entry], part_count: int) -> list[list[Entry]]:
-    groups: list[list[Entry]] = [[] for _ in range(part_count)]
-    total_weight = sum(max(len(entry.data), 1) for entry in entries)
-    cumulative = 0
-    part = 0
-    for entry in entries:
-        groups[part].append(entry)
-        cumulative += max(len(entry.data), 1)
-        if part < part_count - 1:
-            threshold = total_weight * (part + 1) / part_count
-            if cumulative >= threshold:
-                part += 1
-    return groups
 
 
 def render_entry(entry: Entry) -> str:
     lines = [
         f"===== BEGIN FILE: {entry.path} =====",
+        f"CHANGE STATUS: {entry.status}",
         f"GIT MODE: {entry.mode}",
         f"GIT OBJECT TYPE: {entry.object_type}",
         f"GIT OBJECT SHA: {entry.object_sha}",
@@ -79,34 +96,76 @@ def render_entry(entry: Entry) -> str:
         f"BYTES: {len(entry.data)}",
         "",
     ]
+    if entry.deleted:
+        lines.extend([
+            "[DELETED FROM CANDIDATE — baseline content follows for deletion review]",
+            "",
+        ])
     if entry.object_type != "blob":
         lines.append("[NON-BLOB GIT ENTRY — content intentionally not embedded]")
     else:
         try:
             text = entry.data.decode("utf-8")
-        except UnicodeDecodeError:
-            lines.append("[NON-UTF-8 BLOB — metadata and hashes recorded; binary content intentionally not embedded]")
-        else:
-            lines.append(text.rstrip("\n"))
+        except UnicodeDecodeError as error:
+            raise RuntimeError(f"Changed non-UTF-8 blob cannot be embedded safely: {entry.path}") from error
+        lines.append(text.rstrip("\n"))
     lines.extend(["", f"===== END FILE: {entry.path} =====", ""])
+    return "\n".join(lines)
+
+
+def assign_groups(entries: list[Entry]) -> tuple[list[list[Entry]], dict[str, int]]:
+    groups: list[list[Entry]] = [[] for _ in range(PART_COUNT)]
+    group_sizes = [0] * PART_COUNT
+    rendered_sizes = {entry.path: len(render_entry(entry).encode("utf-8")) for entry in entries}
+
+    for entry in sorted(entries, key=lambda item: (-rendered_sizes[item.path], item.path)):
+        target = min(range(PART_COUNT), key=lambda index: (group_sizes[index], index))
+        groups[target].append(entry)
+        group_sizes[target] += rendered_sizes[entry.path]
+
+    if any(not group for group in groups):
+        raise RuntimeError("Cannot produce exactly four non-empty review parts")
+
+    assignments: dict[str, int] = {}
+    for index, group in enumerate(groups, start=1):
+        group.sort(key=lambda entry: entry.path)
+        for entry in group:
+            assignments[entry.path] = index
+    return groups, assignments
+
+
+def manifest(entries: list[Entry], assignments: dict[str, int]) -> str:
+    lines = [
+        "## Changed-file completeness manifest",
+        "",
+        f"This package embeds **all {len(entries)} paths changed from `{BASELINE_COMMIT}` to the exact candidate**, exactly once and without content truncation.",
+        "Unchanged frozen-baseline files are intentionally not duplicated here. The separately sealed source-candidate ZIP is the authoritative full source tree.",
+        "",
+        "| Part | Status | Bytes | SHA-256 | Path |",
+        "|---:|:---:|---:|---|---|",
+    ]
+    for entry in sorted(entries, key=lambda item: item.path):
+        lines.append(
+            f"| {assignments[entry.path]:02d} | `{entry.status}` | {len(entry.data)} | `{entry.sha256}` | `{entry.path}` |"
+        )
+    lines.extend(["", "**Changed-file completeness: PASS (generator-enforced before upload).**", ""])
     return "\n".join(lines)
 
 
 def common_header(
     iteration: int,
     part_index: int,
-    part_count: int,
     commit: str,
     entries: list[Entry],
+    assignments: dict[str, int],
     ci_run_id: str | None,
 ) -> str:
-    del entries
     release_identity = "0.3.0" if iteration >= 68 else "0.3.0-dev"
     ci_lines = ""
     if ci_run_id is not None:
         ci_lines = f"""- GitHub Actions validation run: `{ci_run_id}`
 - CI prerequisite status: **PASSED before package generation**
-- Required gates for Iteration {iteration:03d}: GCC Debug, GCC Release, Clang Debug, GCC ASan+UBSan, exact CTest inventory and iteration-specific evidence jobs
+- Required gates: GCC Debug, GCC Release, Clang Debug, GCC ASan+UBSan, exact CTest inventory and iteration-specific evidence jobs
 """
 
     return f"""# OpenGenesis-BioCore v{release_identity} — Iteration {iteration:03d} Gemini Independent Validation
@@ -116,14 +175,16 @@ def common_header(
 - Exact candidate commit: `{commit}`
 - Frozen baseline: **{BASELINE_NAME}**
 - Frozen baseline commit: `{BASELINE_COMMIT}`
-{ci_lines}- Review package: **exactly {part_count} Markdown source parts**
-- This file: **Part {part_index:02d} / {part_count:02d}**
+{ci_lines}- Review package: **exactly {PART_COUNT} Markdown source parts**
+- This file: **Part {part_index:02d} / {PART_COUNT:02d}**
+- Hard package limit: **{MAX_PART_BYTES} bytes per Markdown part**
 - Iteration scope and acceptance contract: `docs/development/ITERATION-{iteration:03d}.md`
 
-Read all {part_count} parts before returning a verdict. Treat documented claims as claims to verify. Review the exact source for correctness, regressions, data integrity, scientific correctness where applicable, determinism, memory/lifetime safety, cross-platform C++20 portability and declared-scope compliance.
+Read all four parts before returning a verdict. The Markdown package is an exact, complete embedding of the candidate's **baseline-relative changed files**, not a lossy copy of the entire repository. No changed file may be omitted, shortened, split mid-file, or represented with an ellipsis. Treat documented claims as claims to verify.
 
 A blocking defect requires `REJECT`. Do not freeze or accept an iteration merely because CI is green.
 
+{manifest(entries, assignments)}
 ## Required final response
 
 ```text
@@ -147,9 +208,44 @@ For every substantive finding provide severity (`BLOCKER/HIGH/MEDIUM/LOW`), file
 
 ---
 
-## Part {part_index:02d} / {part_count:02d}
+## Part {part_index:02d} / {PART_COUNT:02d}
 
 """
+
+
+def benchmark_evidence(directory: Path | None) -> str:
+    if directory is None:
+        return ""
+    outputs: list[str] = []
+    for name in ("variant-model-memory-benchmark.txt", "variant-model-memory-time.txt"):
+        path = directory / name
+        if not path.is_file():
+            raise RuntimeError(f"Missing benchmark evidence: {path}")
+        outputs.append(f"### `{name}`\n\n```text\n{path.read_text(encoding='utf-8').rstrip()}\n```\n")
+    return "\n---\n\n## GitHub Actions Iteration 055 memory benchmark evidence\n\n" + "\n".join(outputs)
+
+
+def verify_generated(
+    generated: list[Path], entries: list[Entry], benchmark_text: str
+) -> None:
+    if len(generated) != PART_COUNT:
+        raise RuntimeError("Review package must contain exactly four Markdown parts")
+    combined = "\n".join(path.read_text(encoding="utf-8") for path in generated)
+    for entry in entries:
+        begin = f"===== BEGIN FILE: {entry.path} ====="
+        end = f"===== END FILE: {entry.path} ====="
+        if combined.count(begin) != 1 or combined.count(end) != 1:
+            raise RuntimeError(f"Changed file is missing or duplicated in review package: {entry.path}")
+        if entry.object_type == "blob" and not entry.deleted:
+            text = entry.data.decode("utf-8").rstrip("\n")
+            if text not in combined:
+                raise RuntimeError(f"Changed file content was not embedded verbatim: {entry.path}")
+    if benchmark_text and benchmark_text not in generated[2].read_text(encoding="utf-8"):
+        raise RuntimeError("Benchmark evidence is missing from part 03")
+    for path in generated:
+        size = path.stat().st_size
+        if size > MAX_PART_BYTES:
+            raise RuntimeError(f"Review part exceeds {MAX_PART_BYTES} bytes: {path.name} ({size})")
 
 
 def main() -> int:
@@ -157,23 +253,30 @@ def main() -> int:
     parser.add_argument("--iteration", type=int, required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--ci-run-id")
+    parser.add_argument("--benchmark-dir", type=Path)
     args = parser.parse_args()
 
     require_clean_tracked_tree()
     commit = git("rev-parse", "HEAD")
     assert isinstance(commit, str)
-    entries = load_entries()
-    groups = split_entries(entries, 4)
+    entries = load_changed_entries()
+    groups, assignments = assign_groups(entries)
+    evidence = benchmark_evidence(args.benchmark_dir)
+
     args.output.mkdir(parents=True, exist_ok=True)
     prefix = f"OpenGenesis-BioCore-iteration-{args.iteration:03d}-GEMINI-review"
     generated: list[Path] = []
 
     for index, group in enumerate(groups, start=1):
         path = args.output / f"{prefix}-part-{index:02d}-of-04.md"
-        body = common_header(args.iteration, index, 4, commit, entries, args.ci_run_id)
+        body = common_header(args.iteration, index, commit, entries, assignments, args.ci_run_id)
         body += "\n".join(render_entry(entry) for entry in group)
+        if index == 3:
+            body += evidence
         path.write_text(body, encoding="utf-8", newline="\n")
         generated.append(path)
+
+    verify_generated(generated, entries, evidence)
 
     checksum_path = args.output / f"{prefix}-SHA256SUMS.txt"
     checksum_path.write_text(
@@ -184,7 +287,11 @@ def main() -> int:
 
     print(f"ITERATION={args.iteration:03d}")
     print(f"COMMIT={commit}")
-    print("PARTS=4")
+    print(f"CHANGED_FILES={len(entries)}")
+    print(f"PARTS={PART_COUNT}")
+    for path in generated:
+        print(f"PART_BYTES={path.name}:{path.stat().st_size}")
+    print("COMPLETENESS=PASS")
     return 0
 
 
