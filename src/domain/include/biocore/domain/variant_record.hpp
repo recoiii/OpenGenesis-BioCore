@@ -25,6 +25,9 @@ struct MissingFieldValue final {
     friend constexpr bool operator==(MissingFieldValue, MissingFieldValue) noexcept = default;
 };
 
+template <typename T>
+using NullableVariantList = std::vector<std::optional<T>>;
+
 using VariantFieldValue = std::variant<
     MissingFieldValue,
     std::int32_t,
@@ -32,10 +35,10 @@ using VariantFieldValue = std::variant<
     char,
     std::string,
     bool,
-    std::vector<std::int32_t>,
-    std::vector<float>,
-    std::vector<char>,
-    std::vector<std::string>
+    NullableVariantList<std::int32_t>,
+    NullableVariantList<float>,
+    NullableVariantList<char>,
+    NullableVariantList<std::string>
 >;
 
 struct DynamicVariantField final {
