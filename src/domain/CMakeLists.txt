@@ -22,6 +22,7 @@ target_sources(
         source/plugin_module_definition.cpp
         source/plugin_platform.cpp
         source/pipeline_step.cpp
+        source/probabilistic_genotyping.cpp
         source/project.cpp
         source/reference_genome.cpp
         source/vcf_ingestion_attributes.cpp
@@ -58,6 +59,7 @@ target_sources(
             include/biocore/domain/plugin_module_definition.hpp
             include/biocore/domain/plugin_platform.hpp
             include/biocore/domain/pipeline_step.hpp
+            include/biocore/domain/probabilistic_genotyping.hpp
             include/biocore/domain/project.hpp
             include/biocore/domain/reference_genome.hpp
             include/biocore/domain/storage_mode.hpp
@@ -172,6 +174,46 @@ if(BIOCORE_BUILD_TESTS)
     )
     target_link_libraries(
         biocore-indel-realignment-benchmark
+        PRIVATE BioCore::domain BioCore::project_options BioCore::project_warnings BioCore::sanitizers
+    )
+
+
+    add_executable(
+        biocore-probabilistic-genotyping-tests
+        ${PROJECT_SOURCE_DIR}/tests/probabilistic_genotyping_tests.cpp
+    )
+    target_link_libraries(
+        biocore-probabilistic-genotyping-tests
+        PRIVATE BioCore::domain BioCore::project_options BioCore::project_warnings BioCore::sanitizers
+    )
+    add_test(NAME domain.probabilistic_genotyping COMMAND biocore-probabilistic-genotyping-tests)
+
+    add_executable(
+        biocore-probabilistic-genotyping-indel-tests
+        ${PROJECT_SOURCE_DIR}/tests/probabilistic_genotyping_indel_tests.cpp
+    )
+    target_link_libraries(
+        biocore-probabilistic-genotyping-indel-tests
+        PRIVATE BioCore::domain BioCore::project_options BioCore::project_warnings BioCore::sanitizers
+    )
+    add_test(NAME domain.probabilistic_genotyping_indel COMMAND biocore-probabilistic-genotyping-indel-tests)
+
+    add_executable(
+        biocore-probabilistic-genotyping-prior-tests
+        ${PROJECT_SOURCE_DIR}/tests/probabilistic_genotyping_prior_tests.cpp
+    )
+    target_link_libraries(
+        biocore-probabilistic-genotyping-prior-tests
+        PRIVATE BioCore::domain BioCore::project_options BioCore::project_warnings BioCore::sanitizers
+    )
+    add_test(NAME domain.probabilistic_genotyping_priors COMMAND biocore-probabilistic-genotyping-prior-tests)
+
+    add_executable(
+        biocore-probabilistic-genotyping-benchmark
+        ${PROJECT_SOURCE_DIR}/tests/probabilistic_genotyping_benchmark.cpp
+    )
+    target_link_libraries(
+        biocore-probabilistic-genotyping-benchmark
         PRIVATE BioCore::domain BioCore::project_options BioCore::project_warnings BioCore::sanitizers
     )
 
