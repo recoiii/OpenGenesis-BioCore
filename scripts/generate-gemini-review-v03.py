@@ -57,7 +57,7 @@ def changed_paths() -> list[str]:
     assert isinstance(raw, bytes)
     paths = [item.decode("utf-8") for item in raw.split(b"\0") if item]
     if not paths:
-        raise RuntimeError("No files differ from the frozen v0.2.0 baseline")
+        raise RuntimeError(f"No files differ from the frozen baseline {BASELINE_NAME} ({BASELINE_COMMIT})")
     if len(paths) != len(set(paths)):
         raise RuntimeError("Duplicate changed paths reported by git")
     return sorted(paths)
@@ -213,16 +213,18 @@ For every substantive finding provide severity (`BLOCKER/HIGH/MEDIUM/LOW`), file
 """
 
 
-def benchmark_evidence(directory: Path | None) -> str:
+def iteration_evidence(directory: Path | None, iteration: int) -> str:
     if directory is None:
         return ""
+    paths = sorted(path for path in directory.iterdir() if path.is_file() and path.suffix == ".txt")
+    if not paths:
+        raise RuntimeError(f"No text evidence files found in: {directory}")
     outputs: list[str] = []
-    for name in ("variant-model-memory-benchmark.txt", "variant-model-memory-time.txt"):
-        path = directory / name
-        if not path.is_file():
-            raise RuntimeError(f"Missing benchmark evidence: {path}")
-        outputs.append(f"### `{name}`\n\n```text\n{path.read_text(encoding='utf-8').rstrip()}\n```\n")
-    return "\n---\n\n## GitHub Actions Iteration 055 memory benchmark evidence\n\n" + "\n".join(outputs)
+    for path in paths:
+        outputs.append(
+            f"### `{path.name}`\n\n```text\n{path.read_text(encoding='utf-8').rstrip()}\n```\n"
+        )
+    return f"\n---\n\n## GitHub Actions Iteration {iteration:03d} evidence\n\n" + "\n".join(outputs)
 
 
 def verify_generated(
@@ -249,19 +251,26 @@ def verify_generated(
 
 
 def main() -> int:
+    global BASELINE_NAME, BASELINE_COMMIT
+
     parser = argparse.ArgumentParser()
     parser.add_argument("--iteration", type=int, required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--ci-run-id")
-    parser.add_argument("--benchmark-dir", type=Path)
+    parser.add_argument("--baseline-name", default=BASELINE_NAME)
+    parser.add_argument("--baseline-commit", default=BASELINE_COMMIT)
+    parser.add_argument("--evidence-dir", type=Path)
     args = parser.parse_args()
+
+    BASELINE_NAME = args.baseline_name
+    BASELINE_COMMIT = args.baseline_commit
 
     require_clean_tracked_tree()
     commit = git("rev-parse", "HEAD")
     assert isinstance(commit, str)
     entries = load_changed_entries()
     groups, assignments = assign_groups(entries)
-    evidence = benchmark_evidence(args.benchmark_dir)
+    evidence = iteration_evidence(args.evidence_dir, args.iteration)
 
     args.output.mkdir(parents=True, exist_ok=True)
     prefix = f"OpenGenesis-BioCore-iteration-{args.iteration:03d}-GEMINI-review"

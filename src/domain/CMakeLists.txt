@@ -19,9 +19,21 @@ target_sources(
         source/plugin_platform.cpp
         source/pipeline_step.cpp
         source/project.cpp
+        source/reference_genome.cpp
+        source/vcf_ingestion_attributes.cpp
         source/storage_mode.cpp
+        source/variant_index.cpp
+        source/variant_normalization.cpp
         source/variant_record.cpp
         source/variant_types.cpp
+        source/vcf_ingestion.cpp
+        source/vcf_ingestion_header.cpp
+        source/vcf_ingestion_info.cpp
+        source/vcf_ingestion_record.cpp
+        source/vcf_ingestion_values.cpp
+        source/vcf_ingestion_fields.cpp
+        source/vcf_ingestion_support.cpp
+        source/vcf_ingestion_types.cpp
     PUBLIC
         FILE_SET HEADERS
         BASE_DIRS include
@@ -42,9 +54,13 @@ target_sources(
             include/biocore/domain/plugin_platform.hpp
             include/biocore/domain/pipeline_step.hpp
             include/biocore/domain/project.hpp
+            include/biocore/domain/reference_genome.hpp
             include/biocore/domain/storage_mode.hpp
+            include/biocore/domain/variant_index.hpp
+            include/biocore/domain/variant_normalization.hpp
             include/biocore/domain/variant_record.hpp
             include/biocore/domain/variant_types.hpp
+            include/biocore/domain/vcf_ingestion.hpp
 )
 
 target_link_libraries(
@@ -80,6 +96,46 @@ if(BIOCORE_BUILD_TESTS)
         PRIVATE BioCore::domain BioCore::project_options BioCore::project_warnings BioCore::sanitizers
     )
     add_test(NAME domain.contig_normalization COMMAND biocore-contig-normalization-tests)
+
+    add_executable(
+        biocore-vcf-ingestion-tests
+        ${PROJECT_SOURCE_DIR}/tests/vcf_ingestion_tests.cpp
+        ${PROJECT_SOURCE_DIR}/tests/vcf_ingestion_info_tests.cpp
+        ${PROJECT_SOURCE_DIR}/tests/vcf_ingestion_genotype_tests.cpp
+        ${PROJECT_SOURCE_DIR}/tests/vcf_ingestion_missing_tests.cpp
+        ${PROJECT_SOURCE_DIR}/tests/vcf_ingestion_edge_tests.cpp
+    )
+    target_link_libraries(
+        biocore-vcf-ingestion-tests
+        PRIVATE BioCore::domain BioCore::project_options BioCore::project_warnings BioCore::sanitizers
+    )
+    add_test(NAME domain.vcf_ingestion COMMAND biocore-vcf-ingestion-tests)
+
+    add_executable(
+        biocore-variant-normalization-tests
+        ${PROJECT_SOURCE_DIR}/tests/variant_normalization_tests.cpp
+    )
+    target_link_libraries(
+        biocore-variant-normalization-tests
+        PRIVATE BioCore::domain BioCore::project_options BioCore::project_warnings BioCore::sanitizers
+    )
+    add_test(NAME domain.variant_normalization COMMAND biocore-variant-normalization-tests)
+
+    add_executable(biocore-variant-index-tests ${PROJECT_SOURCE_DIR}/tests/variant_index_tests.cpp)
+    target_link_libraries(
+        biocore-variant-index-tests
+        PRIVATE BioCore::domain BioCore::project_options BioCore::project_warnings BioCore::sanitizers
+    )
+    add_test(NAME domain.variant_index COMMAND biocore-variant-index-tests)
+
+    add_executable(
+        biocore-variant-index-benchmark
+        ${PROJECT_SOURCE_DIR}/tests/variant_index_benchmark.cpp
+    )
+    target_link_libraries(
+        biocore-variant-index-benchmark
+        PRIVATE BioCore::domain BioCore::project_options BioCore::project_warnings BioCore::sanitizers
+    )
 
     add_executable(
         biocore-variant-model-memory-benchmark

@@ -10,9 +10,11 @@ on:
   workflow_dispatch:
 
 env:
-  BIOCORE_ITERATION: "055"
-  BIOCORE_TEST_FLOOR: "78"
+  BIOCORE_ITERATION: "056"
+  BIOCORE_TEST_FLOOR: "81"
   BIOCORE_DEVELOPMENT_VERSION: "0.3.0-dev"
+  BIOCORE_ACCEPTED_BASELINE_NAME: "accepted/iteration-055"
+  BIOCORE_ACCEPTED_BASELINE_SHA: "1e16121a051a679c275e3263a2ba176a384fd633"
 
 permissions:
   contents: read
@@ -112,8 +114,8 @@ jobs:
           UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
         run: ctest --test-dir build/linux-gcc-asan-ubsan --output-on-failure
 
-  variant-model-benchmark:
-    name: 1M variant memory benchmark
+  variant-index-benchmark:
+    name: 1M coordinate-index benchmark
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout exact candidate
@@ -126,25 +128,27 @@ jobs:
           sudo apt-get install -y ninja-build libsqlite3-dev zlib1g-dev time
       - name: Configure release benchmark
         run: cmake --preset linux-gcc-release
-      - name: Build benchmark target
-        run: cmake --build --preset linux-gcc-release --target biocore-variant-model-memory-benchmark --parallel
-      - name: Run and capture benchmark
+      - name: Build index benchmark target
+        run: cmake --build --preset linux-gcc-release --target biocore-variant-index-benchmark --parallel
+      - name: Run and capture index benchmark
         shell: bash
         run: |
-          mkdir -p artifacts/benchmark
-          /usr/bin/time -v build/linux-gcc-release/src/domain/biocore-variant-model-memory-benchmark \
-            > artifacts/benchmark/variant-model-memory-benchmark.txt \
-            2> artifacts/benchmark/variant-model-memory-time.txt
-          cat artifacts/benchmark/variant-model-memory-benchmark.txt
-          cat artifacts/benchmark/variant-model-memory-time.txt
-          grep -F 'records=1000000' artifacts/benchmark/variant-model-memory-benchmark.txt
-          grep -F 'common_path_alt_heap_records=0' artifacts/benchmark/variant-model-memory-benchmark.txt
-          grep -F 'Maximum resident set size' artifacts/benchmark/variant-model-memory-time.txt
-      - name: Upload benchmark evidence
+          mkdir -p artifacts/evidence
+          /usr/bin/time -v build/linux-gcc-release/src/domain/biocore-variant-index-benchmark \
+            > artifacts/evidence/variant-index-benchmark.txt \
+            2> artifacts/evidence/variant-index-time.txt
+          cat artifacts/evidence/variant-index-benchmark.txt
+          cat artifacts/evidence/variant-index-time.txt
+          grep -F 'records=1000000' artifacts/evidence/variant-index-benchmark.txt
+          grep -F 'queries=10000' artifacts/evidence/variant-index-benchmark.txt
+          grep -F 'hits=10000' artifacts/evidence/variant-index-benchmark.txt
+          grep -F 'index_entries=1000000' artifacts/evidence/variant-index-benchmark.txt
+          grep -F 'Maximum resident set size' artifacts/evidence/variant-index-time.txt
+      - name: Upload Iteration 056 evidence
         uses: actions/upload-artifact@v4
         with:
-          name: OpenGenesis-BioCore-iteration-${{ env.BIOCORE_ITERATION }}-variant-model-benchmark
-          path: artifacts/benchmark/
+          name: OpenGenesis-BioCore-iteration-${{ env.BIOCORE_ITERATION }}-variant-index-benchmark
+          path: artifacts/evidence/
           if-no-files-found: error
           retention-days: 30
 
@@ -154,24 +158,26 @@ jobs:
       - source-candidate
       - linux-matrix
       - sanitizers
-      - variant-model-benchmark
+      - variant-index-benchmark
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout exact validated candidate
         uses: actions/checkout@v5
         with:
           fetch-depth: 0
-      - name: Download benchmark evidence
+      - name: Download Iteration 056 evidence
         uses: actions/download-artifact@v5
         with:
-          name: OpenGenesis-BioCore-iteration-${{ env.BIOCORE_ITERATION }}-variant-model-benchmark
-          path: artifacts/benchmark
+          name: OpenGenesis-BioCore-iteration-${{ env.BIOCORE_ITERATION }}-variant-index-benchmark
+          path: artifacts/evidence
       - name: Generate exact four-part Markdown package
         run: |
           python3 scripts/generate-gemini-review-v03.py \
             --iteration "${BIOCORE_ITERATION}" \
             --ci-run-id "${{ github.run_id }}" \
-            --benchmark-dir artifacts/benchmark \
+            --baseline-name "${BIOCORE_ACCEPTED_BASELINE_NAME}" \
+            --baseline-commit "${BIOCORE_ACCEPTED_BASELINE_SHA}" \
+            --evidence-dir artifacts/evidence \
             --output artifacts/gemini-review
       - name: Verify package shape, completeness, size and checksums
         shell: bash
