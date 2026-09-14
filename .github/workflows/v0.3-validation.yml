@@ -171,30 +171,19 @@ jobs:
           python3 scripts/generate-gemini-review-v03.py \
             --iteration "${BIOCORE_ITERATION}" \
             --ci-run-id "${{ github.run_id }}" \
+            --benchmark-dir artifacts/benchmark \
             --output artifacts/gemini-review
-      - name: Append benchmark evidence to part 03 and reseal checksums
-        shell: bash
-        run: |
-          part="artifacts/gemini-review/OpenGenesis-BioCore-iteration-${BIOCORE_ITERATION}-GEMINI-review-part-03-of-04.md"
-          {
-            echo
-            echo '---'
-            echo
-            echo '## GitHub Actions Iteration 055 memory benchmark evidence'
-            echo
-            echo '```text'
-            cat artifacts/benchmark/variant-model-memory-benchmark.txt
-            cat artifacts/benchmark/variant-model-memory-time.txt
-            echo '```'
-          } >> "${part}"
-          cd artifacts/gemini-review
-          sha256sum OpenGenesis-BioCore-iteration-${BIOCORE_ITERATION}-GEMINI-review-part-*-of-04.md \
-            > OpenGenesis-BioCore-iteration-${BIOCORE_ITERATION}-GEMINI-review-SHA256SUMS.txt
-      - name: Verify package shape and checksums
+      - name: Verify package shape, completeness, size and checksums
         shell: bash
         run: |
           mapfile -t parts < <(find artifacts/gemini-review -maxdepth 1 -type f -name '*-part-*-of-04.md' -print | sort)
           test "${#parts[@]}" -eq 4
+          for part in "${parts[@]}"; do
+            size="$(wc -c < "${part}")"
+            test "${size}" -le 120000
+            grep -F 'Changed-file completeness: PASS' "${part}" >/dev/null
+            echo "$(basename "${part}"): ${size} bytes"
+          done
           cd artifacts/gemini-review
           sha256sum -c "OpenGenesis-BioCore-iteration-${BIOCORE_ITERATION}-GEMINI-review-SHA256SUMS.txt"
       - name: Upload Gemini review package
