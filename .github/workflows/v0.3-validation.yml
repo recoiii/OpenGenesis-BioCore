@@ -10,11 +10,11 @@ on:
   workflow_dispatch:
 
 env:
-  BIOCORE_ITERATION: "056"
-  BIOCORE_TEST_FLOOR: "81"
+  BIOCORE_ITERATION: "057"
+  BIOCORE_TEST_FLOOR: "84"
   BIOCORE_DEVELOPMENT_VERSION: "0.3.0-dev"
-  BIOCORE_ACCEPTED_BASELINE_NAME: "accepted/iteration-055"
-  BIOCORE_ACCEPTED_BASELINE_SHA: "1e16121a051a679c275e3263a2ba176a384fd633"
+  BIOCORE_ACCEPTED_BASELINE_NAME: "accepted/iteration-056"
+  BIOCORE_ACCEPTED_BASELINE_SHA: "0ab2ceed8166213e98c162f779351f0e33044cd2"
 
 permissions:
   contents: read
@@ -114,8 +114,8 @@ jobs:
           UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
         run: ctest --test-dir build/linux-gcc-asan-ubsan --output-on-failure
 
-  variant-index-benchmark:
-    name: 1M coordinate-index benchmark
+  indel-realignment-benchmark:
+    name: 10k-read indel realignment benchmark
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout exact candidate
@@ -128,26 +128,26 @@ jobs:
           sudo apt-get install -y ninja-build libsqlite3-dev zlib1g-dev time
       - name: Configure release benchmark
         run: cmake --preset linux-gcc-release
-      - name: Build index benchmark target
-        run: cmake --build --preset linux-gcc-release --target biocore-variant-index-benchmark --parallel
-      - name: Run and capture index benchmark
+      - name: Build realignment benchmark target
+        run: cmake --build --preset linux-gcc-release --target biocore-indel-realignment-benchmark --parallel
+      - name: Run and capture realignment benchmark
         shell: bash
         run: |
           mkdir -p artifacts/evidence
-          /usr/bin/time -v build/linux-gcc-release/src/domain/biocore-variant-index-benchmark \
-            > artifacts/evidence/variant-index-benchmark.txt \
-            2> artifacts/evidence/variant-index-time.txt
-          cat artifacts/evidence/variant-index-benchmark.txt
-          cat artifacts/evidence/variant-index-time.txt
-          grep -F 'records=1000000' artifacts/evidence/variant-index-benchmark.txt
-          grep -F 'queries=10000' artifacts/evidence/variant-index-benchmark.txt
-          grep -F 'hits=10000' artifacts/evidence/variant-index-benchmark.txt
-          grep -F 'index_entries=1000000' artifacts/evidence/variant-index-benchmark.txt
-          grep -F 'Maximum resident set size' artifacts/evidence/variant-index-time.txt
-      - name: Upload Iteration 056 evidence
+          /usr/bin/time -v build/linux-gcc-release/src/domain/biocore-indel-realignment-benchmark \
+            > artifacts/evidence/indel-realignment-benchmark.txt \
+            2> artifacts/evidence/indel-realignment-time.txt
+          cat artifacts/evidence/indel-realignment-benchmark.txt
+          cat artifacts/evidence/indel-realignment-time.txt
+          grep -F 'reads=10000' artifacts/evidence/indel-realignment-benchmark.txt
+          grep -F 'seed_observations=100' artifacts/evidence/indel-realignment-benchmark.txt
+          grep -F 'unique_seed_candidates=1' artifacts/evidence/indel-realignment-benchmark.txt
+          grep -F 'emitted_candidates=1' artifacts/evidence/indel-realignment-benchmark.txt
+          grep -F 'Maximum resident set size' artifacts/evidence/indel-realignment-time.txt
+      - name: Upload Iteration 057 evidence
         uses: actions/upload-artifact@v4
         with:
-          name: OpenGenesis-BioCore-iteration-${{ env.BIOCORE_ITERATION }}-variant-index-benchmark
+          name: OpenGenesis-BioCore-iteration-${{ env.BIOCORE_ITERATION }}-indel-realignment-benchmark
           path: artifacts/evidence/
           if-no-files-found: error
           retention-days: 30
@@ -158,17 +158,17 @@ jobs:
       - source-candidate
       - linux-matrix
       - sanitizers
-      - variant-index-benchmark
+      - indel-realignment-benchmark
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout exact validated candidate
         uses: actions/checkout@v5
         with:
           fetch-depth: 0
-      - name: Download Iteration 056 evidence
+      - name: Download Iteration 057 evidence
         uses: actions/download-artifact@v5
         with:
-          name: OpenGenesis-BioCore-iteration-${{ env.BIOCORE_ITERATION }}-variant-index-benchmark
+          name: OpenGenesis-BioCore-iteration-${{ env.BIOCORE_ITERATION }}-indel-realignment-benchmark
           path: artifacts/evidence
       - name: Generate exact four-part Markdown package
         run: |
