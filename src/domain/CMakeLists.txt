@@ -27,6 +27,9 @@ target_sources(
         source/reference_genome.cpp
         source/vcf_ingestion_attributes.cpp
         source/storage_mode.cpp
+        source/variant_filtering.cpp
+        source/variant_filtering_adapters.cpp
+        source/variant_filtering_regions.cpp
         source/variant_index.cpp
         source/variant_normalization.cpp
         source/variant_record.cpp
@@ -63,6 +66,7 @@ target_sources(
             include/biocore/domain/project.hpp
             include/biocore/domain/reference_genome.hpp
             include/biocore/domain/storage_mode.hpp
+            include/biocore/domain/variant_filtering.hpp
             include/biocore/domain/variant_index.hpp
             include/biocore/domain/variant_normalization.hpp
             include/biocore/domain/variant_record.hpp
@@ -214,6 +218,55 @@ if(BIOCORE_BUILD_TESTS)
     )
     target_link_libraries(
         biocore-probabilistic-genotyping-benchmark
+        PRIVATE BioCore::domain BioCore::project_options BioCore::project_warnings BioCore::sanitizers
+    )
+
+    add_executable(
+        biocore-advanced-variant-filtering-tests
+        ${PROJECT_SOURCE_DIR}/tests/advanced_variant_filtering_tests.cpp
+    )
+    target_link_libraries(
+        biocore-advanced-variant-filtering-tests
+        PRIVATE BioCore::domain BioCore::project_options BioCore::project_warnings BioCore::sanitizers
+    )
+    add_test(NAME domain.advanced_variant_filtering COMMAND biocore-advanced-variant-filtering-tests)
+
+    add_executable(
+        biocore-variant-filtering-context-tests
+        ${PROJECT_SOURCE_DIR}/tests/variant_filtering_context_tests.cpp
+    )
+    target_link_libraries(
+        biocore-variant-filtering-context-tests
+        PRIVATE BioCore::domain BioCore::project_options BioCore::project_warnings BioCore::sanitizers
+    )
+    add_test(NAME domain.variant_filtering_context COMMAND biocore-variant-filtering-context-tests)
+
+    add_executable(
+        biocore-variant-filtering-region-tests
+        ${PROJECT_SOURCE_DIR}/tests/variant_filtering_region_tests.cpp
+    )
+    target_link_libraries(
+        biocore-variant-filtering-region-tests
+        PRIVATE BioCore::domain BioCore::project_options BioCore::project_warnings BioCore::sanitizers
+    )
+    add_test(NAME domain.variant_filtering_regions COMMAND biocore-variant-filtering-region-tests)
+
+    add_executable(
+        biocore-variant-filtering-integration-tests
+        ${PROJECT_SOURCE_DIR}/tests/variant_filtering_integration_tests.cpp
+    )
+    target_link_libraries(
+        biocore-variant-filtering-integration-tests
+        PRIVATE BioCore::domain BioCore::project_options BioCore::project_warnings BioCore::sanitizers
+    )
+    add_test(NAME domain.variant_filtering_integration COMMAND biocore-variant-filtering-integration-tests)
+
+    add_executable(
+        biocore-variant-filtering-benchmark
+        ${PROJECT_SOURCE_DIR}/tests/variant_filtering_benchmark.cpp
+    )
+    target_link_libraries(
+        biocore-variant-filtering-benchmark
         PRIVATE BioCore::domain BioCore::project_options BioCore::project_warnings BioCore::sanitizers
     )
 

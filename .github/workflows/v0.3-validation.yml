@@ -10,11 +10,11 @@ on:
   workflow_dispatch:
 
 env:
-  BIOCORE_ITERATION: "058"
-  BIOCORE_TEST_FLOOR: "87"
+  BIOCORE_ITERATION: "059"
+  BIOCORE_TEST_FLOOR: "91"
   BIOCORE_DEVELOPMENT_VERSION: "0.3.0-dev"
-  BIOCORE_ACCEPTED_BASELINE_NAME: "accepted/iteration-057"
-  BIOCORE_ACCEPTED_BASELINE_SHA: "85e964c24de434ecee022b5d8ae7041f124f3181"
+  BIOCORE_ACCEPTED_BASELINE_NAME: "accepted/iteration-058"
+  BIOCORE_ACCEPTED_BASELINE_SHA: "ad2fbbdabfa66df324dc649cc1de38e668fe2c52"
 
 permissions:
   contents: read
@@ -114,8 +114,8 @@ jobs:
           UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
         run: ctest --test-dir build/linux-gcc-asan-ubsan --output-on-failure
 
-  probabilistic-genotyping-benchmark:
-    name: 100k unified probabilistic genotype benchmark
+  advanced-variant-filtering-benchmark:
+    name: 1M advanced variant filtering benchmark
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout exact candidate
@@ -128,28 +128,26 @@ jobs:
           sudo apt-get install -y ninja-build libsqlite3-dev zlib1g-dev time
       - name: Configure release benchmark
         run: cmake --preset linux-gcc-release
-      - name: Build genotype benchmark target
-        run: cmake --build --preset linux-gcc-release --target biocore-probabilistic-genotyping-benchmark --parallel
-      - name: Run and capture genotype benchmark
+      - name: Build filtering benchmark target
+        run: cmake --build --preset linux-gcc-release --target biocore-variant-filtering-benchmark --parallel
+      - name: Run and capture filtering benchmark
         shell: bash
         run: |
           mkdir -p artifacts/evidence
-          /usr/bin/time -v build/linux-gcc-release/src/domain/biocore-probabilistic-genotyping-benchmark \
-            > artifacts/evidence/probabilistic-genotyping-benchmark.txt \
-            2> artifacts/evidence/probabilistic-genotyping-time.txt
-          cat artifacts/evidence/probabilistic-genotyping-benchmark.txt
-          cat artifacts/evidence/probabilistic-genotyping-time.txt
-          grep -F 'genotypes=100000' artifacts/evidence/probabilistic-genotyping-benchmark.txt
-          grep -F 'alleles=2' artifacts/evidence/probabilistic-genotyping-benchmark.txt
-          grep -F 'ploidy=2' artifacts/evidence/probabilistic-genotyping-benchmark.txt
-          grep -F 'number_g=3' artifacts/evidence/probabilistic-genotyping-benchmark.txt
-          grep -F 'best_genotype_index=1' artifacts/evidence/probabilistic-genotyping-benchmark.txt
-          grep -F 'genotype_checksum=100000' artifacts/evidence/probabilistic-genotyping-benchmark.txt
-          grep -F 'Maximum resident set size' artifacts/evidence/probabilistic-genotyping-time.txt
-      - name: Upload Iteration 058 evidence
+          /usr/bin/time -v build/linux-gcc-release/src/domain/biocore-variant-filtering-benchmark \
+            > artifacts/evidence/variant-filtering-benchmark.txt \
+            2> artifacts/evidence/variant-filtering-time.txt
+          cat artifacts/evidence/variant-filtering-benchmark.txt
+          cat artifacts/evidence/variant-filtering-time.txt
+          grep -F 'evaluations=1000000' artifacts/evidence/variant-filtering-benchmark.txt
+          grep -F 'passed=1000000' artifacts/evidence/variant-filtering-benchmark.txt
+          grep -F 'reason_count=0' artifacts/evidence/variant-filtering-benchmark.txt
+          grep -F 'vaf_checksum=500000000' artifacts/evidence/variant-filtering-benchmark.txt
+          grep -F 'Maximum resident set size' artifacts/evidence/variant-filtering-time.txt
+      - name: Upload Iteration 059 evidence
         uses: actions/upload-artifact@v4
         with:
-          name: OpenGenesis-BioCore-iteration-${{ env.BIOCORE_ITERATION }}-probabilistic-genotyping-benchmark
+          name: OpenGenesis-BioCore-iteration-${{ env.BIOCORE_ITERATION }}-advanced-variant-filtering-benchmark
           path: artifacts/evidence/
           if-no-files-found: error
           retention-days: 30
@@ -160,17 +158,17 @@ jobs:
       - source-candidate
       - linux-matrix
       - sanitizers
-      - probabilistic-genotyping-benchmark
+      - advanced-variant-filtering-benchmark
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout exact validated candidate
         uses: actions/checkout@v5
         with:
           fetch-depth: 0
-      - name: Download Iteration 058 evidence
+      - name: Download Iteration 059 evidence
         uses: actions/download-artifact@v5
         with:
-          name: OpenGenesis-BioCore-iteration-${{ env.BIOCORE_ITERATION }}-probabilistic-genotyping-benchmark
+          name: OpenGenesis-BioCore-iteration-${{ env.BIOCORE_ITERATION }}-advanced-variant-filtering-benchmark
           path: artifacts/evidence
       - name: Generate exact four-part Markdown package
         run: |
