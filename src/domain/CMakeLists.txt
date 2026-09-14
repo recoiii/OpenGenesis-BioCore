@@ -7,6 +7,10 @@ target_sources(
         source/component_identity.cpp
         source/contig_table.cpp
         source/genotype.cpp
+        source/indel_candidate.cpp
+        source/indel_candidate_alignment.cpp
+        source/indel_candidate_seeding.cpp
+        source/local_realigner.cpp
         source/job.cpp
         source/job_failure.cpp
         source/job_priority.cpp
@@ -42,6 +46,7 @@ target_sources(
             include/biocore/domain/contig_table.hpp
             include/biocore/domain/genotype.hpp
             include/biocore/domain/inline_values.hpp
+            include/biocore/domain/indel_candidate.hpp
             include/biocore/domain/job.hpp
             include/biocore/domain/job_failure.hpp
             include/biocore/domain/job_priority.hpp
@@ -134,6 +139,39 @@ if(BIOCORE_BUILD_TESTS)
     )
     target_link_libraries(
         biocore-variant-index-benchmark
+        PRIVATE BioCore::domain BioCore::project_options BioCore::project_warnings BioCore::sanitizers
+    )
+
+    add_executable(biocore-indel-candidate-tests ${PROJECT_SOURCE_DIR}/tests/indel_candidate_tests.cpp)
+    target_link_libraries(
+        biocore-indel-candidate-tests
+        PRIVATE BioCore::domain BioCore::project_options BioCore::project_warnings BioCore::sanitizers
+    )
+    add_test(NAME domain.indel_candidate_calling COMMAND biocore-indel-candidate-tests)
+
+    add_executable(biocore-local-realigner-tests ${PROJECT_SOURCE_DIR}/tests/local_realigner_tests.cpp)
+    target_link_libraries(
+        biocore-local-realigner-tests
+        PRIVATE BioCore::domain BioCore::project_options BioCore::project_warnings BioCore::sanitizers
+    )
+    add_test(NAME domain.local_realigner COMMAND biocore-local-realigner-tests)
+
+    add_executable(
+        biocore-indel-candidate-boundary-tests
+        ${PROJECT_SOURCE_DIR}/tests/indel_candidate_boundary_tests.cpp
+    )
+    target_link_libraries(
+        biocore-indel-candidate-boundary-tests
+        PRIVATE BioCore::domain BioCore::project_options BioCore::project_warnings BioCore::sanitizers
+    )
+    add_test(NAME domain.indel_candidate_canonical_boundary COMMAND biocore-indel-candidate-boundary-tests)
+
+    add_executable(
+        biocore-indel-realignment-benchmark
+        ${PROJECT_SOURCE_DIR}/tests/indel_realignment_benchmark.cpp
+    )
+    target_link_libraries(
+        biocore-indel-realignment-benchmark
         PRIVATE BioCore::domain BioCore::project_options BioCore::project_warnings BioCore::sanitizers
     )
 
