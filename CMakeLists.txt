@@ -68,6 +68,29 @@ if(BIOCORE_BUILD_TESTS)
     add_subdirectory(tests)
 
     add_executable(
+        biocore-variant-workspace-tests
+        tests/variant_workspace_tests.cpp
+    )
+    target_link_libraries(
+        biocore-variant-workspace-tests
+        PRIVATE BioCore::domain BioCore::project_options BioCore::project_warnings BioCore::sanitizers
+    )
+    add_test(NAME domain.variant_workspace_query COMMAND biocore-variant-workspace-tests query)
+    add_test(NAME domain.variant_workspace_filters COMMAND biocore-variant-workspace-tests filters)
+    add_test(NAME domain.variant_workspace_sorting COMMAND biocore-variant-workspace-tests sorting)
+    add_test(NAME domain.variant_workspace_detail COMMAND biocore-variant-workspace-tests detail)
+    add_test(NAME domain.variant_workspace_integration COMMAND biocore-variant-workspace-tests integration)
+
+    add_executable(
+        biocore-variant-workspace-benchmark
+        tests/variant_workspace_benchmark.cpp
+    )
+    target_link_libraries(
+        biocore-variant-workspace-benchmark
+        PRIVATE BioCore::domain BioCore::project_options BioCore::project_warnings BioCore::sanitizers
+    )
+
+    add_executable(
         biocore-project-database-guard-tests
         tests/project_database_guard_tests.cpp
     )
