@@ -10,11 +10,11 @@ on:
   workflow_dispatch:
 
 env:
-  BIOCORE_ITERATION: "059"
-  BIOCORE_TEST_FLOOR: "91"
+  BIOCORE_ITERATION: "060"
+  BIOCORE_TEST_FLOOR: "94"
   BIOCORE_DEVELOPMENT_VERSION: "0.3.0-dev"
-  BIOCORE_ACCEPTED_BASELINE_NAME: "accepted/iteration-058"
-  BIOCORE_ACCEPTED_BASELINE_SHA: "ad2fbbdabfa66df324dc649cc1de38e668fe2c52"
+  BIOCORE_ACCEPTED_BASELINE_NAME: "accepted/iteration-059"
+  BIOCORE_ACCEPTED_BASELINE_SHA: "0a376b5295f1f3b15e2eb9e68745a64896a348c9"
 
 permissions:
   contents: read
@@ -114,8 +114,8 @@ jobs:
           UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
         run: ctest --test-dir build/linux-gcc-asan-ubsan --output-on-failure
 
-  advanced-variant-filtering-benchmark:
-    name: 1M advanced variant filtering benchmark
+  variant-prioritization-benchmark:
+    name: 1M variant prioritization benchmark
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout exact candidate
@@ -128,26 +128,25 @@ jobs:
           sudo apt-get install -y ninja-build libsqlite3-dev zlib1g-dev time
       - name: Configure release benchmark
         run: cmake --preset linux-gcc-release
-      - name: Build filtering benchmark target
-        run: cmake --build --preset linux-gcc-release --target biocore-variant-filtering-benchmark --parallel
-      - name: Run and capture filtering benchmark
+      - name: Build prioritization benchmark target
+        run: cmake --build --preset linux-gcc-release --target biocore-variant-prioritization-benchmark --parallel
+      - name: Run and capture prioritization benchmark
         shell: bash
         run: |
           mkdir -p artifacts/evidence
-          /usr/bin/time -v build/linux-gcc-release/src/domain/biocore-variant-filtering-benchmark \
-            > artifacts/evidence/variant-filtering-benchmark.txt \
-            2> artifacts/evidence/variant-filtering-time.txt
-          cat artifacts/evidence/variant-filtering-benchmark.txt
-          cat artifacts/evidence/variant-filtering-time.txt
-          grep -F 'evaluations=1000000' artifacts/evidence/variant-filtering-benchmark.txt
-          grep -F 'passed=1000000' artifacts/evidence/variant-filtering-benchmark.txt
-          grep -F 'reason_count=0' artifacts/evidence/variant-filtering-benchmark.txt
-          grep -F 'vaf_checksum=500000000' artifacts/evidence/variant-filtering-benchmark.txt
-          grep -F 'Maximum resident set size' artifacts/evidence/variant-filtering-time.txt
-      - name: Upload Iteration 059 evidence
+          /usr/bin/time -v build/linux-gcc-release/src/domain/biocore-variant-prioritization-benchmark \
+            > artifacts/evidence/variant-prioritization-benchmark.txt \
+            2> artifacts/evidence/variant-prioritization-time.txt
+          cat artifacts/evidence/variant-prioritization-benchmark.txt
+          cat artifacts/evidence/variant-prioritization-time.txt
+          grep -F 'evaluations=1000000' artifacts/evidence/variant-prioritization-benchmark.txt
+          grep -F 'matched_rules=5000000' artifacts/evidence/variant-prioritization-benchmark.txt
+          grep -F 'score_checksum=1600000000' artifacts/evidence/variant-prioritization-benchmark.txt
+          grep -F 'Maximum resident set size' artifacts/evidence/variant-prioritization-time.txt
+      - name: Upload Iteration 060 evidence
         uses: actions/upload-artifact@v4
         with:
-          name: OpenGenesis-BioCore-iteration-${{ env.BIOCORE_ITERATION }}-advanced-variant-filtering-benchmark
+          name: OpenGenesis-BioCore-iteration-${{ env.BIOCORE_ITERATION }}-variant-prioritization-benchmark
           path: artifacts/evidence/
           if-no-files-found: error
           retention-days: 30
@@ -158,17 +157,17 @@ jobs:
       - source-candidate
       - linux-matrix
       - sanitizers
-      - advanced-variant-filtering-benchmark
+      - variant-prioritization-benchmark
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout exact validated candidate
         uses: actions/checkout@v5
         with:
           fetch-depth: 0
-      - name: Download Iteration 059 evidence
+      - name: Download Iteration 060 evidence
         uses: actions/download-artifact@v5
         with:
-          name: OpenGenesis-BioCore-iteration-${{ env.BIOCORE_ITERATION }}-advanced-variant-filtering-benchmark
+          name: OpenGenesis-BioCore-iteration-${{ env.BIOCORE_ITERATION }}-variant-prioritization-benchmark
           path: artifacts/evidence
       - name: Generate exact four-part Markdown package
         run: |

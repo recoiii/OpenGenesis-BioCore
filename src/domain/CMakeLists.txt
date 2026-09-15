@@ -30,6 +30,8 @@ target_sources(
         source/variant_filtering.cpp
         source/variant_filtering_adapters.cpp
         source/variant_filtering_regions.cpp
+        source/variant_prioritization.cpp
+        source/variant_prioritization_ranking.cpp
         source/variant_index.cpp
         source/variant_normalization.cpp
         source/variant_record.cpp
@@ -67,6 +69,7 @@ target_sources(
             include/biocore/domain/reference_genome.hpp
             include/biocore/domain/storage_mode.hpp
             include/biocore/domain/variant_filtering.hpp
+            include/biocore/domain/variant_prioritization.hpp
             include/biocore/domain/variant_index.hpp
             include/biocore/domain/variant_normalization.hpp
             include/biocore/domain/variant_record.hpp
@@ -234,7 +237,7 @@ if(BIOCORE_BUILD_TESTS)
     add_executable(
         biocore-variant-filtering-context-tests
         ${PROJECT_SOURCE_DIR}/tests/variant_filtering_context_tests.cpp
-    )
+   )
     target_link_libraries(
         biocore-variant-filtering-context-tests
         PRIVATE BioCore::domain BioCore::project_options BioCore::project_warnings BioCore::sanitizers
@@ -267,6 +270,46 @@ if(BIOCORE_BUILD_TESTS)
     )
     target_link_libraries(
         biocore-variant-filtering-benchmark
+        PRIVATE BioCore::domain BioCore::project_options BioCore::project_warnings BioCore::sanitizers
+    )
+
+
+    add_executable(
+        biocore-variant-prioritization-tests
+        ${PROJECT_SOURCE_DIR}/tests/variant_prioritization_tests.cpp
+    )
+    target_link_libraries(
+        biocore-variant-prioritization-tests
+        PRIVATE BioCore::domain BioCore::project_options BioCore::project_warnings BioCore::sanitizers
+    )
+    add_test(NAME domain.variant_prioritization COMMAND biocore-variant-prioritization-tests)
+
+    add_executable(
+        biocore-variant-prioritization-ranking-tests
+        ${PROJECT_SOURCE_DIR}/tests/variant_prioritization_ranking_tests.cpp
+    )
+    target_link_libraries(
+        biocore-variant-prioritization-ranking-tests
+        PRIVATE BioCore::domain BioCore::project_options BioCore::project_warnings BioCore::sanitizers
+    )
+    add_test(NAME domain.variant_prioritization_ranking COMMAND biocore-variant-prioritization-ranking-tests)
+
+    add_executable(
+        biocore-variant-prioritization-integration-tests
+        ${PROJECT_SOURCE_DIR}/tests/variant_prioritization_integration_tests.cpp
+    )
+    target_link_libraries(
+        biocore-variant-prioritization-integration-tests
+        PRIVATE BioCore::domain BioCore::project_options BioCore::project_warnings BioCore::sanitizers
+    )
+    add_test(NAME domain.variant_prioritization_integration COMMAND biocore-variant-prioritization-integration-tests)
+
+    add_executable(
+        biocore-variant-prioritization-benchmark
+        ${PROJECT_SOURCE_DIR}/tests/variant_prioritization_benchmark.cpp
+    )
+    target_link_libraries(
+        biocore-variant-prioritization-benchmark
         PRIVATE BioCore::domain BioCore::project_options BioCore::project_warnings BioCore::sanitizers
     )
 
