@@ -1,0 +1,16 @@
+{
+  "dataset": "GIAB HG002 GRCh38 v4.2.1 chr20",
+  "purpose": "External truth-set compatibility evidence for Iteration 067; not a claim of end-to-end BioCore caller accuracy.",
+  "upstream": "NIST Genome in a Bottle HG002 v4.2.1",
+  "mirror_repository": "google/deepvariant",
+  "mirror_commit": "45f2627504c59785ea2b88d0256a2ec347bce7b4",
+  "truth_vcf": {
+    "path": "deeptrio/testdata/input/HG002_GRCh38_1_22_v4.2.1_benchmark.chr20.vcf.gz",
+    "git_blob_sha1": "c642801a079fbfc1a43df80d47d19493c58ef135"
+  },
+  "confidence_bed": {
+    "path": "deeptrio/testdata/input/HG002_GRCh38_1_22_v4.2.1_benchmark.chr20.bed",
+    "git_blob_sha1": "31528cdbf5648f467890fe780dc20a8396cb3131"
+  },
+  "policy": "The files are downloaded during CI from the pinned mirror commit, verified by Git blob identity and SHA-256 evidence, and are not vendored into this repository."
+}

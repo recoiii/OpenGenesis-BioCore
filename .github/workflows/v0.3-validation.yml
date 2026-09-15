@@ -10,11 +10,11 @@ on:
   workflow_dispatch:
 
 env:
-  BIOCORE_ITERATION: "066"
-  BIOCORE_TEST_FLOOR: "120"
+  BIOCORE_ITERATION: "067"
+  BIOCORE_TEST_FLOOR: "125"
   BIOCORE_DEVELOPMENT_VERSION: "0.3.0-dev"
-  BIOCORE_ACCEPTED_BASELINE_NAME: "accepted/iteration-065"
-  BIOCORE_ACCEPTED_BASELINE_SHA: "8b24ee83be0308ce7d94ff765b5d24f8a0a433a9"
+  BIOCORE_ACCEPTED_BASELINE_NAME: "accepted/iteration-066"
+  BIOCORE_ACCEPTED_BASELINE_SHA: "fa9d76b3212478270cadff7fdff552c89562f830"
 
 permissions:
   contents: read
@@ -221,10 +221,102 @@ jobs:
           grep -F '"format":"tsv"' artifacts/evidence/variant-export-benchmark.json
           grep -F '"bytes":' artifacts/evidence/variant-export-benchmark.json
           grep -F 'Maximum resident set size' artifacts/evidence/variant-export-time.txt
-      - name: Upload Iteration 066 export evidence
+      - name: Upload streaming export regression evidence
         uses: actions/upload-artifact@v4
         with:
           name: OpenGenesis-BioCore-iteration-${{ env.BIOCORE_ITERATION }}-variant-export-benchmark
+          path: artifacts/evidence/
+          if-no-files-found: error
+          retention-days: 30
+
+  truth-set-benchmark:
+    name: 250k-variant synthetic truth-set benchmark
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build libsqlite3-dev zlib1g-dev time
+      - name: Configure release benchmark
+        run: cmake --preset linux-gcc-release
+      - name: Build truth-set benchmark target
+        run: cmake --build --preset linux-gcc-release --target biocore-truth-set-benchmark-benchmark --parallel
+      - name: Run and capture synthetic truth-set benchmark
+        shell: bash
+        run: |
+          mkdir -p artifacts/evidence
+          /usr/bin/time -v build/linux-gcc-release/biocore-truth-set-benchmark-benchmark \
+            > artifacts/evidence/truth-set-benchmark.json \
+            2> artifacts/evidence/truth-set-time.txt
+          cat artifacts/evidence/truth-set-benchmark.json
+          cat artifacts/evidence/truth-set-time.txt
+          grep -F '"truth_variants":250000' artifacts/evidence/truth-set-benchmark.json
+          grep -F '"candidate_variants":250000' artifacts/evidence/truth-set-benchmark.json
+          grep -F '"tp":245000' artifacts/evidence/truth-set-benchmark.json
+          grep -F '"fp":5000' artifacts/evidence/truth-set-benchmark.json
+          grep -F '"fn":5000' artifacts/evidence/truth-set-benchmark.json
+          grep -F 'Maximum resident set size' artifacts/evidence/truth-set-time.txt
+      - name: Upload synthetic truth-set evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: OpenGenesis-BioCore-iteration-${{ env.BIOCORE_ITERATION }}-truth-set-benchmark
+          path: artifacts/evidence/
+          if-no-files-found: error
+          retention-days: 30
+
+  giab-truth-set-benchmark:
+    name: GIAB HG002 external truth-set compatibility
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build libsqlite3-dev zlib1g-dev time curl
+      - name: Configure release benchmark
+        run: cmake --preset linux-gcc-release
+      - name: Build GIAB benchmark target
+        run: cmake --build --preset linux-gcc-release --target biocore-giab-truth-benchmark --parallel
+      - name: Fetch and verify pinned GIAB HG002 truth fixture
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/evidence artifacts/giab
+          base='https://raw.githubusercontent.com/google/deepvariant/45f2627504c59785ea2b88d0256a2ec347bce7b4/deeptrio/testdata/input'
+          vcf_gz='artifacts/giab/HG002_GRCh38_1_22_v4.2.1_benchmark.chr20.vcf.gz'
+          bed='artifacts/giab/HG002_GRCh38_1_22_v4.2.1_benchmark.chr20.bed'
+          curl --fail --location --retry 5 --retry-all-errors "${base}/HG002_GRCh38_1_22_v4.2.1_benchmark.chr20.vcf.gz" -o "${vcf_gz}"
+          curl --fail --location --retry 5 --retry-all-errors "${base}/HG002_GRCh38_1_22_v4.2.1_benchmark.chr20.bed" -o "${bed}"
+          test "$(git hash-object "${vcf_gz}")" = 'c642801a079fbfc1a43df80d47d19493c58ef135'
+          test "$(git hash-object "${bed}")" = '31528cdbf5648f467890fe780dc20a8396cb3131'
+          sha256sum "${vcf_gz}" "${bed}" | tee artifacts/evidence/giab-source-SHA256SUMS.txt
+          gzip -dc "${vcf_gz}" > artifacts/giab/HG002.truth.vcf
+      - name: Run external GIAB truth-set compatibility benchmark
+        shell: bash
+        run: |
+          /usr/bin/time -v build/linux-gcc-release/biocore-giab-truth-benchmark \
+            artifacts/giab/HG002.truth.vcf \
+            artifacts/giab/HG002_GRCh38_1_22_v4.2.1_benchmark.chr20.bed \
+            > artifacts/evidence/giab-truth-benchmark.json \
+            2> artifacts/evidence/giab-truth-time.txt
+          cat artifacts/evidence/giab-truth-benchmark.json
+          cat artifacts/evidence/giab-truth-time.txt
+          grep -F '"dataset":"GIAB HG002 GRCh38 v4.2.1 chr20"' artifacts/evidence/giab-truth-benchmark.json
+          grep -F '"fp":0' artifacts/evidence/giab-truth-benchmark.json
+          grep -F '"fn":0' artifacts/evidence/giab-truth-benchmark.json
+          grep -F '"precision":1,"recall":1,"f1":1' artifacts/evidence/giab-truth-benchmark.json
+          grep -F 'Maximum resident set size' artifacts/evidence/giab-truth-time.txt
+      - name: Upload external GIAB evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: OpenGenesis-BioCore-iteration-${{ env.BIOCORE_ITERATION }}-giab-truth-set
           path: artifacts/evidence/
           if-no-files-found: error
           retention-days: 30
@@ -238,6 +330,8 @@ jobs:
       - case-control-association-benchmark
       - variant-workspace-benchmark
       - variant-export-benchmark
+      - truth-set-benchmark
+      - giab-truth-set-benchmark
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout exact validated candidate
@@ -258,6 +352,16 @@ jobs:
         uses: actions/download-artifact@v5
         with:
           name: OpenGenesis-BioCore-iteration-${{ env.BIOCORE_ITERATION }}-variant-export-benchmark
+          path: artifacts/evidence
+      - name: Download synthetic truth-set benchmark evidence
+        uses: actions/download-artifact@v5
+        with:
+          name: OpenGenesis-BioCore-iteration-${{ env.BIOCORE_ITERATION }}-truth-set-benchmark
+          path: artifacts/evidence
+      - name: Download external GIAB truth-set evidence
+        uses: actions/download-artifact@v5
+        with:
+          name: OpenGenesis-BioCore-iteration-${{ env.BIOCORE_ITERATION }}-giab-truth-set
           path: artifacts/evidence
       - name: Generate exact four-part Markdown package
         run: |

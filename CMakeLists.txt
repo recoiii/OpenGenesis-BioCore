@@ -51,10 +51,13 @@ target_sources(
     biocore-domain
     PRIVATE
         src/domain/source/variant_workspace.cpp
+        src/domain/source/truth_set_benchmark.cpp
     PUBLIC
         FILE_SET HEADERS
         BASE_DIRS src/domain/include
-        FILES src/domain/include/biocore/domain/variant_workspace.hpp
+        FILES
+            src/domain/include/biocore/domain/variant_workspace.hpp
+            src/domain/include/biocore/domain/truth_set_benchmark.hpp
 )
 add_subdirectory(src/application)
 add_subdirectory(src/worker_protocol)
@@ -120,6 +123,38 @@ if(BIOCORE_BUILD_TESTS)
     target_link_libraries(
         biocore-variant-export-benchmark
         PRIVATE BioCore::application BioCore::presentation BioCore::project_options BioCore::project_warnings BioCore::sanitizers
+    )
+
+    add_executable(
+        biocore-truth-set-benchmark-tests
+        tests/truth_set_benchmark_tests.cpp
+    )
+    target_link_libraries(
+        biocore-truth-set-benchmark-tests
+        PRIVATE BioCore::domain BioCore::project_options BioCore::project_warnings BioCore::sanitizers
+    )
+    add_test(NAME domain.truth_set_benchmark_metrics COMMAND biocore-truth-set-benchmark-tests metrics)
+    add_test(NAME domain.truth_set_benchmark_genotype COMMAND biocore-truth-set-benchmark-tests genotype)
+    add_test(NAME domain.truth_set_benchmark_stratification COMMAND biocore-truth-set-benchmark-tests stratification)
+    add_test(NAME domain.truth_set_benchmark_vcf_adapter COMMAND biocore-truth-set-benchmark-tests vcf_adapter)
+    add_test(NAME domain.truth_set_benchmark_validation COMMAND biocore-truth-set-benchmark-tests validation)
+
+    add_executable(
+        biocore-truth-set-benchmark-benchmark
+        tests/truth_set_benchmark_benchmark.cpp
+    )
+    target_link_libraries(
+        biocore-truth-set-benchmark-benchmark
+        PRIVATE BioCore::domain BioCore::project_options BioCore::project_warnings BioCore::sanitizers
+    )
+
+    add_executable(
+        biocore-giab-truth-benchmark
+        tests/giab_truth_benchmark.cpp
+    )
+    target_link_libraries(
+        biocore-giab-truth-benchmark
+        PRIVATE BioCore::domain BioCore::project_options BioCore::project_warnings BioCore::sanitizers
     )
 
     add_executable(
