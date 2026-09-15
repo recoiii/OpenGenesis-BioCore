@@ -6,6 +6,7 @@ target_sources(
     PRIVATE
         source/artifact_presentation_service.cpp
         source/artifact_presentation_service_error.cpp
+        source/variant_export.cpp
         source/build_info.cpp
         source/execution_plan.cpp
         source/job_scheduler.cpp
@@ -37,6 +38,7 @@ target_sources(
         FILES
             include/biocore/application/artifact_presentation_service.hpp
             include/biocore/application/artifact_presentation_service_error.hpp
+            include/biocore/application/variant_export.hpp
             include/biocore/application/build_info.hpp
             include/biocore/application/execution_plan.hpp
             include/biocore/application/generated_output_artifact.hpp

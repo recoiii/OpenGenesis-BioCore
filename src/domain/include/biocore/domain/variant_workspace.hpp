@@ -7,6 +7,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <optional>
+#include <stdexcept>
 #include <string>
 #include <vector>
 
@@ -135,6 +136,24 @@ public:
     );
 
     [[nodiscard]] std::size_t size() const noexcept { return rows_.size(); }
+    [[nodiscard]] const ReferenceAssemblyIdentity& assembly() const {
+        if (matrix_ == nullptr) {
+            throw std::logic_error("variant workspace is not initialized");
+        }
+        return matrix_->assembly();
+    }
+    [[nodiscard]] const VariantWorkspaceRowDto& export_row(const std::size_t variant_index) const {
+        if (variant_index >= rows_.size()) {
+            throw std::out_of_range("variant workspace export index is out of range");
+        }
+        return rows_[variant_index];
+    }
+    [[nodiscard]] const VariantAnnotationResult* annotation(const std::size_t variant_index) const {
+        if (variant_index >= rows_.size()) {
+            throw std::out_of_range("variant workspace annotation index is out of range");
+        }
+        return annotations_ == nullptr ? nullptr : &annotations_->at(variant_index);
+    }
     [[nodiscard]] VariantWorkspaceBoundedQueryResult query(const VariantWorkspaceQuery& request) const;
     [[nodiscard]] VariantWorkspaceDetailDto detail(std::size_t variant_index) const;
 

@@ -10,11 +10,11 @@ on:
   workflow_dispatch:
 
 env:
-  BIOCORE_ITERATION: "065"
-  BIOCORE_TEST_FLOOR: "115"
+  BIOCORE_ITERATION: "066"
+  BIOCORE_TEST_FLOOR: "120"
   BIOCORE_DEVELOPMENT_VERSION: "0.3.0-dev"
-  BIOCORE_ACCEPTED_BASELINE_NAME: "accepted/iteration-064"
-  BIOCORE_ACCEPTED_BASELINE_SHA: "f7b11d655330fe50f2fd2fa7f890a895cc1e9a84"
+  BIOCORE_ACCEPTED_BASELINE_NAME: "accepted/iteration-065"
+  BIOCORE_ACCEPTED_BASELINE_SHA: "8b24ee83be0308ce7d94ff765b5d24f8a0a433a9"
 
 permissions:
   contents: read
@@ -184,10 +184,47 @@ jobs:
           grep -F '"window_limit":100' artifacts/evidence/variant-workspace-benchmark.json
           grep -F '"max_rows_returned":100' artifacts/evidence/variant-workspace-benchmark.json
           grep -F 'Maximum resident set size' artifacts/evidence/variant-workspace-time.txt
-      - name: Upload Iteration 065 workspace evidence
+      - name: Upload workspace regression evidence
         uses: actions/upload-artifact@v4
         with:
           name: OpenGenesis-BioCore-iteration-${{ env.BIOCORE_ITERATION }}-variant-workspace-benchmark
+          path: artifacts/evidence/
+          if-no-files-found: error
+          retention-days: 30
+
+  variant-export-benchmark:
+    name: 100k-variant streaming export benchmark
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build libsqlite3-dev zlib1g-dev time
+      - name: Configure release benchmark
+        run: cmake --preset linux-gcc-release
+      - name: Build variant export benchmark target
+        run: cmake --build --preset linux-gcc-release --target biocore-variant-export-benchmark --parallel
+      - name: Run and capture streaming export benchmark
+        shell: bash
+        run: |
+          mkdir -p artifacts/evidence
+          /usr/bin/time -v build/linux-gcc-release/biocore-variant-export-benchmark \
+            > artifacts/evidence/variant-export-benchmark.json \
+            2> artifacts/evidence/variant-export-time.txt
+          cat artifacts/evidence/variant-export-benchmark.json
+          cat artifacts/evidence/variant-export-time.txt
+          grep -F '"variants":100000' artifacts/evidence/variant-export-benchmark.json
+          grep -F '"format":"tsv"' artifacts/evidence/variant-export-benchmark.json
+          grep -F '"bytes":' artifacts/evidence/variant-export-benchmark.json
+          grep -F 'Maximum resident set size' artifacts/evidence/variant-export-time.txt
+      - name: Upload Iteration 066 export evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: OpenGenesis-BioCore-iteration-${{ env.BIOCORE_ITERATION }}-variant-export-benchmark
           path: artifacts/evidence/
           if-no-files-found: error
           retention-days: 30
@@ -200,6 +237,7 @@ jobs:
       - sanitizers
       - case-control-association-benchmark
       - variant-workspace-benchmark
+      - variant-export-benchmark
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout exact validated candidate
@@ -215,6 +253,11 @@ jobs:
         uses: actions/download-artifact@v5
         with:
           name: OpenGenesis-BioCore-iteration-${{ env.BIOCORE_ITERATION }}-variant-workspace-benchmark
+          path: artifacts/evidence
+      - name: Download variant export benchmark evidence
+        uses: actions/download-artifact@v5
+        with:
+          name: OpenGenesis-BioCore-iteration-${{ env.BIOCORE_ITERATION }}-variant-export-benchmark
           path: artifacts/evidence
       - name: Generate exact four-part Markdown package
         run: |

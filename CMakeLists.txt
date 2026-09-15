@@ -100,6 +100,29 @@ if(BIOCORE_BUILD_TESTS)
     )
 
     add_executable(
+        biocore-variant-export-tests
+        tests/variant_export_tests.cpp
+    )
+    target_link_libraries(
+        biocore-variant-export-tests
+        PRIVATE BioCore::application BioCore::presentation BioCore::project_options BioCore::project_warnings BioCore::sanitizers
+    )
+    add_test(NAME integration.variant_export_provenance COMMAND biocore-variant-export-tests provenance)
+    add_test(NAME integration.variant_export_tabular COMMAND biocore-variant-export-tests tabular)
+    add_test(NAME integration.variant_export_json COMMAND biocore-variant-export-tests json)
+    add_test(NAME integration.variant_export_vcf COMMAND biocore-variant-export-tests vcf)
+    add_test(NAME integration.variant_export_validation COMMAND biocore-variant-export-tests validation)
+
+    add_executable(
+        biocore-variant-export-benchmark
+        tests/variant_export_benchmark.cpp
+    )
+    target_link_libraries(
+        biocore-variant-export-benchmark
+        PRIVATE BioCore::application BioCore::presentation BioCore::project_options BioCore::project_warnings BioCore::sanitizers
+    )
+
+    add_executable(
         biocore-project-database-guard-tests
         tests/project_database_guard_tests.cpp
     )
