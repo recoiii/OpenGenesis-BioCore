@@ -1,3 +1,4 @@
+#include "biocore/application/build_info.hpp"
 #include "biocore/application/variant_export.hpp"
 #include "biocore/presentation/variant_export.hpp"
 
@@ -84,7 +85,7 @@ int main() {
     application::VariantExportProvenance provenance{
         .schema_version = application::VariantExportProvenance::current_schema_version,
         .producer_name = "OpenGenesis-BioCore",
-        .producer_version = "0.3.0-dev",
+        .producer_version = std::string{application::BuildInfo::version()},
         .generated_at_utc = "2026-09-15T12:00:00Z",
         .pipeline = {
             .pipeline_id = "org.biocore.variant.workspace",

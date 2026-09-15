@@ -3,8 +3,8 @@ message: "If you use OpenGenesis-BioCore in your research, please cite the softw
 
 title: "OpenGenesis-BioCore"
 type: software
-version: "0.2.0"
-date-released: "2026-09-01"
+version: "0.3.0"
+date-released: "2026-09-15"
 license: MIT
 
 repository-code: "https://github.com/recoiii/OpenGenesis-BioCore"
@@ -26,28 +26,29 @@ keywords:
   - local-first
   - C++
   - variant calling
-  - FASTA
-  - FASTQ
+  - VCF
+  - variant analysis
   - scientific software
 
 abstract: >-
   OpenGenesis-BioCore is a local-first, extensible bioinformatics platform
-  designed for reproducible analysis workflows on Windows and Linux. The
-  platform combines a C++20 native core with a localhost browser interface,
-  SQLite-backed project persistence, managed files, versioned plugins and
-  pipelines, immutable execution-plan snapshots, asynchronous job scheduling,
-  supervised worker processes, durable recovery, live progress reporting,
-  managed-file integrity verification, export/report generation, and output
-  artifact tracking.
+  designed for reproducible analysis workflows on Windows and Linux. Version
+  0.3.0 adds a canonical small-variant model, VCF ingestion and normalization,
+  local indel candidate realignment, unified probabilistic genotyping, advanced
+  filtering, generic prioritization, versioned local reference databases,
+  feature-overlap annotation, multi-sample matrices, case/control association,
+  indexed variant workspace queries, provenance-preserving export, and
+  truth-set benchmarking while retaining the C++20 native core, localhost
+  browser interface, SQLite project persistence, plugins and pipelines.
 
 preferred-citation:
   type: software
-  title: "OpenGenesis-BioCore v0.2.0"
+  title: "OpenGenesis-BioCore v0.3.0"
   authors:
     - family-names: "Çelik"
       given-names: "Recep"
       orcid: "https://orcid.org/0009-0003-2939-1009"
-  version: "0.2.0"
-  date-released: "2026-09-01"
+  version: "0.3.0"
+  date-released: "2026-09-15"
   doi: "10.5281/zenodo.22012037"
   url: "https://doi.org/10.5281/zenodo.22012037"

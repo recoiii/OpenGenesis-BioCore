@@ -8,6 +8,7 @@
 
 #include "biocore/application/artifact_presentation_service.hpp"
 #include "biocore/application/artifact_presentation_service_error.hpp"
+#include "biocore/application/build_info.hpp"
 #include "biocore/application/generated_output_artifact.hpp"
 #include "biocore/application/i_artifact_content_access.hpp"
 #include "biocore/application/i_job_repository.hpp"
@@ -22,7 +23,6 @@ using namespace biocore;
 
 constexpr std::string_view digest =
     "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
-constexpr std::string_view expected_producer_version = "0.3.0-dev";
 
 application::GeneratedOutputArtifact make_artifact(std::string port, std::string step) {
     const std::string relative = "outputs/job-export--" + step + "--" + port + ".out";
@@ -124,6 +124,7 @@ public:
     Clock clock;
     application::ArtifactPresentationService service{files, jobs, content, clock};
 
+    const std::string expected_producer_version{application::BuildInfo::version()};
     const auto manifest = service.build_job_export_manifest("job-export");
     if (manifest.schema_version != 1U || manifest.producer_version != expected_producer_version ||
         !manifest.stable_snapshot || manifest.report.attempt_number != 3U ||
@@ -133,9 +134,11 @@ public:
         return false;
     }
 
+    const std::string expected_version_field =
+        std::string{"\"version\":\""} + expected_producer_version + "\"";
     const std::string json = presentation::render_pipeline_export_manifest_json(manifest);
     return json.find("\"schemaVersion\":1") != std::string::npos &&
-           json.find("\"version\":\"0.3.0-dev\"") != std::string::npos &&
+           json.find(expected_version_field) != std::string::npos &&
            json.find("\"stableSnapshot\":true") != std::string::npos &&
            json.find("\"artifactCount\":2") != std::string::npos &&
            json.find("\"attemptNumber\":3") != std::string::npos &&
