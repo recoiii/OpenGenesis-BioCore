@@ -31,6 +31,7 @@ target_sources(
         source/reference_database_features.cpp
         source/vcf_ingestion_attributes.cpp
         source/storage_mode.cpp
+        source/variant_annotation.cpp
         source/variant_filtering.cpp
         source/variant_filtering_adapters.cpp
         source/variant_filtering_regions.cpp
@@ -73,6 +74,7 @@ target_sources(
             include/biocore/domain/reference_genome.hpp
             include/biocore/domain/reference_database.hpp
             include/biocore/domain/storage_mode.hpp
+            include/biocore/domain/variant_annotation.hpp
             include/biocore/domain/variant_filtering.hpp
             include/biocore/domain/variant_prioritization.hpp
             include/biocore/domain/variant_index.hpp
@@ -366,6 +368,33 @@ if(BIOCORE_BUILD_TESTS)
         biocore-reference-database-benchmark
         PRIVATE BioCore::domain BioCore::project_options BioCore::project_warnings BioCore::sanitizers
     )
+
+    add_executable(
+        biocore-variant-annotation-tests
+        ${PROJECT_SOURCE_DIR}/tests/variant_annotation_tests.cpp
+    )
+    target_link_libraries(biocore-variant-annotation-tests PRIVATE BioCore::domain BioCore::project_options BioCore::project_warnings BioCore::sanitizers)
+    add_test(NAME domain.variant_annotation COMMAND biocore-variant-annotation-tests)
+
+    add_executable(
+        biocore-variant-annotation-feature-tests
+        ${PROJECT_SOURCE_DIR}/tests/variant_annotation_feature_tests.cpp
+    )
+    target_link_libraries(biocore-variant-annotation-feature-tests PRIVATE BioCore::domain BioCore::project_options BioCore::project_warnings BioCore::sanitizers)
+    add_test(NAME domain.variant_annotation_features COMMAND biocore-variant-annotation-feature-tests)
+
+    add_executable(
+        biocore-variant-annotation-contig-tests
+        ${PROJECT_SOURCE_DIR}/tests/variant_annotation_contig_tests.cpp
+    )
+    target_link_libraries(biocore-variant-annotation-contig-tests PRIVATE BioCore::domain BioCore::project_options BioCore::project_warnings BioCore::sanitizers)
+    add_test(NAME domain.variant_annotation_contigs COMMAND biocore-variant-annotation-contig-tests)
+
+    add_executable(
+        biocore-variant-annotation-benchmark
+        ${PROJECT_SOURCE_DIR}/tests/variant_annotation_benchmark.cpp
+    )
+    target_link_libraries(biocore-variant-annotation-benchmark PRIVATE BioCore::domain BioCore::project_options BioCore::project_warnings BioCore::sanitizers)
 
     add_executable(
         biocore-variant-model-memory-benchmark
