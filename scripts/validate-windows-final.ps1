@@ -11,13 +11,17 @@ param(
 
     [string]$EvidenceDirectory = "artifacts/windows-final-closure",
 
-    [string]$ExpectedVersion = "0.2.0",
+    [Parameter(Mandatory = $true)]
+    [ValidateNotNullOrEmpty()]
+    [string]$ExpectedVersion,
 
+    [Parameter(Mandatory = $true)]
     [ValidateRange(1, 10000)]
-    [int]$ExpectedCTestCount = 75,
+    [int]$ExpectedCTestCount,
 
+    [Parameter(Mandatory = $true)]
     [ValidateRange(1, 999)]
-    [int]$Iteration = 54
+    [int]$Iteration
 )
 
 Set-StrictMode -Version Latest
@@ -151,6 +155,8 @@ function Assert-ExactCTestCount {
     Assert-True ($null -ne $line) "Could not determine CTest count for $Preset"
     [int]$count = [regex]::Match($line, '(\d+)').Groups[1].Value
     Assert-True ($count -eq $ExpectedCount) "Expected $ExpectedCount CTests for $Preset but found $count"
+    Write-Host "Verified exact CTest count for ${Preset}: $count"
+    return $count
 }
 
 function Get-InstalledPluginRecords {
@@ -315,9 +321,11 @@ try {
     Invoke-LoggedCommand '01-configure-debug' 'cmake' @('--preset', 'windows-msvc-debug', $toolchainArgument, $tripletArgument, $suppressRegenerationArgument)
 Invoke-LoggedCommand '02-build-debug' 'cmake' @('--build', '--preset', 'windows-msvc-debug', '--parallel', '1')
 Invoke-LoggedCommand '03-ctest-debug' 'ctest' @('--preset', 'windows-msvc-debug', '--output-on-failure', '--timeout', '120', '--progress')
+    [int]$debugCTestCount = Assert-ExactCTestCount -Preset 'windows-msvc-debug' -ExpectedCount $ExpectedCTestCount
     Invoke-LoggedCommand '04-configure-release' 'cmake' @('--preset', 'windows-msvc-release', $toolchainArgument, $tripletArgument, $suppressRegenerationArgument)
 Invoke-LoggedCommand '05-build-release' 'cmake' @('--build', '--preset', 'windows-msvc-release', '--parallel', '1')
 Invoke-LoggedCommand '06-ctest-release' 'ctest' @('--preset', 'windows-msvc-release', '--output-on-failure', '--timeout', '120', '--progress')
+    [int]$releaseCTestCount = Assert-ExactCTestCount -Preset 'windows-msvc-release' -ExpectedCount $ExpectedCTestCount
     $installRoot = Join-Path $script:EvidenceRoot 'installed-release'
     Invoke-LoggedCommand '07-install-release' 'cmake' @('--install', 'build/windows-msvc-release', '--config', 'Release', '--prefix', $installRoot)
     $installLayout = Test-InstalledLayout -InstallRoot $installRoot
@@ -377,9 +385,9 @@ Invoke-LoggedCommand '06-ctest-release' 'ctest' @('--preset', 'windows-msvc-rele
         vcpkgRoot = $vcpkg.Root
         vcpkgVersion = (Invoke-Capture $vcpkg.Executable @('version')).Split("`n")[0]
         vcpkgTriplet = 'x64-windows'
-        debugCTestCount = $ExpectedCTestCount
+        debugCTestCount = $debugCTestCount
         debugCTestResult = 'PASS'
-        releaseCTestCount = $ExpectedCTestCount
+        releaseCTestCount = $releaseCTestCount
         releaseCTestResult = 'PASS'
         installedVersion = $installLayout.Version
         installedPluginCount = $installLayout.PluginCount
