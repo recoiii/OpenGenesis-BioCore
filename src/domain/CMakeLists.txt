@@ -25,6 +25,10 @@ target_sources(
         source/probabilistic_genotyping.cpp
         source/project.cpp
         source/reference_genome.cpp
+        source/reference_database.cpp
+        source/reference_database_tsv.cpp
+        source/reference_database_registry.cpp
+        source/reference_database_features.cpp
         source/vcf_ingestion_attributes.cpp
         source/storage_mode.cpp
         source/variant_filtering.cpp
@@ -67,6 +71,7 @@ target_sources(
             include/biocore/domain/probabilistic_genotyping.hpp
             include/biocore/domain/project.hpp
             include/biocore/domain/reference_genome.hpp
+            include/biocore/domain/reference_database.hpp
             include/biocore/domain/storage_mode.hpp
             include/biocore/domain/variant_filtering.hpp
             include/biocore/domain/variant_prioritization.hpp
@@ -310,6 +315,55 @@ if(BIOCORE_BUILD_TESTS)
     )
     target_link_libraries(
         biocore-variant-prioritization-benchmark
+        PRIVATE BioCore::domain BioCore::project_options BioCore::project_warnings BioCore::sanitizers
+    )
+
+    add_executable(
+        biocore-reference-database-tests
+        ${PROJECT_SOURCE_DIR}/tests/reference_database_tests.cpp
+    )
+    target_link_libraries(
+        biocore-reference-database-tests
+        PRIVATE BioCore::domain BioCore::project_options BioCore::project_warnings BioCore::sanitizers
+    )
+    add_test(NAME domain.reference_database COMMAND biocore-reference-database-tests)
+
+    add_executable(
+        biocore-reference-database-tsv-tests
+        ${PROJECT_SOURCE_DIR}/tests/reference_database_tsv_tests.cpp
+    )
+    target_link_libraries(
+        biocore-reference-database-tsv-tests
+        PRIVATE BioCore::domain BioCore::project_options BioCore::project_warnings BioCore::sanitizers
+    )
+    add_test(NAME domain.reference_database_tsv COMMAND biocore-reference-database-tsv-tests)
+
+    add_executable(
+        biocore-reference-database-registry-tests
+        ${PROJECT_SOURCE_DIR}/tests/reference_database_registry_tests.cpp
+    )
+    target_link_libraries(
+        biocore-reference-database-registry-tests
+        PRIVATE BioCore::domain BioCore::project_options BioCore::project_warnings BioCore::sanitizers
+    )
+    add_test(NAME domain.reference_database_registry COMMAND biocore-reference-database-registry-tests)
+
+    add_executable(
+        biocore-reference-database-feature-tests
+        ${PROJECT_SOURCE_DIR}/tests/reference_database_feature_tests.cpp
+    )
+    target_link_libraries(
+        biocore-reference-database-feature-tests
+        PRIVATE BioCore::domain BioCore::project_options BioCore::project_warnings BioCore::sanitizers
+    )
+    add_test(NAME domain.reference_database_features COMMAND biocore-reference-database-feature-tests)
+
+    add_executable(
+        biocore-reference-database-benchmark
+        ${PROJECT_SOURCE_DIR}/tests/reference_database_benchmark.cpp
+    )
+    target_link_libraries(
+        biocore-reference-database-benchmark
         PRIVATE BioCore::domain BioCore::project_options BioCore::project_warnings BioCore::sanitizers
     )
 
