@@ -34,6 +34,7 @@ target_sources(
         source/variant_annotation.cpp
         source/multi_sample_matrix.cpp
         source/multi_sample_matrix_vcf.cpp
+        source/case_control_association.cpp
         source/variant_filtering.cpp
         source/variant_filtering_adapters.cpp
         source/variant_filtering_regions.cpp
@@ -78,6 +79,7 @@ target_sources(
             include/biocore/domain/storage_mode.hpp
             include/biocore/domain/variant_annotation.hpp
             include/biocore/domain/multi_sample_matrix.hpp
+            include/biocore/domain/case_control_association.hpp
             include/biocore/domain/variant_filtering.hpp
             include/biocore/domain/variant_prioritization.hpp
             include/biocore/domain/variant_index.hpp
@@ -434,6 +436,29 @@ if(BIOCORE_BUILD_TESTS)
         ${PROJECT_SOURCE_DIR}/tests/multi_sample_matrix_benchmark.cpp
     )
     target_link_libraries(biocore-multi-sample-matrix-benchmark PRIVATE BioCore::domain BioCore::project_options BioCore::project_warnings BioCore::sanitizers)
+
+    add_executable(biocore-case-control-association-tests ${PROJECT_SOURCE_DIR}/tests/case_control_association_tests.cpp)
+    target_link_libraries(biocore-case-control-association-tests PRIVATE BioCore::domain BioCore::project_options BioCore::project_warnings BioCore::sanitizers)
+    add_test(NAME domain.case_control_association COMMAND biocore-case-control-association-tests)
+
+    add_executable(biocore-case-control-missing-tests ${PROJECT_SOURCE_DIR}/tests/case_control_missing_tests.cpp)
+    target_link_libraries(biocore-case-control-missing-tests PRIVATE BioCore::domain BioCore::project_options BioCore::project_warnings BioCore::sanitizers)
+    add_test(NAME domain.case_control_missing COMMAND biocore-case-control-missing-tests)
+
+    add_executable(biocore-case-control-multiallelic-tests ${PROJECT_SOURCE_DIR}/tests/case_control_multiallelic_tests.cpp)
+    target_link_libraries(biocore-case-control-multiallelic-tests PRIVATE BioCore::domain BioCore::project_options BioCore::project_warnings BioCore::sanitizers)
+    add_test(NAME domain.case_control_multiallelic COMMAND biocore-case-control-multiallelic-tests)
+
+    add_executable(biocore-case-control-validation-tests ${PROJECT_SOURCE_DIR}/tests/case_control_validation_tests.cpp)
+    target_link_libraries(biocore-case-control-validation-tests PRIVATE BioCore::domain BioCore::project_options BioCore::project_warnings BioCore::sanitizers)
+    add_test(NAME domain.case_control_validation COMMAND biocore-case-control-validation-tests)
+
+    add_executable(biocore-case-control-integration-tests ${PROJECT_SOURCE_DIR}/tests/case_control_integration_tests.cpp)
+    target_link_libraries(biocore-case-control-integration-tests PRIVATE BioCore::domain BioCore::project_options BioCore::project_warnings BioCore::sanitizers)
+    add_test(NAME domain.case_control_integration COMMAND biocore-case-control-integration-tests)
+
+    add_executable(biocore-case-control-association-benchmark ${PROJECT_SOURCE_DIR}/tests/case_control_association_benchmark.cpp)
+    target_link_libraries(biocore-case-control-association-benchmark PRIVATE BioCore::domain BioCore::project_options BioCore::project_warnings BioCore::sanitizers)
 
     add_executable(
         biocore-variant-model-memory-benchmark
