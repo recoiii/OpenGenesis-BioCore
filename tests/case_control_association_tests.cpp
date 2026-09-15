@@ -1,4 +1,5 @@
 #include "biocore/domain/case_control_association.hpp"
+#include "biocore/domain/variant_workspace.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -25,6 +26,120 @@ MultiSampleMatrix make_matrix() {
     auto case_data=ingest_vcf(cases,genome); auto control_data=ingest_vcf(controls,genome);
     ContigTableBuilder tb{ReferenceAssembly::grch38}; tb.add_contig("1",{"chr1"});
     return build_multi_sample_matrix(assembly,tb.build(),{{"cases",assembly,&genome.contigs(),&case_data},{"controls",assembly,&genome.contigs(),&control_data}});
+}
+
+MultiSampleMatrix make_workspace_matrix() {
+    std::istringstream fasta{">chr1\nAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\n"};
+    auto genome = ReferenceGenome::from_fasta(fasta, ReferenceAssembly::grch38);
+    ReferenceAssemblyIdentity assembly{ReferenceAssembly::grch38,{}};
+    std::istringstream cases{
+        "##fileformat=VCFv4.3\n##FORMAT=<ID=GT,Number=1,Type=String,Description=\"Genotype\">\n"
+        "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\tcase-1\tcase-2\n"
+        "chr1\t10\trs10\tA\tG\t10\tPASS\t.\tGT\t0/1\t1/1\n"
+        "chr1\t20\trs20\tA\tC\t20\tPASS\t.\tGT\t0/0\t0/1\n"
+        "chr1\t30\trs30\tA\tT\t30\tPASS\t.\tGT\t1/1\t1/1\n"};
+    std::istringstream controls{
+        "##fileformat=VCFv4.3\n##FORMAT=<ID=GT,Number=1,Type=String,Description=\"Genotype\">\n"
+        "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\tcontrol-1\tcontrol-2\n"
+        "chr1\t10\trs10c\tA\tG\t10\tPASS\t.\tGT\t0/0\t0/1\n"
+        "chr1\t20\trs20c\tA\tC\t20\tPASS\t.\tGT\t0/0\t0/0\n"
+        "chr1\t30\trs30c\tA\tT\t30\tPASS\t.\tGT\t0/1\t0/1\n"};
+    auto case_data=ingest_vcf(cases,genome); auto control_data=ingest_vcf(controls,genome);
+    ContigTableBuilder tb{ReferenceAssembly::grch38}; tb.add_contig("1",{"chr1"});
+    return build_multi_sample_matrix(assembly,tb.build(),{{"cases",assembly,&genome.contigs(),&case_data},{"controls",assembly,&genome.contigs(),&control_data}});
+}
+
+void test_workspace_core() {
+    auto matrix=make_workspace_matrix();
+    std::vector<CaseControlSampleLabel> labels{{"case-1",CaseControlPhenotype::case_sample},{"case-2",CaseControlPhenotype::case_sample},{"control-1",CaseControlPhenotype::control},{"control-2",CaseControlPhenotype::control}};
+    auto associations=analyze_case_control(matrix,labels);
+
+    std::vector<VariantWorkspaceRecordMetadata> metadata(3U);
+    metadata[0].record_id="rs10"; metadata[0].quality=10.0; metadata[0].filters_applied=true;
+    metadata[1].record_id="rs20"; metadata[1].quality=20.0; metadata[1].filters_applied=true; metadata[1].filters={"LowQual"};
+    metadata[2].record_id="rs30"; metadata[2].quality=30.0; metadata[2].filters_applied=false;
+
+    std::vector<VariantAnnotationResult> annotations;
+    annotations.reserve(matrix.variant_count());
+    for (std::size_t index=0U; index<matrix.variant_count(); ++index) {
+        const auto& variant=matrix.variant(index);
+        VariantAnnotationResult annotation;
+        annotation.locus=variant.locus;
+        annotation.reference=variant.reference;
+        AlternateAnnotation alternate;
+        alternate.alternate_index=0U;
+        alternate.alternate=variant.alternate;
+        if (index==1U) {
+            AlleleAnnotation allele;
+            allele.record_id="db-20";
+            allele.provenance.database_id="test-db";
+            allele.provenance.display_name="Test DB";
+            allele.attributes.push_back({"gene_symbol",std::string{"BRCA1"}});
+            alternate.allele_annotations.push_back(std::move(allele));
+        }
+        annotation.alternates.push_back(std::move(alternate));
+        annotations.push_back(std::move(annotation));
+    }
+
+    auto workspace=VariantAnalysisWorkspace::build(matrix,&associations,&annotations,&metadata);
+    require(workspace.size()==3U,"workspace row count");
+    const auto contig=matrix.contigs().resolve("chr1");
+    require(contig.has_value(),"workspace contig lookup");
+
+    VariantWorkspaceQuery range;
+    range.contig_id=*contig;
+    range.start=18U;
+    range.end=31U;
+    range.limit=1U;
+    range.query_generation_id=42U;
+    const auto first_window=workspace.query(range);
+    require(first_window.total_matched_variants==2U,"workspace indexed range count");
+    require(first_window.rows.size()==1U,"workspace bounded window");
+    require(first_window.rows[0].variant_index==1U,"workspace range first row");
+    require(first_window.query_generation_id==42U,"workspace generation echo");
+
+    range.offset=1U;
+    const auto second_window=workspace.query(range);
+    require(second_window.rows.size()==1U && second_window.rows[0].variant_index==2U,"workspace offset window");
+
+    VariantWorkspaceQuery pass_query;
+    pass_query.pass_only=true;
+    const auto pass_rows=workspace.query(pass_query);
+    require(pass_rows.total_matched_variants==1U && pass_rows.rows[0].variant_index==0U,"workspace pass filter");
+
+    VariantWorkspaceQuery annotation_query;
+    annotation_query.search_text="brca1";
+    const auto annotation_rows=workspace.query(annotation_query);
+    require(annotation_rows.total_matched_variants==1U && annotation_rows.rows[0].variant_index==1U,"workspace annotation search");
+    require(annotation_rows.rows[0].annotation_available && annotation_rows.rows[0].allele_annotation_count==1U,"workspace annotation summary");
+
+    VariantWorkspaceQuery quality_sort;
+    quality_sort.sort_key=VariantWorkspaceSortKey::quality;
+    quality_sort.sort_direction=VariantWorkspaceSortDirection::descending;
+    const auto quality_rows=workspace.query(quality_sort);
+    require(quality_rows.rows.size()==3U,"workspace quality sort cardinality");
+    require(quality_rows.rows[0].variant_index==2U && quality_rows.rows[2].variant_index==0U,"workspace quality descending");
+
+    VariantWorkspaceQuery fdr_query;
+    fdr_query.maximum_allele_fdr_q=1.0;
+    const auto fdr_rows=workspace.query(fdr_query);
+    require(fdr_rows.total_matched_variants==3U,"workspace FDR filter consumes canonical association q-values");
+    require(fdr_rows.rows[0].association_available,"workspace association summary");
+
+    const auto detail=workspace.detail(1U);
+    require(detail.row.variant_index==1U,"workspace detail identity");
+    require(detail.sample_calls.size()==4U,"workspace detail sample observations");
+    require(detail.annotation.has_value() && detail.association.has_value(),"workspace detail on-demand context");
+
+    bool rejected=false;
+    try { VariantWorkspaceQuery invalid; invalid.limit=251U; (void)workspace.query(invalid); }
+    catch (const std::invalid_argument&) { rejected=true; }
+    require(rejected,"workspace rejects oversized windows");
+
+    rejected=false;
+    try { VariantWorkspaceQuery invalid; invalid.start=1U; invalid.end=2U; (void)workspace.query(invalid); }
+    catch (const std::invalid_argument&) { rejected=true; }
+    require(rejected,"workspace rejects range without contig");
 }
 }
 int main() {
@@ -70,4 +185,6 @@ int main() {
     const auto reversed=analyze_case_control(matrix,labels);
     require(reversed.variants[0].allele_table==a.allele_table && reversed.variants[0].carrier_table==a.carrier_table,"label-order determinism");
     require(reversed.variants[0].allele_bh_adjusted_q==a.allele_bh_adjusted_q,"BH determinism");
+
+    test_workspace_core();
 }
