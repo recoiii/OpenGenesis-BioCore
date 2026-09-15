@@ -47,6 +47,15 @@ configure_file(
 )
 
 add_subdirectory(src/domain)
+target_sources(
+    biocore-domain
+    PRIVATE
+        src/domain/source/variant_workspace.cpp
+    PUBLIC
+        FILE_SET HEADERS
+        BASE_DIRS src/domain/include
+        FILES src/domain/include/biocore/domain/variant_workspace.hpp
+)
 add_subdirectory(src/application)
 add_subdirectory(src/worker_protocol)
 add_subdirectory(src/pipeline_protocol)
