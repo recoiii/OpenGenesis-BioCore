@@ -32,6 +32,8 @@ target_sources(
         source/vcf_ingestion_attributes.cpp
         source/storage_mode.cpp
         source/variant_annotation.cpp
+        source/multi_sample_matrix.cpp
+        source/multi_sample_matrix_vcf.cpp
         source/variant_filtering.cpp
         source/variant_filtering_adapters.cpp
         source/variant_filtering_regions.cpp
@@ -75,6 +77,7 @@ target_sources(
             include/biocore/domain/reference_database.hpp
             include/biocore/domain/storage_mode.hpp
             include/biocore/domain/variant_annotation.hpp
+            include/biocore/domain/multi_sample_matrix.hpp
             include/biocore/domain/variant_filtering.hpp
             include/biocore/domain/variant_prioritization.hpp
             include/biocore/domain/variant_index.hpp
@@ -395,6 +398,42 @@ if(BIOCORE_BUILD_TESTS)
         ${PROJECT_SOURCE_DIR}/tests/variant_annotation_benchmark.cpp
     )
     target_link_libraries(biocore-variant-annotation-benchmark PRIVATE BioCore::domain BioCore::project_options BioCore::project_warnings BioCore::sanitizers)
+
+
+
+    add_executable(
+        biocore-multi-sample-matrix-tests
+        ${PROJECT_SOURCE_DIR}/tests/multi_sample_matrix_tests.cpp
+    )
+    target_link_libraries(biocore-multi-sample-matrix-tests PRIVATE BioCore::domain BioCore::project_options BioCore::project_warnings BioCore::sanitizers)
+    add_test(NAME domain.multi_sample_matrix COMMAND biocore-multi-sample-matrix-tests)
+
+    add_executable(
+        biocore-multi-sample-matrix-sparse-tests
+        ${PROJECT_SOURCE_DIR}/tests/multi_sample_matrix_sparse_tests.cpp
+    )
+    target_link_libraries(biocore-multi-sample-matrix-sparse-tests PRIVATE BioCore::domain BioCore::project_options BioCore::project_warnings BioCore::sanitizers)
+    add_test(NAME domain.multi_sample_matrix_sparse COMMAND biocore-multi-sample-matrix-sparse-tests)
+
+    add_executable(
+        biocore-multi-sample-matrix-integration-tests
+        ${PROJECT_SOURCE_DIR}/tests/multi_sample_matrix_integration_tests.cpp
+    )
+    target_link_libraries(biocore-multi-sample-matrix-integration-tests PRIVATE BioCore::domain BioCore::project_options BioCore::project_warnings BioCore::sanitizers)
+    add_test(NAME domain.multi_sample_matrix_integration COMMAND biocore-multi-sample-matrix-integration-tests)
+
+    add_executable(
+        biocore-multi-sample-matrix-bounds-tests
+        ${PROJECT_SOURCE_DIR}/tests/multi_sample_matrix_bounds_tests.cpp
+    )
+    target_link_libraries(biocore-multi-sample-matrix-bounds-tests PRIVATE BioCore::domain BioCore::project_options BioCore::project_warnings BioCore::sanitizers)
+    add_test(NAME domain.multi_sample_matrix_bounds COMMAND biocore-multi-sample-matrix-bounds-tests)
+
+    add_executable(
+        biocore-multi-sample-matrix-benchmark
+        ${PROJECT_SOURCE_DIR}/tests/multi_sample_matrix_benchmark.cpp
+    )
+    target_link_libraries(biocore-multi-sample-matrix-benchmark PRIVATE BioCore::domain BioCore::project_options BioCore::project_warnings BioCore::sanitizers)
 
     add_executable(
         biocore-variant-model-memory-benchmark

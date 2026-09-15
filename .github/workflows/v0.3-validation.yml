@@ -10,11 +10,11 @@ on:
   workflow_dispatch:
 
 env:
-  BIOCORE_ITERATION: "062"
-  BIOCORE_TEST_FLOOR: "101"
+  BIOCORE_ITERATION: "063"
+  BIOCORE_TEST_FLOOR: "105"
   BIOCORE_DEVELOPMENT_VERSION: "0.3.0-dev"
-  BIOCORE_ACCEPTED_BASELINE_NAME: "accepted/iteration-061"
-  BIOCORE_ACCEPTED_BASELINE_SHA: "a13fecfd765f1c80cd3070e333765306ae91bd2e"
+  BIOCORE_ACCEPTED_BASELINE_NAME: "accepted/iteration-062"
+  BIOCORE_ACCEPTED_BASELINE_SHA: "8307a090832b42ecf6ec489268120cc621f96ef0"
 
 permissions:
   contents: read
@@ -114,8 +114,8 @@ jobs:
           UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
         run: ctest --test-dir build/linux-gcc-asan-ubsan --output-on-failure
 
-  variant-annotation-benchmark:
-    name: 1M Annotation 2.0 lookup benchmark
+  multi-sample-matrix-benchmark:
+    name: 1M multi-sample matrix observation-scan benchmark
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout exact candidate
@@ -128,26 +128,27 @@ jobs:
           sudo apt-get install -y ninja-build libsqlite3-dev zlib1g-dev time
       - name: Configure release benchmark
         run: cmake --preset linux-gcc-release
-      - name: Build Annotation 2.0 benchmark target
-        run: cmake --build --preset linux-gcc-release --target biocore-variant-annotation-benchmark --parallel
-      - name: Run and capture Annotation 2.0 benchmark
+      - name: Build multi-sample matrix benchmark target
+        run: cmake --build --preset linux-gcc-release --target biocore-multi-sample-matrix-benchmark --parallel
+      - name: Run and capture multi-sample matrix benchmark
         shell: bash
         run: |
           mkdir -p artifacts/evidence
-          /usr/bin/time -v build/linux-gcc-release/src/domain/biocore-variant-annotation-benchmark \
-            > artifacts/evidence/variant-annotation-benchmark.txt \
-            2> artifacts/evidence/variant-annotation-time.txt
-          cat artifacts/evidence/variant-annotation-benchmark.txt
-          cat artifacts/evidence/variant-annotation-time.txt
-          grep -F 'records=100000' artifacts/evidence/variant-annotation-benchmark.txt
-          grep -F 'queries=1000000' artifacts/evidence/variant-annotation-benchmark.txt
-          grep -F 'hits=1000000' artifacts/evidence/variant-annotation-benchmark.txt
-          grep -F 'checksum=49999500000' artifacts/evidence/variant-annotation-benchmark.txt
-          grep -F 'Maximum resident set size' artifacts/evidence/variant-annotation-time.txt
-      - name: Upload Iteration 062 evidence
+          /usr/bin/time -v build/linux-gcc-release/src/domain/biocore-multi-sample-matrix-benchmark \
+            > artifacts/evidence/multi-sample-matrix-benchmark.txt \
+            2> artifacts/evidence/multi-sample-matrix-time.txt
+          cat artifacts/evidence/multi-sample-matrix-benchmark.txt
+          cat artifacts/evidence/multi-sample-matrix-time.txt
+          grep -F 'samples=100' artifacts/evidence/multi-sample-matrix-benchmark.txt
+          grep -F 'variants=1000' artifacts/evidence/multi-sample-matrix-benchmark.txt
+          grep -F 'observations=100000' artifacts/evidence/multi-sample-matrix-benchmark.txt
+          grep -F 'scan_evaluations=1000000' artifacts/evidence/multi-sample-matrix-benchmark.txt
+          grep -F 'checksum=1000000' artifacts/evidence/multi-sample-matrix-benchmark.txt
+          grep -F 'Maximum resident set size' artifacts/evidence/multi-sample-matrix-time.txt
+      - name: Upload Iteration 063 evidence
         uses: actions/upload-artifact@v4
         with:
-          name: OpenGenesis-BioCore-iteration-${{ env.BIOCORE_ITERATION }}-variant-annotation-benchmark
+          name: OpenGenesis-BioCore-iteration-${{ env.BIOCORE_ITERATION }}-multi-sample-matrix-benchmark
           path: artifacts/evidence/
           if-no-files-found: error
           retention-days: 30
@@ -158,17 +159,17 @@ jobs:
       - source-candidate
       - linux-matrix
       - sanitizers
-      - variant-annotation-benchmark
+      - multi-sample-matrix-benchmark
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout exact validated candidate
         uses: actions/checkout@v5
         with:
           fetch-depth: 0
-      - name: Download Iteration 062 evidence
+      - name: Download Iteration 063 evidence
         uses: actions/download-artifact@v5
         with:
-          name: OpenGenesis-BioCore-iteration-${{ env.BIOCORE_ITERATION }}-variant-annotation-benchmark
+          name: OpenGenesis-BioCore-iteration-${{ env.BIOCORE_ITERATION }}-multi-sample-matrix-benchmark
           path: artifacts/evidence
       - name: Generate exact four-part Markdown package
         run: |
