@@ -1,5 +1,6 @@
 #include "biocore/domain/variant_workspace.hpp"
 
+#include <algorithm>
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
@@ -93,7 +94,7 @@ int main() {
     }
     const auto query_finished = std::chrono::steady_clock::now();
 
-    require(maximum_rows_returned <= requested_window, "workspace response size is not bounded");
+    require(maximum_rows_returned == requested_window, "workspace benchmark did not exercise a full bounded response window");
     require(checksum != 0U, "workspace benchmark checksum is unexpectedly zero");
 
     const auto build_ms = std::chrono::duration_cast<std::chrono::milliseconds>(build_finished - build_started).count();

@@ -10,11 +10,11 @@ on:
   workflow_dispatch:
 
 env:
-  BIOCORE_ITERATION: "064"
-  BIOCORE_TEST_FLOOR: "110"
+  BIOCORE_ITERATION: "065"
+  BIOCORE_TEST_FLOOR: "115"
   BIOCORE_DEVELOPMENT_VERSION: "0.3.0-dev"
-  BIOCORE_ACCEPTED_BASELINE_NAME: "accepted/iteration-063"
-  BIOCORE_ACCEPTED_BASELINE_SHA: "af3f80396156678e18df9f57d19cfa687a8c9eda"
+  BIOCORE_ACCEPTED_BASELINE_NAME: "accepted/iteration-064"
+  BIOCORE_ACCEPTED_BASELINE_SHA: "f7b11d655330fe50f2fd2fa7f890a895cc1e9a84"
 
 permissions:
   contents: read
@@ -108,6 +108,7 @@ jobs:
         run: |
           count="$(ctest --test-dir build/linux-gcc-asan-ubsan -N | sed -n 's/^Total Tests: //p')"
           test "${count}" = "${BIOCORE_TEST_FLOOR}"
+          echo "CTest count: ${count}"
       - name: Run ASan + UBSan regression suite
         env:
           ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
@@ -115,7 +116,7 @@ jobs:
         run: ctest --test-dir build/linux-gcc-asan-ubsan --output-on-failure
 
   case-control-association-benchmark:
-    name: 1M-observation case/control association benchmark
+    name: 1M-observation case/control regression benchmark
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout exact candidate
@@ -145,10 +146,48 @@ jobs:
           grep -F 'association_tests=20000' artifacts/evidence/case-control-association-benchmark.txt
           grep -F 'checksum=250000' artifacts/evidence/case-control-association-benchmark.txt
           grep -F 'Maximum resident set size' artifacts/evidence/case-control-association-time.txt
-      - name: Upload Iteration 064 evidence
+      - name: Upload case/control regression evidence
         uses: actions/upload-artifact@v4
         with:
-          name: OpenGenesis-BioCore-iteration-${{ env.BIOCORE_ITERATION }}-case-control-association-benchmark
+          name: OpenGenesis-BioCore-iteration-${{ env.BIOCORE_ITERATION }}-case-control-regression
+          path: artifacts/evidence/
+          if-no-files-found: error
+          retention-days: 30
+
+  variant-workspace-benchmark:
+    name: 100k-variant workspace bounded-query benchmark
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build libsqlite3-dev zlib1g-dev time
+      - name: Configure release benchmark
+        run: cmake --preset linux-gcc-release
+      - name: Build workspace benchmark target
+        run: cmake --build --preset linux-gcc-release --target biocore-variant-workspace-benchmark --parallel
+      - name: Run and capture workspace benchmark
+        shell: bash
+        run: |
+          mkdir -p artifacts/evidence
+          /usr/bin/time -v build/linux-gcc-release/biocore-variant-workspace-benchmark \
+            > artifacts/evidence/variant-workspace-benchmark.json \
+            2> artifacts/evidence/variant-workspace-time.txt
+          cat artifacts/evidence/variant-workspace-benchmark.json
+          cat artifacts/evidence/variant-workspace-time.txt
+          grep -F '"variants":100000' artifacts/evidence/variant-workspace-benchmark.json
+          grep -F '"queries":200' artifacts/evidence/variant-workspace-benchmark.json
+          grep -F '"window_limit":100' artifacts/evidence/variant-workspace-benchmark.json
+          grep -F '"max_rows_returned":100' artifacts/evidence/variant-workspace-benchmark.json
+          grep -F 'Maximum resident set size' artifacts/evidence/variant-workspace-time.txt
+      - name: Upload Iteration 065 workspace evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: OpenGenesis-BioCore-iteration-${{ env.BIOCORE_ITERATION }}-variant-workspace-benchmark
           path: artifacts/evidence/
           if-no-files-found: error
           retention-days: 30
@@ -160,16 +199,22 @@ jobs:
       - linux-matrix
       - sanitizers
       - case-control-association-benchmark
+      - variant-workspace-benchmark
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout exact validated candidate
         uses: actions/checkout@v5
         with:
           fetch-depth: 0
-      - name: Download Iteration 064 evidence
+      - name: Download case/control regression evidence
         uses: actions/download-artifact@v5
         with:
-          name: OpenGenesis-BioCore-iteration-${{ env.BIOCORE_ITERATION }}-case-control-association-benchmark
+          name: OpenGenesis-BioCore-iteration-${{ env.BIOCORE_ITERATION }}-case-control-regression
+          path: artifacts/evidence
+      - name: Download workspace benchmark evidence
+        uses: actions/download-artifact@v5
+        with:
+          name: OpenGenesis-BioCore-iteration-${{ env.BIOCORE_ITERATION }}-variant-workspace-benchmark
           path: artifacts/evidence
       - name: Generate exact four-part Markdown package
         run: |
