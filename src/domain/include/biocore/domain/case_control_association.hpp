@@ -49,6 +49,13 @@ struct AssociationOddsRatio final {
     double value{0.0};
 };
 
+struct AssociationConfidenceInterval95 final {
+    double lower{0.0};
+    double upper{0.0};
+
+    friend bool operator==(const AssociationConfidenceInterval95&, const AssociationConfidenceInterval95&) = default;
+};
+
 struct CaseControlVariantAssociation final {
     std::size_t variant_index{0U};
 
@@ -68,8 +75,12 @@ struct CaseControlVariantAssociation final {
 
     AssociationOddsRatio allele_odds_ratio;
     AssociationOddsRatio carrier_odds_ratio;
+    std::optional<AssociationConfidenceInterval95> allele_odds_ratio_ci95;
+    std::optional<AssociationConfidenceInterval95> carrier_odds_ratio_ci95;
     std::optional<double> allele_fisher_two_sided_p;
     std::optional<double> carrier_fisher_two_sided_p;
+    std::optional<double> allele_bh_adjusted_q;
+    std::optional<double> carrier_bh_adjusted_q;
 };
 
 struct CaseControlAssociationResult final {
@@ -79,9 +90,15 @@ struct CaseControlAssociationResult final {
 void validate_case_control_association_options(const CaseControlAssociationOptions& options);
 
 [[nodiscard]] AssociationOddsRatio association_odds_ratio(const AssociationContingencyTable& table) noexcept;
+[[nodiscard]] std::optional<AssociationConfidenceInterval95> association_odds_ratio_woolf_ci95(
+    const AssociationContingencyTable& table
+) noexcept;
 [[nodiscard]] double fisher_exact_two_sided(
     const AssociationContingencyTable& table,
     std::size_t maximum_states = 1000000U
+);
+[[nodiscard]] std::vector<std::optional<double>> benjamini_hochberg_adjust(
+    const std::vector<std::optional<double>>& p_values
 );
 
 [[nodiscard]] CaseControlAssociationResult analyze_case_control(

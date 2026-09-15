@@ -6,11 +6,13 @@
 #include <map>
 #include <stdexcept>
 #include <string_view>
+#include <utility>
 
 namespace biocore::domain {
 namespace {
 
 constexpr std::size_t maximum_identifier_length = 1024U;
+constexpr long double normal_975_quantile = 1.95996398454005423552L;
 
 void validate_sample_id(const std::string_view value) {
     if (value.empty() || value.size() > maximum_identifier_length) {
@@ -151,6 +153,28 @@ AssociationOddsRatio association_odds_ratio(const AssociationContingencyTable& t
     return {AssociationOddsRatioKind::finite, static_cast<double>(ratio)};
 }
 
+std::optional<AssociationConfidenceInterval95> association_odds_ratio_woolf_ci95(
+    const AssociationContingencyTable& table
+) noexcept {
+    if (table.case_exposed == 0U || table.case_unexposed == 0U
+        || table.control_exposed == 0U || table.control_unexposed == 0U) {
+        return std::nullopt;
+    }
+    const long double a = static_cast<long double>(table.case_exposed);
+    const long double b = static_cast<long double>(table.case_unexposed);
+    const long double c = static_cast<long double>(table.control_exposed);
+    const long double d = static_cast<long double>(table.control_unexposed);
+    const long double log_ratio = std::log(a) + std::log(d) - std::log(b) - std::log(c);
+    const long double standard_error = std::sqrt((1.0L / a) + (1.0L / b) + (1.0L / c) + (1.0L / d));
+    const long double lower = std::exp(log_ratio - normal_975_quantile * standard_error);
+    const long double upper = std::exp(log_ratio + normal_975_quantile * standard_error);
+    if (!std::isfinite(lower) || !std::isfinite(upper) || lower < 0.0L || upper < lower
+        || upper > static_cast<long double>(std::numeric_limits<double>::max())) {
+        return std::nullopt;
+    }
+    return AssociationConfidenceInterval95{static_cast<double>(lower), static_cast<double>(upper)};
+}
+
 double fisher_exact_two_sided(
     const AssociationContingencyTable& table,
     const std::size_t maximum_states
@@ -204,6 +228,45 @@ double fisher_exact_two_sided(
     }
     p = std::clamp(p, 0.0L, 1.0L);
     return static_cast<double>(p);
+}
+
+std::vector<std::optional<double>> benjamini_hochberg_adjust(
+    const std::vector<std::optional<double>>& p_values
+) {
+    std::vector<std::optional<double>> adjusted(p_values.size());
+    std::vector<std::pair<double, std::size_t>> ranked;
+    ranked.reserve(p_values.size());
+    for (std::size_t index = 0U; index < p_values.size(); ++index) {
+        if (!p_values[index].has_value()) {
+            continue;
+        }
+        const double p = *p_values[index];
+        if (!std::isfinite(p) || p < 0.0 || p > 1.0) {
+            throw std::invalid_argument("Benjamini-Hochberg p-value must be finite and in [0,1]");
+        }
+        ranked.emplace_back(p, index);
+    }
+    std::stable_sort(ranked.begin(), ranked.end(), [](const auto& left, const auto& right) {
+        if (left.first != right.first) {
+            return left.first < right.first;
+        }
+        return left.second < right.second;
+    });
+    if (ranked.empty()) {
+        return adjusted;
+    }
+
+    double running = 1.0;
+    const long double count = static_cast<long double>(ranked.size());
+    for (std::size_t reverse = ranked.size(); reverse > 0U; --reverse) {
+        const std::size_t rank = reverse;
+        const auto [p, original_index] = ranked[reverse - 1U];
+        const long double scaled = static_cast<long double>(p) * count / static_cast<long double>(rank);
+        const double candidate = static_cast<double>(std::min(1.0L, scaled));
+        running = std::min(running, candidate);
+        adjusted[original_index] = running;
+    }
+    return adjusted;
 }
 
 CaseControlAssociationResult analyze_case_control(
@@ -308,12 +371,29 @@ CaseControlAssociationResult analyze_case_control(
         };
         item.allele_odds_ratio = association_odds_ratio(item.allele_table);
         item.carrier_odds_ratio = association_odds_ratio(item.carrier_table);
+        item.allele_odds_ratio_ci95 = association_odds_ratio_woolf_ci95(item.allele_table);
+        item.carrier_odds_ratio_ci95 = association_odds_ratio_woolf_ci95(item.carrier_table);
         if (cases.complete_call >= options.minimum_complete_case_calls
             && controls.complete_call >= options.minimum_complete_control_calls) {
             item.allele_fisher_two_sided_p = fisher_exact_two_sided(item.allele_table, options.maximum_fisher_table_states);
             item.carrier_fisher_two_sided_p = fisher_exact_two_sided(item.carrier_table, options.maximum_fisher_table_states);
         }
         result.variants.push_back(std::move(item));
+    }
+
+    std::vector<std::optional<double>> allele_p_values;
+    std::vector<std::optional<double>> carrier_p_values;
+    allele_p_values.reserve(result.variants.size());
+    carrier_p_values.reserve(result.variants.size());
+    for (const auto& item : result.variants) {
+        allele_p_values.push_back(item.allele_fisher_two_sided_p);
+        carrier_p_values.push_back(item.carrier_fisher_two_sided_p);
+    }
+    const auto allele_q_values = benjamini_hochberg_adjust(allele_p_values);
+    const auto carrier_q_values = benjamini_hochberg_adjust(carrier_p_values);
+    for (std::size_t index = 0U; index < result.variants.size(); ++index) {
+        result.variants[index].allele_bh_adjusted_q = allele_q_values[index];
+        result.variants[index].carrier_bh_adjusted_q = carrier_q_values[index];
     }
     return result;
 }
