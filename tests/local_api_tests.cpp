@@ -1,6 +1,7 @@
 #include <chrono>
 #include <cstdint>
 #include <deque>
+#include <map>
 #include <memory>
 #include <cstdlib>
 #include <iostream>
@@ -21,6 +22,8 @@
 #include "biocore/application/i_job_repository.hpp"
 #include "biocore/application/i_job_submitter.hpp"
 #include "biocore/application/i_input_file_storage.hpp"
+#include "biocore/application/i_workflow_checkpoint_artifact_verifier.hpp"
+#include "biocore/application/i_workflow_state_store.hpp"
 #include "biocore/application/i_workflow_template_catalog.hpp"
 #include "biocore/application/i_managed_file_repository.hpp"
 #include "biocore/application/i_monotonic_clock.hpp"
@@ -28,6 +31,8 @@
 #include "biocore/application/job_service.hpp"
 #include "biocore/application/managed_file_service.hpp"
 #include "biocore/application/pipeline_bindings.hpp"
+#include "biocore/application/workflow_execution_workspace_service.hpp"
+#include "biocore/application/workflow_state_service.hpp"
 #include "biocore/domain/job.hpp"
 #include "biocore/domain/managed_file.hpp"
 #include "biocore/domain/storage_mode.hpp"
@@ -258,6 +263,65 @@ public:
     }
 };
 
+
+class FakeWorkflowStateStore final
+    : public biocore::application::IWorkflowStateStore {
+public:
+    bool create(
+        const biocore::application::PersistedWorkflowState& state
+    ) override {
+        const std::string id{state.workflow.id().value()};
+        return states.emplace(id, state).second;
+    }
+
+    bool update(
+        const biocore::application::PersistedWorkflowState& state,
+        const std::int64_t expected_revision
+    ) override {
+        const std::string id{state.workflow.id().value()};
+        const auto iterator = states.find(id);
+        if (iterator == states.end() ||
+            iterator->second.revision != expected_revision) {
+            return false;
+        }
+        iterator->second = state;
+        return true;
+    }
+
+    std::optional<biocore::application::PersistedWorkflowState>
+    find_by_workflow_id(const std::string_view workflow_id) override {
+        const auto iterator = states.find(workflow_id);
+        if (iterator == states.end()) return std::nullopt;
+        return iterator->second;
+    }
+
+    std::vector<biocore::application::PersistedWorkflowState> list() override {
+        std::vector<biocore::application::PersistedWorkflowState> result;
+        result.reserve(states.size());
+        for (const auto& [id, state] : states) {
+            static_cast<void>(id);
+            result.push_back(state);
+        }
+        return result;
+    }
+
+    std::map<
+        std::string,
+        biocore::application::PersistedWorkflowState,
+        std::less<>
+    > states;
+};
+
+class FakeWorkflowCheckpointVerifier final
+    : public biocore::application::IWorkflowCheckpointArtifactVerifier {
+public:
+    [[nodiscard]] bool verify(
+        const biocore::domain::WorkflowCheckpointArtifact&
+    ) const override {
+        return true;
+    }
+};
+
 [[nodiscard]] biocore::domain::Job existing_job() {
     return biocore::domain::Job{
         "job-a", std::nullopt, "pipe", "1.0.0",
@@ -343,6 +407,8 @@ int main() {
     files_repo.artifact = existing_artifact();
     FakeContentAccess content;
     FakeWorkflowTemplateCatalog workflow_templates;
+    FakeWorkflowStateStore workflow_state_store;
+    FakeWorkflowCheckpointVerifier workflow_checkpoint_verifier;
     FakeInputStorage input_storage;
     SequenceIdGenerator file_ids{{"upload-1", "file-1", "upload-2"}};
     biocore::application::JobService jobs{jobs_repo, ids, clock};
@@ -350,13 +416,19 @@ int main() {
         files_repo, input_storage, file_ids, clock, clock
     };
     biocore::application::ArtifactPresentationService artifacts{files_repo, jobs_repo, content, clock};
+    biocore::application::WorkflowStateService workflow_states{
+        workflow_state_store, clock
+    };
+    biocore::application::WorkflowExecutionWorkspaceService workflow_workspace{
+        workflow_states, workflow_checkpoint_verifier
+    };
     FakeJobSubmitter submissions;
     const std::string bootstrap_token(64U, 'b');
     const std::string browser_token(64U, 'c');
     biocore::presentation::LocalBrowserSession browser_session{8421U, browser_token};
     biocore::presentation::LocalApiController api{
         jobs, submissions, managed_files, artifacts, clock, bootstrap_token, browser_session,
-        nullptr, &workflow_templates
+        nullptr, &workflow_templates, &workflow_workspace
     };
 
     const auto health = api.handle({.method = biocore::presentation::HttpMethod::get, .target = "/api/v1/health", .authorization = {}, .body = {}});
@@ -451,6 +523,82 @@ int main() {
         workflow_validation.body.find("\"orderedNodes\":[\"source\",\"target\"]") != std::string::npos &&
         workflow_validation.body.find("\"stages\":[[\"source\"],[\"target\"]]") != std::string::npos,
         "workflow builder validation plan"
+    );
+
+
+    const auto workflow_execution_create = api.handle({
+        .method = biocore::presentation::HttpMethod::post,
+        .target = "/api/v1/workflow-executions",
+        .authorization = auth,
+        .body = valid_workflow
+    });
+    require(
+        workflow_execution_create.status == 201 &&
+        workflow_execution_create.body.find(
+            "\"workflowId\":\"org.biocore.workflow.builder\""
+        ) != std::string::npos &&
+        workflow_execution_create.body.find(
+            "\"checkpointState\":\"pending\""
+        ) != std::string::npos &&
+        workflow_execution_create.body.find(
+            "\"resumeAction\":\"execute\""
+        ) != std::string::npos,
+        "workflow execution workspace create"
+    );
+
+    const auto workflow_execution_list = api.handle({
+        .method = biocore::presentation::HttpMethod::get,
+        .target = "/api/v1/workflow-executions",
+        .authorization = auth,
+        .body = {}
+    });
+    require(
+        workflow_execution_list.status == 200 &&
+        workflow_execution_list.body.find(
+            "\"workflowId\":\"org.biocore.workflow.builder\""
+        ) != std::string::npos &&
+        workflow_execution_list.body.find("\"pending\":2") !=
+            std::string::npos,
+        "workflow execution workspace list"
+    );
+
+    const auto workflow_execution_detail = api.handle({
+        .method = biocore::presentation::HttpMethod::get,
+        .target = "/api/v1/workflow-executions/org.biocore.workflow.builder",
+        .authorization = auth,
+        .body = {}
+    });
+    require(
+        workflow_execution_detail.status == 200 &&
+        workflow_execution_detail.body.find(
+            "\"nodeId\":\"source\""
+        ) != std::string::npos &&
+        workflow_execution_detail.body.find(
+            "\"nextAttemptNumber\":1"
+        ) != std::string::npos,
+        "workflow execution workspace detail"
+    );
+
+    const auto workflow_execution_duplicate = api.handle({
+        .method = biocore::presentation::HttpMethod::post,
+        .target = "/api/v1/workflow-executions",
+        .authorization = auth,
+        .body = valid_workflow
+    });
+    require(
+        workflow_execution_duplicate.status == 409,
+        "duplicate workflow execution workspace must fail closed"
+    );
+
+    const auto workflow_execution_missing = api.handle({
+        .method = biocore::presentation::HttpMethod::get,
+        .target = "/api/v1/workflow-executions/org.biocore.workflow.missing",
+        .authorization = auth,
+        .body = {}
+    });
+    require(
+        workflow_execution_missing.status == 404,
+        "missing workflow execution workspace"
     );
 
     const std::string cyclic_workflow = R"({

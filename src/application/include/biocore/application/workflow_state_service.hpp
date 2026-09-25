@@ -5,6 +5,7 @@
 #include <stdexcept>
 #include <string>
 #include <string_view>
+#include <vector>
 
 #include "biocore/application/i_workflow_state_store.hpp"
 #include "biocore/application/workflow_resume_planner.hpp"
@@ -60,6 +61,8 @@ public:
     [[nodiscard]] std::optional<PersistedWorkflowState> find(
         std::string_view workflow_id
     );
+
+    [[nodiscard]] std::vector<PersistedWorkflowState> list();
 
 private:
     IWorkflowStateStore& store_;

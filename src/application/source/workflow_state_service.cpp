@@ -135,4 +135,8 @@ std::optional<PersistedWorkflowState> WorkflowStateService::find(
     return store_.find_by_workflow_id(workflow_id);
 }
 
+std::vector<PersistedWorkflowState> WorkflowStateService::list() {
+    return store_.list();
+}
+
 }  // namespace biocore::application

@@ -15,6 +15,7 @@ class ManagedFileService;
 class IJobSubmitter;
 class IUtcClock;
 class IWorkflowTemplateCatalog;
+class WorkflowExecutionWorkspaceService;
 }
 
 namespace biocore::presentation {
@@ -62,7 +63,8 @@ public:
         std::string bootstrap_token,
         LocalBrowserSession& browser_session,
         application::JobRetryService* retries = nullptr,
-        const application::IWorkflowTemplateCatalog* workflow_templates = nullptr
+        const application::IWorkflowTemplateCatalog* workflow_templates = nullptr,
+        application::WorkflowExecutionWorkspaceService* workflow_workspace = nullptr
     );
 
     [[nodiscard]] LocalHttpResponse handle(const LocalHttpRequest& request);
@@ -91,6 +93,7 @@ private:
     application::ArtifactPresentationService& artifacts_;
     application::IUtcClock& clock_;
     const application::IWorkflowTemplateCatalog* workflow_templates_;
+    application::WorkflowExecutionWorkspaceService* workflow_workspace_;
     std::string bootstrap_token_;
     LocalBrowserSession& browser_session_;
 };

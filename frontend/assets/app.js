@@ -918,6 +918,12 @@
     validatedCanonical: null
   };
 
+  const executionWorkspaceState = {
+    summaries: [],
+    selectedWorkflowId: null,
+    detail: null
+  };
+
   const state = {
     jobs: new Map(),
     logs: new Map(),
@@ -1932,6 +1938,7 @@
     status.textContent = "Not validated";
     status.className = "status-badge status-idle";
     byId("builder-export").disabled = true;
+    byId("builder-create-execution").disabled = true;
     if (message) setBuilderMessage(message, "warning");
   };
 
@@ -2389,6 +2396,7 @@
       status.textContent = "Valid";
       status.className = "status-badge status-ready";
       byId("builder-export").disabled = false;
+      byId("builder-create-execution").disabled = false;
       const stages = Array.isArray(payload.stages) ? payload.stages.length : 0;
       const ordered = Array.isArray(payload.orderedNodes) ? payload.orderedNodes.join(" → ") : "";
       setBuilderMessage(
@@ -2427,6 +2435,309 @@
     setBuilderMessage("Canonical Workflow v1 JSON exported locally.", "ready");
   };
 
+  const setWorkflowExecutionMessage = (message, kind = "") => {
+    const element = byId("workflow-execution-message");
+    element.textContent = message;
+    element.className = `form-message ${kind}`.trim();
+  };
+
+  const workflowCountLabel = count => `${count} workflow${count === 1 ? "" : "s"}`;
+
+  const renderExecutionCounts = counts => {
+    const wrapper = document.createElement("div");
+    wrapper.className = "workflow-execution-counts";
+    const entries = [
+      ["pending", "pending"],
+      ["running", "running"],
+      ["completed", "completed"],
+      ["failed", "failed"],
+      ["interrupted", "interrupted"],
+      ["skipped", "skipped"],
+      ["blocked", "blocked"]
+    ];
+    for (const [key, label] of entries) {
+      const value = counts && Number.isInteger(counts[key]) ? counts[key] : 0;
+      if (value === 0) continue;
+      const chip = document.createElement("span");
+      chip.className = "builder-port-chip";
+      chip.textContent = `${value} ${label}`;
+      wrapper.appendChild(chip);
+    }
+    return wrapper;
+  };
+
+  const renderWorkflowExecutionList = () => {
+    const list = byId("workflow-execution-list");
+    list.replaceChildren();
+    byId("workflow-execution-count").textContent =
+      workflowCountLabel(executionWorkspaceState.summaries.length);
+
+    if (executionWorkspaceState.summaries.length === 0) {
+      const empty = document.createElement("div");
+      empty.className = "builder-empty";
+      empty.textContent = "No persisted workflow execution state yet.";
+      list.appendChild(empty);
+      return;
+    }
+
+    for (const summary of executionWorkspaceState.summaries) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "workflow-execution-item";
+      if (summary.workflowId === executionWorkspaceState.selectedWorkflowId) {
+        button.classList.add("active");
+      }
+
+      const title = document.createElement("strong");
+      title.textContent = summary.name;
+      button.appendChild(title);
+
+      const id = document.createElement("span");
+      id.textContent = summary.workflowId;
+      button.appendChild(id);
+
+      const revision = document.createElement("small");
+      revision.textContent =
+        `revision ${summary.revision} · ${summary.nodeCount} nodes · updated ${humanTime(summary.updatedAtUtc)}`;
+      button.appendChild(revision);
+      button.appendChild(renderExecutionCounts(summary.counts));
+
+      button.addEventListener("click", () => {
+        loadWorkflowExecutionDetail(summary.workflowId).catch(() => {});
+      });
+      list.appendChild(button);
+    }
+  };
+
+  const appendExecutionMeta = (container, label, value) => {
+    const card = document.createElement("div");
+    card.className = "workflow-execution-meta-card";
+    const caption = document.createElement("span");
+    caption.textContent = label;
+    const strong = document.createElement("strong");
+    strong.textContent = value;
+    card.append(caption, strong);
+    container.appendChild(card);
+  };
+
+  const appendNodeStat = (container, label, value) => {
+    const card = document.createElement("div");
+    card.className = "workflow-node-stat";
+    const caption = document.createElement("span");
+    caption.textContent = label;
+    const strong = document.createElement("strong");
+    strong.textContent = value;
+    card.append(caption, strong);
+    container.appendChild(card);
+  };
+
+  const renderWorkflowExecutionDetail = detail => {
+    executionWorkspaceState.detail = detail;
+    executionWorkspaceState.selectedWorkflowId = detail && typeof detail.workflowId === "string"
+      ? detail.workflowId
+      : null;
+    renderWorkflowExecutionList();
+
+    const metadata = byId("workflow-execution-metadata");
+    const nodeList = byId("workflow-execution-node-list");
+    metadata.replaceChildren();
+    nodeList.replaceChildren();
+
+    if (!detail || typeof detail.workflowId !== "string" || !Array.isArray(detail.nodes)) {
+      const empty = document.createElement("div");
+      empty.className = "builder-empty";
+      empty.textContent = "Select a persisted workflow state.";
+      metadata.appendChild(empty);
+      byId("workflow-execution-revision").textContent = "—";
+      return;
+    }
+
+    byId("workflow-execution-revision").textContent = `revision ${detail.revision}`;
+    appendExecutionMeta(metadata, "Workflow ID", detail.workflowId);
+    appendExecutionMeta(metadata, "Name", detail.name || "—");
+    appendExecutionMeta(metadata, "Updated", humanTime(detail.updatedAtUtc));
+    appendExecutionMeta(metadata, "Nodes", String(detail.nodes.length));
+    if (detail.description) {
+      appendExecutionMeta(metadata, "Description", detail.description);
+    }
+
+    for (const node of detail.nodes) {
+      const card = document.createElement("article");
+      card.className = "workflow-execution-node";
+
+      const heading = document.createElement("div");
+      heading.className = "workflow-execution-node-heading";
+      const identity = document.createElement("div");
+      const title = document.createElement("h5");
+      title.textContent = node.label || node.nodeId || "Workflow node";
+      const module = document.createElement("p");
+      module.textContent = `${node.nodeId} · ${node.moduleId}@${node.pluginVersion}`;
+      identity.append(title, module);
+      const state = document.createElement("span");
+      state.className = "workflow-execution-node-state";
+      state.textContent = node.checkpointState || "unknown";
+      heading.append(identity, state);
+      card.appendChild(heading);
+
+      const grid = document.createElement("div");
+      grid.className = "workflow-execution-node-grid";
+      appendNodeStat(
+        grid,
+        "Attempt",
+        `${Number.isInteger(node.attemptNumber) ? node.attemptNumber : 0} / ${Number.isInteger(node.maxAttempts) ? node.maxAttempts : "—"}`
+      );
+      appendNodeStat(grid, "Resume action", node.resumeAction || "—");
+      appendNodeStat(grid, "Resume reason", node.resumeReason || "—");
+      appendNodeStat(
+        grid,
+        "Branch",
+        node.branchState
+          ? `${node.branchState} · ${node.branchReason || "—"}`
+          : "No branch decision"
+      );
+      card.appendChild(grid);
+
+      if (node.failure && typeof node.failure.message === "string") {
+        const failure = document.createElement("div");
+        failure.className = "workflow-node-failure";
+        failure.textContent = node.failure.exitCode === null || node.failure.exitCode === undefined
+          ? node.failure.message
+          : `${node.failure.message} · exit ${node.failure.exitCode}`;
+        card.appendChild(failure);
+      }
+
+      if (Array.isArray(node.outputs) && node.outputs.length > 0) {
+        const evidence = document.createElement("details");
+        evidence.className = "workflow-node-evidence";
+        const summary = document.createElement("summary");
+        summary.textContent = `${node.outputs.length} checkpoint artifact${node.outputs.length === 1 ? "" : "s"}`;
+        evidence.appendChild(summary);
+        const outputList = document.createElement("div");
+        outputList.className = "workflow-node-evidence-list";
+        for (const output of node.outputs) {
+          const row = document.createElement("div");
+          row.className = "workflow-node-evidence-row";
+          row.textContent =
+            `${output.outputPort} · ${output.relativeProjectPath} · ${output.sizeBytes} bytes · SHA-256 ${output.sha256}`;
+          outputList.appendChild(row);
+        }
+        evidence.appendChild(outputList);
+        card.appendChild(evidence);
+      }
+
+      nodeList.appendChild(card);
+    }
+  };
+
+  const loadWorkflowExecutionDetail = async workflowId => {
+    if (typeof workflowId !== "string" || workflowId.length === 0) return;
+    setWorkflowExecutionMessage("Loading persisted execution state…");
+    const response = await fetch(
+      `/api/v1/workflow-executions/${workflowId}`,
+      {
+        method: "GET",
+        cache: "no-store",
+        credentials: "same-origin",
+        headers: { "Accept": "application/json" }
+      }
+    );
+    let payload = null;
+    try { payload = await response.json(); } catch (_) { payload = null; }
+    if (!response.ok || !payload) {
+      const message = payload && payload.error && typeof payload.error.message === "string"
+        ? payload.error.message
+        : `Workflow execution load failed (${response.status}).`;
+      setWorkflowExecutionMessage(message, "error");
+      return;
+    }
+    renderWorkflowExecutionDetail(payload);
+    setWorkflowExecutionMessage(
+      "Persisted checkpoint, branch and resume state loaded.",
+      "ready"
+    );
+  };
+
+  const loadWorkflowExecutions = async () => {
+    const response = await fetch("/api/v1/workflow-executions", {
+      method: "GET",
+      cache: "no-store",
+      credentials: "same-origin",
+      headers: { "Accept": "application/json" }
+    });
+    let payload = null;
+    try { payload = await response.json(); } catch (_) { payload = null; }
+    if (!response.ok || !Array.isArray(payload)) {
+      throw new Error(`workflow-executions-${response.status}`);
+    }
+    executionWorkspaceState.summaries = payload;
+    renderWorkflowExecutionList();
+
+    if (
+      executionWorkspaceState.selectedWorkflowId &&
+      payload.some(item => item.workflowId === executionWorkspaceState.selectedWorkflowId)
+    ) {
+      await loadWorkflowExecutionDetail(executionWorkspaceState.selectedWorkflowId);
+    } else if (payload.length > 0) {
+      await loadWorkflowExecutionDetail(payload[0].workflowId);
+    } else {
+      executionWorkspaceState.selectedWorkflowId = null;
+      executionWorkspaceState.detail = null;
+      renderWorkflowExecutionDetail(null);
+    }
+  };
+
+  const createWorkflowExecutionFromBuilder = async () => {
+    if (!builderState.validatedCanonical) {
+      setBuilderMessage(
+        "Validate the canonical workflow before creating execution state.",
+        "warning"
+      );
+      return;
+    }
+    const button = byId("builder-create-execution");
+    button.disabled = true;
+    setBuilderMessage("Persisting workflow execution state locally…");
+    try {
+      const response = await fetch("/api/v1/workflow-executions", {
+        method: "POST",
+        cache: "no-store",
+        credentials: "same-origin",
+        headers: {
+          "Accept": "application/json",
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(builderState.validatedCanonical)
+      });
+      let payload = null;
+      try { payload = await response.json(); } catch (_) { payload = null; }
+      if (!response.ok || !payload || typeof payload.workflowId !== "string") {
+        const message = payload && payload.error && typeof payload.error.message === "string"
+          ? payload.error.message
+          : `Workflow execution creation failed (${response.status}).`;
+        throw new Error(message);
+      }
+
+      executionWorkspaceState.selectedWorkflowId = payload.workflowId;
+      renderWorkflowExecutionDetail(payload);
+      await loadWorkflowExecutions();
+      byId("workflow-execution-workspace-panel").scrollIntoView({
+        behavior: "smooth",
+        block: "start"
+      });
+      setBuilderMessage(
+        `Execution workspace created for ${payload.workflowId}. No runtime dispatch was performed by the builder.`,
+        "ready"
+      );
+    } catch (error) {
+      setBuilderMessage(
+        error instanceof Error ? error.message : "Workflow execution creation failed.",
+        "error"
+      );
+    } finally {
+      button.disabled = builderState.validatedCanonical === null;
+    }
+  };
+
   const probeSession = async () => {
     try {
       await loadJobs();
@@ -2437,6 +2748,11 @@
         select.replaceChildren();
         appendOption(select, "", "Template catalog unavailable");
         byId("builder-load-template").disabled = true;
+      });
+      await loadWorkflowExecutions().catch(() => {
+        executionWorkspaceState.summaries = [];
+        renderWorkflowExecutionList();
+        setWorkflowExecutionMessage("Workflow execution workspace is unavailable.", "error");
       });
       state.authenticated = true;
       sessionGate.hidden = true;
@@ -2883,6 +3199,8 @@
         byId("analysis-wizard-panel").scrollIntoView({ behavior: "smooth", block: "start" });
       } else if (view === "builder") {
         byId("workflow-builder-panel").scrollIntoView({ behavior: "smooth", block: "start" });
+      } else if (view === "workflow-execution") {
+        byId("workflow-execution-workspace-panel").scrollIntoView({ behavior: "smooth", block: "start" });
       } else if (view === "submit") {
         byId("submit-panel").scrollIntoView({ behavior: "smooth", block: "start" });
       } else if (view === "results") {
@@ -2929,8 +3247,17 @@
     validateBuilderWorkflow().catch(() => {});
   });
   byId("builder-export").addEventListener("click", exportBuilderWorkflow);
+  byId("builder-create-execution").addEventListener("click", () => {
+    createWorkflowExecutionFromBuilder().catch(() => {});
+  });
+  byId("workflow-execution-refresh").addEventListener("click", () => {
+    loadWorkflowExecutions().catch(() => {
+      setWorkflowExecutionMessage("Workflow execution refresh failed.", "error");
+    });
+  });
 
   setBuilderWorkflow(blankWorkflow(), null);
+  renderWorkflowExecutionDetail(null);
   renderWizardFields(false);
   checkHealth();
 })();

@@ -165,6 +165,89 @@ void bundled_template_contract() {
     );
 }
 
+void execution_surface_contract() {
+    const std::string html = read_text(frontend_root() / "index.html");
+    const std::string css = read_text(frontend_root() / "assets" / "app.css");
+
+    require(
+        html.find("data-view=\"workflow-execution\"") != std::string::npos &&
+        html.find("id=\"workflow-execution-workspace-panel\"") != std::string::npos,
+        "execution workspace navigation and panel must be present"
+    );
+    require(
+        html.find("id=\"builder-create-execution\"") != std::string::npos &&
+        html.find("id=\"workflow-execution-refresh\"") != std::string::npos &&
+        html.find("id=\"workflow-execution-node-list\"") != std::string::npos,
+        "execution workspace controls must be present"
+    );
+    require(
+        css.find(".workflow-execution-layout") != std::string::npos &&
+        css.find(".workflow-execution-node") != std::string::npos &&
+        css.find(".workflow-node-evidence") != std::string::npos,
+        "execution workspace styling contract must be present"
+    );
+}
+
+void execution_safe_rendering_contract() {
+    const std::string js = read_text(frontend_root() / "assets" / "app.js");
+    const auto begin = js.find("const setWorkflowExecutionMessage");
+    const auto end = js.find("const probeSession", begin);
+    require(
+        begin != std::string::npos && end != std::string::npos && end > begin,
+        "execution workspace implementation region must be identifiable"
+    );
+    const std::string workspace = js.substr(begin, end - begin);
+
+    require(
+        workspace.find("title.textContent = summary.name") != std::string::npos &&
+        workspace.find("module.textContent =") != std::string::npos &&
+        workspace.find("row.textContent =") != std::string::npos,
+        "persisted workflow values must render with textContent"
+    );
+    require(
+        workspace.find(".innerHTML") == std::string::npos &&
+        workspace.find("insertAdjacentHTML") == std::string::npos,
+        "execution workspace must not inject persisted values as HTML"
+    );
+}
+
+void execution_api_contract() {
+    const std::string js = read_text(frontend_root() / "assets" / "app.js");
+    require(
+        js.find("fetch(\"/api/v1/workflow-executions\"") != std::string::npos &&
+        js.find("/api/v1/workflow-executions/${workflowId}") != std::string::npos,
+        "execution workspace must use persisted workflow API routes"
+    );
+    require(
+        js.find("createWorkflowExecutionFromBuilder") != std::string::npos &&
+        js.find("builderState.validatedCanonical") != std::string::npos &&
+        js.find("body: JSON.stringify(builderState.validatedCanonical)") != std::string::npos,
+        "execution creation must use server-validated canonical builder state"
+    );
+}
+
+void execution_scope_contract() {
+    const std::string js = read_text(frontend_root() / "assets" / "app.js");
+    const auto begin = js.find("const setWorkflowExecutionMessage");
+    const auto end = js.find("const probeSession", begin);
+    require(
+        begin != std::string::npos && end != std::string::npos && end > begin,
+        "execution workspace scope region must be identifiable"
+    );
+    const std::string workspace = js.substr(begin, end - begin);
+
+    require(
+        workspace.find("/api/v1/jobs") == std::string::npos &&
+        workspace.find("WebSocket") == std::string::npos &&
+        workspace.find("worker.lifecycle") == std::string::npos,
+        "Iteration 077 workspace must not introduce a second job scheduler or telemetry channel"
+    );
+    require(
+        workspace.find("/api/v1/workflow-executions") != std::string::npos,
+        "Iteration 077 workspace must remain bound to authoritative persisted workflow state"
+    );
+}
+
 }  // namespace
 
 int main(const int argc, char** argv) {
@@ -175,6 +258,10 @@ int main(const int argc, char** argv) {
     else if (mode == "scope") scope_contract();
     else if (mode == "asset-store") asset_store_contract();
     else if (mode == "bundled-template") bundled_template_contract();
+    else if (mode == "execution-surface") execution_surface_contract();
+    else if (mode == "execution-safe-rendering") execution_safe_rendering_contract();
+    else if (mode == "execution-api") execution_api_contract();
+    else if (mode == "execution-scope") execution_scope_contract();
     else return EXIT_FAILURE;
 
     std::cout << "Workflow builder frontend contract passed: " << mode << '\n';

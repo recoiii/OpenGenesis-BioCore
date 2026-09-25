@@ -24,6 +24,8 @@
 #include "biocore/application/i_job_submitter.hpp"
 #include "biocore/application/i_workflow_template_catalog.hpp"
 #include "biocore/application/job_submission_service_error.hpp"
+#include "biocore/application/workflow_execution_workspace_service.hpp"
+#include "biocore/application/workflow_state_service.hpp"
 #include "biocore/application/managed_file_service.hpp"
 #include "biocore/application/managed_file_service_error.hpp"
 #include "biocore/application/pipeline_bindings.hpp"
@@ -34,6 +36,8 @@
 #include "biocore/domain/job_priority.hpp"
 #include "biocore/domain/job_status.hpp"
 #include "biocore/domain/storage_mode.hpp"
+#include "biocore/domain/workflow_branch_decision.hpp"
+#include "biocore/domain/workflow_checkpoint.hpp"
 #include "biocore/domain/workflow_dag.hpp"
 #include "biocore/pipeline_protocol/workflow_document_codec.hpp"
 #include "biocore/presentation/artifact_report.hpp"
@@ -249,6 +253,115 @@ namespace {
             body += quote(nodes[index].value());
         }
         body += ']';
+    }
+    body += "]}";
+    return body;
+}
+
+
+[[nodiscard]] std::string render_workflow_execution_summary(
+    const application::WorkflowExecutionWorkspaceSummary& value
+) {
+    return "{\"workflowId\":" + quote(value.workflow_id) +
+           ",\"name\":" + quote(value.name) +
+           ",\"revision\":" + std::to_string(value.revision) +
+           ",\"updatedAtUtc\":" + quote(value.updated_at_utc) +
+           ",\"nodeCount\":" + std::to_string(value.node_count) +
+           ",\"counts\":{" +
+           "\"pending\":" + std::to_string(value.pending_count) +
+           ",\"running\":" + std::to_string(value.running_count) +
+           ",\"completed\":" + std::to_string(value.completed_count) +
+           ",\"failed\":" + std::to_string(value.failed_count) +
+           ",\"interrupted\":" + std::to_string(value.interrupted_count) +
+           ",\"skipped\":" + std::to_string(value.skipped_count) +
+           ",\"blocked\":" + std::to_string(value.blocked_count) +
+           "}}";
+}
+
+[[nodiscard]] std::string render_workflow_execution_summaries(
+    const std::vector<application::WorkflowExecutionWorkspaceSummary>& values
+) {
+    std::string body{"["};
+    for (std::size_t index = 0U; index < values.size(); ++index) {
+        if (index != 0U) body += ',';
+        body += render_workflow_execution_summary(values[index]);
+    }
+    body += ']';
+    return body;
+}
+
+[[nodiscard]] std::string render_checkpoint_failure(
+    const std::optional<domain::WorkflowCheckpointFailure>& failure
+) {
+    if (!failure.has_value()) return "null";
+    return "{\"message\":" + quote(failure->message) +
+           ",\"exitCode\":" +
+           (failure->exit_code.has_value()
+                ? std::to_string(*failure->exit_code)
+                : "null") + "}";
+}
+
+[[nodiscard]] std::string render_checkpoint_artifacts(
+    const std::vector<domain::WorkflowCheckpointArtifact>& outputs
+) {
+    std::string body{"["};
+    for (std::size_t index = 0U; index < outputs.size(); ++index) {
+        if (index != 0U) body += ',';
+        const auto& output = outputs[index];
+        body += "{\"outputPort\":" + quote(output.output_port) +
+                ",\"relativeProjectPath\":" + quote(output.relative_project_path) +
+                ",\"sizeBytes\":" + std::to_string(output.size_bytes) +
+                ",\"sha256\":" + quote(output.sha256) + "}";
+    }
+    body += ']';
+    return body;
+}
+
+[[nodiscard]] std::string render_workflow_execution_node(
+    const application::WorkflowExecutionNodeView& node
+) {
+    return "{\"nodeId\":" + quote(node.node_id) +
+           ",\"label\":" + quote(node.label) +
+           ",\"moduleId\":" + quote(node.module_id) +
+           ",\"pluginVersion\":" + quote(node.plugin_version) +
+           ",\"checkpointState\":" + quote(domain::to_string(node.checkpoint_state)) +
+           ",\"attemptNumber\":" + std::to_string(node.attempt_number) +
+           ",\"maxAttempts\":" + std::to_string(node.max_attempts) +
+           ",\"outputs\":" + render_checkpoint_artifacts(node.outputs) +
+           ",\"failure\":" + render_checkpoint_failure(node.failure) +
+           ",\"branchState\":" +
+           (node.branch_state.has_value()
+                ? quote(domain::to_string(*node.branch_state))
+                : "null") +
+           ",\"branchReason\":" +
+           (node.branch_reason.has_value()
+                ? quote(domain::to_string(*node.branch_reason))
+                : "null") +
+           ",\"conditionResult\":" +
+           (node.condition_result.has_value()
+                ? (*node.condition_result ? "true" : "false")
+                : "null") +
+           ",\"resumeAction\":" + quote(application::to_string(node.resume_action)) +
+           ",\"resumeReason\":" + quote(application::to_string(node.resume_reason)) +
+           ",\"nextAttemptNumber\":" +
+           (node.next_attempt_number.has_value()
+                ? std::to_string(*node.next_attempt_number)
+                : "null") + "}";
+}
+
+[[nodiscard]] std::string render_workflow_execution_workspace(
+    const application::WorkflowExecutionWorkspaceSnapshot& value
+) {
+    std::string body{"{\"workflowId\":"};
+    body += quote(value.workflow_id);
+    body += ",\"name\":" + quote(value.name);
+    body += ",\"description\":" + quote(value.description);
+    body += ",\"revision\":" + std::to_string(value.revision);
+    body += ",\"updatedAtUtc\":" + quote(value.updated_at_utc);
+    body += ",\"nodes\":[";
+    for (std::size_t index = 0U; index < value.nodes.size(); ++index) {
+        if (index != 0U) body += ',';
+        body += render_workflow_execution_node(value.nodes[index]);
     }
     body += "]}";
     return body;
@@ -1005,10 +1118,12 @@ LocalApiController::LocalApiController(
     std::string bootstrap_token,
     LocalBrowserSession& browser_session,
     application::JobRetryService* retries,
-    const application::IWorkflowTemplateCatalog* workflow_templates
+    const application::IWorkflowTemplateCatalog* workflow_templates,
+    application::WorkflowExecutionWorkspaceService* workflow_workspace
 )
     : jobs_{jobs}, retries_{retries}, submissions_{submissions}, managed_files_{managed_files},
       artifacts_{artifacts}, clock_{clock}, workflow_templates_{workflow_templates},
+      workflow_workspace_{workflow_workspace},
       bootstrap_token_{std::move(bootstrap_token)}, browser_session_{browser_session} {
     if (bootstrap_token_.size() < 32U || bootstrap_token_.size() > 2048U) {
         throw std::invalid_argument("Bootstrap token length is invalid");
@@ -1041,15 +1156,20 @@ LocalHttpResponse LocalApiController::handle(const LocalHttpRequest& request) {
         path.size() == 4U && path[0] == "api" && path[1] == "v1" &&
         path[2] == "workflows" && path[3] == "validate" &&
         request.method == HttpMethod::post;
+    const bool workflow_execution_create_route =
+        path.size() == 3U && path[0] == "api" && path[1] == "v1" &&
+        path[2] == "workflow-executions" &&
+        request.method == HttpMethod::post;
     if (upload_chunk_route) {
         if (request.body.empty() ||
             request.body.size() > application::ManagedFileService::maximum_upload_chunk_bytes) {
             return error_response(413, "upload_chunk_size", "Upload chunk must contain 1 to 1048576 bytes");
         }
     } else {
-        const std::size_t maximum_body_bytes = workflow_validation_route
-            ? pipeline_protocol::maximum_workflow_document_bytes
-            : maximum_request_body_bytes;
+        const std::size_t maximum_body_bytes =
+            (workflow_validation_route || workflow_execution_create_route)
+                ? pipeline_protocol::maximum_workflow_document_bytes
+                : maximum_request_body_bytes;
         if (request.body.size() > maximum_body_bytes) {
             return error_response(413, "request_too_large", "Request body is too large");
         }
@@ -1139,6 +1259,52 @@ if (path.size() == 4U && path[2] == "workflows" && path[3] == "validate" &&
         pipeline_protocol::parse_workflow_document(request.body);
     const domain::WorkflowDagPlan plan = domain::plan_workflow_dag(workflow);
     return json_response(200, render_workflow_validation(workflow, plan));
+}
+if (path.size() == 3U && path[2] == "workflow-executions" &&
+    request.method == HttpMethod::get) {
+    if (workflow_workspace_ == nullptr) {
+        return error_response(
+            503, "workflow_workspace_unavailable",
+            "Workflow execution workspace is unavailable"
+        );
+    }
+    return json_response(
+        200, render_workflow_execution_summaries(workflow_workspace_->list())
+    );
+}
+if (path.size() == 3U && path[2] == "workflow-executions" &&
+    request.method == HttpMethod::post) {
+    if (workflow_workspace_ == nullptr) {
+        return error_response(
+            503, "workflow_workspace_unavailable",
+            "Workflow execution workspace is unavailable"
+        );
+    }
+    const domain::Workflow workflow =
+        pipeline_protocol::parse_workflow_document(request.body);
+    return json_response(
+        201, render_workflow_execution_workspace(
+            workflow_workspace_->create(workflow)
+        )
+    );
+}
+if (path.size() == 4U && path[2] == "workflow-executions" &&
+    safe_template_atom(path[3]) &&
+    request.method == HttpMethod::get) {
+    if (workflow_workspace_ == nullptr) {
+        return error_response(
+            503, "workflow_workspace_unavailable",
+            "Workflow execution workspace is unavailable"
+        );
+    }
+    const auto value = workflow_workspace_->find(path[3]);
+    if (!value.has_value()) {
+        return error_response(
+            404, "workflow_execution_not_found",
+            "Workflow execution workspace was not found"
+        );
+    }
+    return json_response(200, render_workflow_execution_workspace(*value));
 }
 
 if (path.size() == 3U && path[2] == "files" && request.method == HttpMethod::get) {
@@ -1374,6 +1540,16 @@ if (path.size() == 6U && path[2] == "files" && path[3] == "uploads" &&
             return error_response(409, "identifier_exhausted", error.what());
         }
         return error_response(500, "job_submission_error", error.what());
+    } catch (const application::WorkflowStateServiceError& error) {
+        using Code = application::WorkflowStateServiceErrorCode;
+        if (error.code() == Code::workflow_state_exists ||
+            error.code() == Code::concurrent_update) {
+            return error_response(409, application::to_string(error.code()), error.what());
+        }
+        if (error.code() == Code::workflow_state_not_found) {
+            return error_response(404, application::to_string(error.code()), error.what());
+        }
+        return error_response(400, application::to_string(error.code()), error.what());
     } catch (const application::JobServiceError& error) {
         if (error.code() == application::JobServiceErrorCode::job_not_found) {
             return error_response(404, "job_not_found", error.what());

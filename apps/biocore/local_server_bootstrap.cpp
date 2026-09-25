@@ -18,12 +18,16 @@
 #include "biocore/application/pipeline_preparation_service.hpp"
 #include "biocore/application/project_recovery_service.hpp"
 #include "biocore/application/worker_runtime.hpp"
+#include "biocore/application/workflow_execution_workspace_service.hpp"
+#include "biocore/application/workflow_state_recovery_service.hpp"
+#include "biocore/application/workflow_state_service.hpp"
 #include "biocore/infrastructure/filesystem_artifact_content_access.hpp"
 #include "biocore/infrastructure/filesystem_input_file_storage.hpp"
 #include "biocore/infrastructure/filesystem_output_artifact_inspector.hpp"
 #include "biocore/infrastructure/filesystem_partial_output_cleaner.hpp"
 #include "biocore/infrastructure/filesystem_pipeline_catalog.hpp"
 #include "biocore/infrastructure/filesystem_workflow_template_catalog.hpp"
+#include "biocore/infrastructure/filesystem_workflow_checkpoint_artifact_verifier.hpp"
 #include "biocore/infrastructure/filesystem_plugin_registry.hpp"
 #include "biocore/infrastructure/filesystem_quarantine_retention_store.hpp"
 #include "biocore/infrastructure/json_execution_plan_store.hpp"
@@ -36,6 +40,7 @@
 #include "biocore/infrastructure/sqlite/sqlite_job_repository.hpp"
 #include "biocore/infrastructure/sqlite/sqlite_managed_file_repository.hpp"
 #include "biocore/infrastructure/sqlite/sqlite_prepared_job_store.hpp"
+#include "biocore/infrastructure/sqlite/sqlite_workflow_state_store.hpp"
 #include "biocore/infrastructure/system_clock.hpp"
 #include "biocore/infrastructure/uuid_v4_generator.hpp"
 #include "biocore/presentation/local_api.hpp"
@@ -238,12 +243,25 @@ int run_local_server(
     infrastructure::sqlite::SqliteJobRepository api_job_repository{api_connection};
     infrastructure::sqlite::SqlitePreparedJobStore api_prepared_jobs{api_connection};
     infrastructure::sqlite::SqliteManagedFileRepository api_managed_files{api_connection};
+    infrastructure::sqlite::SqliteWorkflowStateStore api_workflow_states{api_connection};
     infrastructure::sqlite::SqliteJobRepository runtime_job_repository{runtime_connection};
     infrastructure::sqlite::SqlitePreparedJobStore runtime_prepared_jobs{runtime_connection};
     infrastructure::sqlite::SqliteManagedFileRepository runtime_managed_files{runtime_connection};
 
     infrastructure::SystemClock clock;
     infrastructure::MonotonicClock monotonic_clock;
+    infrastructure::FilesystemWorkflowCheckpointArtifactVerifier
+        workflow_checkpoint_verifier{root};
+    application::WorkflowStateService workflow_states{
+        api_workflow_states, clock
+    };
+    application::WorkflowStateRecoveryService workflow_state_recovery{
+        api_workflow_states, workflow_checkpoint_verifier, clock
+    };
+    const auto workflow_recovery_result = workflow_state_recovery.recover();
+    application::WorkflowExecutionWorkspaceService workflow_workspace{
+        workflow_states, workflow_checkpoint_verifier
+    };
     infrastructure::UuidV4Generator api_ids;
     infrastructure::UuidV4Generator runtime_ids;
     application::JobService api_jobs{api_job_repository, api_ids, clock};
@@ -296,10 +314,14 @@ int run_local_server(
     };
     presentation::LocalApiController api{
         api_jobs, submissions, managed_files, artifacts, clock, token, browser_session,
-        &retries, &workflow_templates
+        &retries, &workflow_templates, &workflow_workspace
     };
     standard_output << "OpenGenesis-BioCore project recovery: " << recovery_result.recovered_jobs.size()
                     << " stale job(s) interrupted, " << recovery_result.issues.size() << " issue(s).\n";
+    standard_output << "OpenGenesis-BioCore workflow recovery: "
+                    << workflow_recovery_result.recovered.size()
+                    << " persisted workflow(s) reconciled/planned, "
+                    << workflow_recovery_result.issues.size() << " issue(s).\n";
     standard_output << "OpenGenesis-BioCore pipelines: " << pipeline_report.loaded_pipelines
                     << ", plugin modules: " << plugin_report.loaded_modules
                     << ", workflow templates: "

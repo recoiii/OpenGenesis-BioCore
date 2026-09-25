@@ -64,6 +64,10 @@
             <span class="nav-icon" aria-hidden="true">⌘</span>
             Workflow builder
           </button>
+          <button class="nav-item" type="button" data-view="workflow-execution">
+            <span class="nav-icon" aria-hidden="true">◈</span>
+            Execution workspace
+          </button>
           <button class="nav-item" type="button" data-view="submit">
             <span class="nav-icon" aria-hidden="true">▶</span>
             New job
@@ -460,6 +464,7 @@
             <div class="builder-actions">
               <button class="button button-primary" id="builder-validate" type="button">Validate canonical workflow</button>
               <button class="button button-quiet" id="builder-export" type="button" disabled>Export canonical JSON</button>
+              <button class="button button-quiet" id="builder-create-execution" type="button" disabled>Create execution workspace</button>
               <span id="builder-template-provenance">Scratch workflow</span>
             </div>
             <p class="form-message" id="builder-message" role="status" aria-live="polite"></p>
@@ -468,6 +473,55 @@
               <summary>Canonical workflow JSON</summary>
               <pre id="builder-json-preview"></pre>
             </details>
+          </article>
+
+          <article class="panel workflow-execution-panel" id="workflow-execution-workspace-panel" aria-labelledby="workflow-execution-title">
+            <div class="panel-heading">
+              <div>
+                <div class="kicker">Workflow Engine 2.0</div>
+                <h3 id="workflow-execution-title">Execution workspace</h3>
+              </div>
+              <div class="panel-actions">
+                <button class="button button-quiet button-small" id="workflow-execution-refresh" type="button">Refresh</button>
+                <span class="badge badge-muted">Durable state / resume plan</span>
+              </div>
+            </div>
+            <p class="panel-copy">
+              Inspect persisted workflow execution state from the local SQLite project database.
+              Node checkpoint state, attempts, branch decisions, verified artifact evidence and resume actions
+              come from the accepted Workflow Engine 2.0 contracts. This workspace does not invent a second scheduler.
+            </p>
+
+            <div class="workflow-execution-layout">
+              <section class="workflow-execution-list-section" aria-labelledby="workflow-execution-list-title">
+                <div class="builder-section-heading">
+                  <div>
+                    <div class="kicker">Persisted workflows</div>
+                    <h4 id="workflow-execution-list-title">Execution states</h4>
+                  </div>
+                  <span id="workflow-execution-count">0 workflows</span>
+                </div>
+                <div class="workflow-execution-list" id="workflow-execution-list">
+                  <div class="builder-empty">No persisted workflow execution state yet.</div>
+                </div>
+              </section>
+
+              <section class="workflow-execution-detail-section" aria-labelledby="workflow-execution-detail-title">
+                <div class="builder-section-heading">
+                  <div>
+                    <div class="kicker">Selected workflow</div>
+                    <h4 id="workflow-execution-detail-title">Execution detail</h4>
+                  </div>
+                  <span id="workflow-execution-revision">—</span>
+                </div>
+
+                <div class="workflow-execution-metadata" id="workflow-execution-metadata">
+                  <div class="builder-empty">Select a persisted workflow state.</div>
+                </div>
+                <div class="workflow-execution-node-list" id="workflow-execution-node-list"></div>
+                <p class="form-message" id="workflow-execution-message" role="status" aria-live="polite"></p>
+              </section>
+            </div>
           </article>
 
           <article class="panel submit-panel" id="submit-panel">

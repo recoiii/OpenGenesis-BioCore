@@ -37,6 +37,7 @@ target_sources(
         source/workflow_resume_planner.cpp
         source/workflow_state_service.cpp
         source/workflow_state_recovery_service.cpp
+        source/workflow_execution_workspace_service.cpp
         source/workflow_template_instantiation_service.cpp
     PUBLIC
         FILE_SET HEADERS
@@ -104,6 +105,7 @@ target_sources(
             include/biocore/application/i_workflow_state_store.hpp
             include/biocore/application/workflow_state_service.hpp
             include/biocore/application/workflow_state_recovery_service.hpp
+            include/biocore/application/workflow_execution_workspace_service.hpp
             include/biocore/application/i_workflow_template_catalog.hpp
             include/biocore/application/workflow_template_instantiation_service.hpp
 )

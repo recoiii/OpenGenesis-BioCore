@@ -564,6 +564,24 @@ add_test(NAME presentation.workflow_builder.safe_rendering COMMAND biocore-workf
 add_test(NAME presentation.workflow_builder.scope COMMAND biocore-workflow-builder-frontend-contract-tests scope)
 add_test(NAME presentation.workflow_builder.asset_store COMMAND biocore-workflow-builder-frontend-contract-tests asset-store)
 add_test(NAME integration.workflow_builder.bundled_template COMMAND biocore-workflow-builder-frontend-contract-tests bundled-template)
+add_test(NAME presentation.workflow_execution.surface COMMAND biocore-workflow-builder-frontend-contract-tests execution-surface)
+add_test(NAME presentation.workflow_execution.safe_rendering COMMAND biocore-workflow-builder-frontend-contract-tests execution-safe-rendering)
+add_test(NAME presentation.workflow_execution.api_contract COMMAND biocore-workflow-builder-frontend-contract-tests execution-api)
+add_test(NAME presentation.workflow_execution.scope COMMAND biocore-workflow-builder-frontend-contract-tests execution-scope)
+
+add_executable(
+    biocore-workflow-execution-workspace-service-tests
+    workflow_execution_workspace_service_tests.cpp
+)
+target_link_libraries(
+    biocore-workflow-execution-workspace-service-tests
+    PRIVATE BioCore::application BioCore::domain
+            BioCore::project_options BioCore::project_warnings BioCore::sanitizers
+)
+add_test(NAME application.workflow_execution_workspace.create COMMAND biocore-workflow-execution-workspace-service-tests create)
+add_test(NAME application.workflow_execution_workspace.completed_reuse COMMAND biocore-workflow-execution-workspace-service-tests completed-reuse)
+add_test(NAME application.workflow_execution_workspace.branch_overlay COMMAND biocore-workflow-execution-workspace-service-tests branch-overlay)
+add_test(NAME application.workflow_execution_workspace.deterministic_list COMMAND biocore-workflow-execution-workspace-service-tests deterministic-list)
 
 add_executable(biocore-json-pipeline-io-tests json_pipeline_io_tests.cpp)
 target_link_libraries(
