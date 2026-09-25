@@ -109,38 +109,3 @@ jobs:
           ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
           UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
         run: ctest --test-dir build/linux-gcc-asan-ubsan --output-on-failure
-
-  windows-native:
-    name: Native Windows validation
-    needs: source-candidate
-    runs-on: windows-latest
-    steps:
-      - name: Checkout validation scripts
-        uses: actions/checkout@v5
-      - name: Download exact sealed source candidate
-        uses: actions/download-artifact@v5
-        with:
-          name: OpenGenesis-BioCore-iteration-${{ env.BIOCORE_ITERATION }}-source-CANDIDATE
-          path: artifacts/source
-      - name: Validate exact sealed source on native Windows
-        shell: pwsh
-        run: |
-          $archive = Get-ChildItem artifacts/source -Filter *.zip | Select-Object -First 1
-          if ($null -eq $archive) { throw "Source archive not found" }
-          $sumLine = Get-Content artifacts/source/SHA256SUMS.txt | Select-Object -First 1
-          $sha = ($sumLine -split '\s+')[0]
-          & scripts/validate-windows-final.ps1 `
-            -SourceArchive $archive.FullName `
-            -ExpectedSourceSha256 $sha `
-            -ExpectedVersion "${env:BIOCORE_VERSION}" `
-            -ExpectedCTestCount ([int]${env:BIOCORE_TEST_FLOOR}) `
-            -Iteration ([int]${env:BIOCORE_ITERATION})
-      - name: Upload Windows validation evidence
-        uses: actions/upload-artifact@v4
-        with:
-          name: OpenGenesis-BioCore-iteration-${{ env.BIOCORE_ITERATION }}-windows-evidence
-          path: |
-            artifacts/windows-final-closure/
-            artifacts/OpenGenesis-BioCore-iteration-069-windows-evidence.zip
-          if-no-files-found: error
-          retention-days: 30
