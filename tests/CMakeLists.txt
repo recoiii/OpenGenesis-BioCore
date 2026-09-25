@@ -353,6 +353,20 @@ target_link_libraries(
 )
 add_test(NAME pipeline_protocol.document_codec COMMAND biocore-pipeline-document-codec-tests)
 
+add_executable(biocore-workflow-model-tests workflow_model_tests.cpp)
+target_link_libraries(
+    biocore-workflow-model-tests
+    PRIVATE BioCore::domain BioCore::project_options BioCore::project_warnings BioCore::sanitizers
+)
+add_test(NAME domain.workflow_model COMMAND biocore-workflow-model-tests)
+
+add_executable(biocore-workflow-document-codec-tests workflow_document_codec_tests.cpp)
+target_link_libraries(
+    biocore-workflow-document-codec-tests
+    PRIVATE BioCore::pipeline_protocol BioCore::domain BioCore::project_options BioCore::project_warnings BioCore::sanitizers
+)
+add_test(NAME pipeline_protocol.workflow_document_codec COMMAND biocore-workflow-document-codec-tests)
+
 add_executable(biocore-json-pipeline-io-tests json_pipeline_io_tests.cpp)
 target_link_libraries(
     biocore-json-pipeline-io-tests
