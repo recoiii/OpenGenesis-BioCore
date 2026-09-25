@@ -1,8 +1,10 @@
+#include <algorithm>
 #include <cstdlib>
 #include <iostream>
 #include <stdexcept>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 #include "biocore/domain/workflow.hpp"
