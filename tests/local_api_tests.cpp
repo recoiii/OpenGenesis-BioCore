@@ -206,7 +206,8 @@ public:
             .computed_sha256 = std::string(64U, 'a'),
             .actual_size_bytes = 7,
         };
-
+    }
+};
 
 class FakeWorkflowTemplateCatalog final
     : public biocore::application::IWorkflowTemplateCatalog {
@@ -254,8 +255,6 @@ public:
             "Demo template",
             "Builder fixture"
         }};
-    }
-};
     }
 };
 
