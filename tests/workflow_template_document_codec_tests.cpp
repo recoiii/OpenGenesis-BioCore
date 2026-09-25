@@ -108,10 +108,19 @@ using namespace biocore;
     const std::string bad_workflow =
         R"({"schemaVersion":1,"id":"org.biocore.template.demo","version":"1.0.0","name":"Demo","description":"","workflowDocument":"{}"})";
 
+    std::string malformed_utf8 = encoded;
+    const std::string name_needle = "\"name\":\"Demo\"";
+    const auto name_position = malformed_utf8.find(name_needle);
+    if (name_position == std::string::npos) return false;
+    const auto value_position =
+        name_position + std::string{"\"name\":\""}.size();
+    malformed_utf8[value_position] = static_cast<char>(0xC3);
+
     return rejects(unknown) &&
            rejects(duplicate) &&
            rejects(bad_schema) &&
-           rejects(bad_workflow);
+           rejects(bad_workflow) &&
+           rejects(malformed_utf8);
 }
 
 }  // namespace

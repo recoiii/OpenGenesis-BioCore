@@ -21,6 +21,62 @@ namespace {
 using JsonScalar = std::variant<std::string, std::uint64_t>;
 using JsonObject = std::map<std::string, JsonScalar, std::less<>>;
 
+void validate_utf8(const std::string_view value) {
+    std::size_t index = 0U;
+    while (index < value.size()) {
+        const auto first = static_cast<unsigned char>(value[index]);
+        if (first <= 0x7FU) {
+            ++index;
+            continue;
+        }
+
+        std::size_t length = 0U;
+        std::uint32_t code_point = 0U;
+        if (first >= 0xC2U && first <= 0xDFU) {
+            length = 2U;
+            code_point = first & 0x1FU;
+        } else if (first >= 0xE0U && first <= 0xEFU) {
+            length = 3U;
+            code_point = first & 0x0FU;
+        } else if (first >= 0xF0U && first <= 0xF4U) {
+            length = 4U;
+            code_point = first & 0x07U;
+        } else {
+            throw std::invalid_argument(
+                "Workflow template JSON is not valid UTF-8"
+            );
+        }
+
+        if (index + length > value.size()) {
+            throw std::invalid_argument(
+                "Workflow template JSON ends inside a UTF-8 sequence"
+            );
+        }
+
+        for (std::size_t offset = 1U; offset < length; ++offset) {
+            const auto continuation =
+                static_cast<unsigned char>(value[index + offset]);
+            if ((continuation & 0xC0U) != 0x80U) {
+                throw std::invalid_argument(
+                    "Workflow template JSON is not valid UTF-8"
+                );
+            }
+            code_point =
+                (code_point << 6U) | (continuation & 0x3FU);
+        }
+
+        if ((length == 3U && code_point < 0x800U) ||
+            (length == 4U && code_point < 0x10000U) ||
+            code_point > 0x10FFFFU ||
+            (code_point >= 0xD800U && code_point <= 0xDFFFU)) {
+            throw std::invalid_argument(
+                "Workflow template JSON contains an invalid UTF-8 code point"
+            );
+        }
+        index += length;
+    }
+}
+
 [[nodiscard]] std::uint32_t hex_value(const char value) {
     if (value >= '0' && value <= '9') {
         return static_cast<std::uint32_t>(value - '0');
@@ -388,6 +444,7 @@ domain::WorkflowTemplate parse_workflow_template_document(
             "Workflow template JSON size is invalid"
         );
     }
+    validate_utf8(json);
 
     const JsonObject root = Parser{json}.parse_document();
     require_only(
