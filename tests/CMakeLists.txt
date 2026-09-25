@@ -578,7 +578,7 @@ target_link_libraries(
     PRIVATE
         BioCore::application
         BioCore::infrastructure
-        SQLite::SQLite3
+        SQLite3::SQLite3
         BioCore::project_options
         BioCore::project_warnings
         BioCore::sanitizers
