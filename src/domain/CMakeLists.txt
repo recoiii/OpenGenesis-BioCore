@@ -19,6 +19,7 @@ target_sources(
         source/workflow.cpp
         source/workflow_dag.cpp
         source/workflow_branch_decision.cpp
+        source/workflow_checkpoint.cpp
         source/pipeline_definition.cpp
         source/plugin_io_contract.cpp
         source/plugin_manifest.cpp
@@ -72,6 +73,7 @@ target_sources(
             include/biocore/domain/workflow.hpp
             include/biocore/domain/workflow_dag.hpp
             include/biocore/domain/workflow_branch_decision.hpp
+            include/biocore/domain/workflow_checkpoint.hpp
             include/biocore/domain/pipeline_definition.hpp
             include/biocore/domain/plugin_io_contract.hpp
             include/biocore/domain/plugin_manifest.hpp

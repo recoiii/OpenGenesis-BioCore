@@ -426,6 +426,47 @@ add_test(NAME pipeline_protocol.workflow_branch_decision.round_trip COMMAND bioc
 add_test(NAME pipeline_protocol.workflow_branch_decision.deterministic COMMAND biocore-workflow-branch-decision-codec-tests deterministic)
 add_test(NAME pipeline_protocol.workflow_branch_decision.invalid COMMAND biocore-workflow-branch-decision-codec-tests invalid)
 
+add_executable(biocore-workflow-checkpoint-tests workflow_checkpoint_tests.cpp)
+target_link_libraries(
+    biocore-workflow-checkpoint-tests
+    PRIVATE BioCore::domain BioCore::project_options BioCore::project_warnings BioCore::sanitizers
+)
+add_test(NAME domain.workflow_checkpoint.valid COMMAND biocore-workflow-checkpoint-tests valid)
+add_test(NAME domain.workflow_checkpoint.invalid COMMAND biocore-workflow-checkpoint-tests invalid)
+
+add_executable(biocore-workflow-resume-planner-tests workflow_resume_planner_tests.cpp)
+target_link_libraries(
+    biocore-workflow-resume-planner-tests
+    PRIVATE BioCore::application BioCore::domain BioCore::project_options BioCore::project_warnings BioCore::sanitizers
+)
+add_test(NAME application.workflow_resume.initialize COMMAND biocore-workflow-resume-planner-tests initialize)
+add_test(NAME application.workflow_resume.reuse COMMAND biocore-workflow-resume-planner-tests reuse)
+add_test(NAME application.workflow_resume.corrupt COMMAND biocore-workflow-resume-planner-tests corrupt)
+add_test(NAME application.workflow_resume.cascade COMMAND biocore-workflow-resume-planner-tests cascade)
+add_test(NAME application.workflow_resume.missing_output COMMAND biocore-workflow-resume-planner-tests missing-output)
+add_test(NAME application.workflow_resume.failed COMMAND biocore-workflow-resume-planner-tests failed)
+add_test(NAME application.workflow_resume.interrupted COMMAND biocore-workflow-resume-planner-tests interrupted)
+add_test(NAME application.workflow_resume.running COMMAND biocore-workflow-resume-planner-tests running)
+add_test(NAME application.workflow_resume.exhausted COMMAND biocore-workflow-resume-planner-tests exhausted)
+add_test(NAME application.workflow_resume.required_block COMMAND biocore-workflow-resume-planner-tests required-block)
+add_test(NAME application.workflow_resume.optional_continue COMMAND biocore-workflow-resume-planner-tests optional-continue)
+add_test(NAME application.workflow_resume.reevaluate COMMAND biocore-workflow-resume-planner-tests reevaluate)
+add_test(NAME application.workflow_resume.manifest_errors COMMAND biocore-workflow-resume-planner-tests manifest-errors)
+add_test(NAME application.workflow_resume.policy_errors COMMAND biocore-workflow-resume-planner-tests policy-errors)
+
+add_executable(
+    biocore-filesystem-workflow-checkpoint-artifact-verifier-tests
+    filesystem_workflow_checkpoint_artifact_verifier_tests.cpp
+)
+target_link_libraries(
+    biocore-filesystem-workflow-checkpoint-artifact-verifier-tests
+    PRIVATE BioCore::infrastructure BioCore::project_options BioCore::project_warnings BioCore::sanitizers
+)
+add_test(NAME infrastructure.workflow_checkpoint_artifact.valid COMMAND biocore-filesystem-workflow-checkpoint-artifact-verifier-tests valid)
+add_test(NAME infrastructure.workflow_checkpoint_artifact.hash COMMAND biocore-filesystem-workflow-checkpoint-artifact-verifier-tests hash)
+add_test(NAME infrastructure.workflow_checkpoint_artifact.size COMMAND biocore-filesystem-workflow-checkpoint-artifact-verifier-tests size)
+add_test(NAME infrastructure.workflow_checkpoint_artifact.traversal COMMAND biocore-filesystem-workflow-checkpoint-artifact-verifier-tests traversal)
+
 add_executable(biocore-json-pipeline-io-tests json_pipeline_io_tests.cpp)
 target_link_libraries(
     biocore-json-pipeline-io-tests
