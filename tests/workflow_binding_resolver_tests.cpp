@@ -24,6 +24,8 @@ public:
                 .plugin_id = "org.biocore.test",
                 .plugin_version = "1.0.0",
                 .module_id = std::string{id},
+                .plugin_root_path = {},
+                .executable_path = {},
                 .parameters = {
                     domain::PluginParameterDefinition{
                         "threads",
@@ -57,6 +59,8 @@ public:
                 .plugin_id = "org.biocore.test",
                 .plugin_version = "1.0.0",
                 .module_id = std::string{id},
+                .plugin_root_path = {},
+                .executable_path = {},
                 .parameters = {
                     domain::PluginParameterDefinition{
                         "threshold",
@@ -80,6 +84,8 @@ public:
                 .plugin_id = "org.biocore.test",
                 .plugin_version = "1.0.0",
                 .module_id = std::string{id},
+                .plugin_root_path = {},
+                .executable_path = {},
                 .inputs = {
                     domain::PluginInputPortDefinition{"alignment", true, {"bam", "cram"}},
                     domain::PluginInputPortDefinition{"reference", true, {"fasta"}},
@@ -554,6 +560,7 @@ int main(const int argc, char** argv) {
     else if (test_case == "edge-type") passed = edge_type_contract();
     else if (test_case == "parameter-reference") passed = parameter_reference_contract();
     else if (test_case == "parameter-invalid") passed = parameter_invalid_contract();
+    else if (test_case == "parameter-required") passed = required_parameter_contract();
     else if (test_case == "resource-propagation") passed = resource_propagation_contract();
     else if (test_case == "resource-invalid") passed = resource_invalid_contract();
     else if (test_case == "required-input") passed = required_input_contract();
