@@ -575,8 +575,13 @@ add_executable(
 )
 target_link_libraries(
     biocore-v04-release-compatibility-tests
-    PRIVATE BioCore::application BioCore::infrastructure BioCore::project_options
-            BioCore::project_warnings BioCore::sanitizers
+    PRIVATE
+        BioCore::application
+        BioCore::infrastructure
+        SQLite::SQLite3
+        BioCore::project_options
+        BioCore::project_warnings
+        BioCore::sanitizers
 )
 target_compile_definitions(
     biocore-v04-release-compatibility-tests
