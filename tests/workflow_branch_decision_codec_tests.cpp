@@ -88,6 +88,9 @@ using namespace biocore;
                R"({"schemaVersion":1,"workflowId":"wf-x","decisions":[{"nodeId":"a","state":"skipped","reason":"condition_false","conditionResult":true}]})"
            ) &&
            rejects(
+               R"({"schemaVersion":1,"workflowId":"wf-x","decisions":[{"nodeId":"a","state":"selected","reason":"condition_false","conditionResult":false}]})"
+           ) &&
+           rejects(
                R"({"schemaVersion":1,"workflowId":"wf-x","decisions":[],"unknown":1})"
            );
 }

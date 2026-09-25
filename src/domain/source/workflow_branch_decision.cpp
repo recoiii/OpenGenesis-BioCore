@@ -72,17 +72,28 @@ WorkflowBranchDecisionSnapshot::WorkflowBranchDecisionSnapshot(
                 "Workflow branch decision snapshot contains duplicate node identifiers"
             );
         }
-        if ((decision.reason == WorkflowBranchDecisionReason::condition_true &&
-             decision.condition_result != std::optional<bool>{true}) ||
-            (decision.reason == WorkflowBranchDecisionReason::condition_false &&
-             decision.condition_result != std::optional<bool>{false}) ||
-            ((decision.reason == WorkflowBranchDecisionReason::unconditional ||
-              decision.reason == WorkflowBranchDecisionReason::condition_unresolved ||
-              decision.reason == WorkflowBranchDecisionReason::required_input_unavailable ||
-              decision.reason == WorkflowBranchDecisionReason::condition_source_unavailable) &&
-             decision.condition_result.has_value())) {
+        const bool valid =
+            (decision.state == WorkflowBranchDecisionState::selected &&
+             decision.reason == WorkflowBranchDecisionReason::unconditional &&
+             !decision.condition_result.has_value()) ||
+            (decision.state == WorkflowBranchDecisionState::selected &&
+             decision.reason == WorkflowBranchDecisionReason::condition_true &&
+             decision.condition_result == std::optional<bool>{true}) ||
+            (decision.state == WorkflowBranchDecisionState::skipped &&
+             decision.reason == WorkflowBranchDecisionReason::condition_false &&
+             decision.condition_result == std::optional<bool>{false}) ||
+            (decision.state == WorkflowBranchDecisionState::deferred &&
+             decision.reason == WorkflowBranchDecisionReason::condition_unresolved &&
+             !decision.condition_result.has_value()) ||
+            (decision.state == WorkflowBranchDecisionState::blocked &&
+             decision.reason == WorkflowBranchDecisionReason::required_input_unavailable &&
+             !decision.condition_result.has_value()) ||
+            (decision.state == WorkflowBranchDecisionState::blocked &&
+             decision.reason == WorkflowBranchDecisionReason::condition_source_unavailable &&
+             !decision.condition_result.has_value());
+        if (!valid) {
             throw std::invalid_argument(
-                "Workflow branch decision condition result is inconsistent with its reason"
+                "Workflow branch decision state, reason, and condition result are inconsistent"
             );
         }
     }
