@@ -436,6 +436,26 @@ public:
     );
 }
 
+[[nodiscard]] bool required_parameter_contract() {
+    auto request = valid_request();
+    request.parameter_references.erase(
+        std::remove_if(
+            request.parameter_references.begin(),
+            request.parameter_references.end(),
+            [](const auto& item) {
+                return item.node_id.value() == "align" &&
+                       item.parameter_name == "threads";
+            }
+        ),
+        request.parameter_references.end()
+    );
+    return throws_code(
+        workflow(),
+        request,
+        application::WorkflowBindingErrorCode::required_parameter_missing
+    );
+}
+
 [[nodiscard]] bool resource_propagation_contract() {
     Registry registry;
     const auto plan = application::WorkflowBindingResolver::resolve(

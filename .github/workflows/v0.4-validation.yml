@@ -11,7 +11,7 @@ on:
 
 env:
   BIOCORE_ITERATION: "071"
-  BIOCORE_TEST_FLOOR: "146"
+  BIOCORE_TEST_FLOOR: "147"
   BIOCORE_VERSION: "0.4.0"
 
 permissions:

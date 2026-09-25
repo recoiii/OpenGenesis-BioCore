@@ -440,6 +440,9 @@ WorkflowBindingPlan WorkflowBindingResolver::resolve(
             .node_id = planned.id,
             .module_id = std::string{node.module_id()},
             .plugin_version = std::string{node.plugin_version()},
+            .parameters = {},
+            .inputs = {},
+            .outputs = {},
         };
 
         std::set<std::string, std::less<>> supplied_parameters;

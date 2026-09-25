@@ -392,6 +392,7 @@ add_test(NAME application.workflow_binding.module_contract COMMAND biocore-workf
 add_test(NAME application.workflow_binding.edge_type COMMAND biocore-workflow-binding-resolver-tests edge-type)
 add_test(NAME application.workflow_binding.parameter_reference COMMAND biocore-workflow-binding-resolver-tests parameter-reference)
 add_test(NAME application.workflow_binding.parameter_invalid COMMAND biocore-workflow-binding-resolver-tests parameter-invalid)
+add_test(NAME application.workflow_binding.parameter_required COMMAND biocore-workflow-binding-resolver-tests parameter-required)
 add_test(NAME application.workflow_binding.resource_propagation COMMAND biocore-workflow-binding-resolver-tests resource-propagation)
 add_test(NAME application.workflow_binding.resource_invalid COMMAND biocore-workflow-binding-resolver-tests resource-invalid)
 add_test(NAME application.workflow_binding.required_input COMMAND biocore-workflow-binding-resolver-tests required-input)
