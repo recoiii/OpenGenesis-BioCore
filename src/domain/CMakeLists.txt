@@ -17,6 +17,7 @@ target_sources(
         source/job_status.cpp
         source/managed_file.cpp
         source/workflow.cpp
+        source/workflow_dag.cpp
         source/pipeline_definition.cpp
         source/plugin_io_contract.cpp
         source/plugin_manifest.cpp
@@ -68,6 +69,7 @@ target_sources(
             include/biocore/domain/job_status.hpp
             include/biocore/domain/managed_file.hpp
             include/biocore/domain/workflow.hpp
+            include/biocore/domain/workflow_dag.hpp
             include/biocore/domain/pipeline_definition.hpp
             include/biocore/domain/plugin_io_contract.hpp
             include/biocore/domain/plugin_manifest.hpp

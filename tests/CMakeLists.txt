@@ -367,6 +367,20 @@ target_link_libraries(
 )
 add_test(NAME pipeline_protocol.workflow_document_codec COMMAND biocore-workflow-document-codec-tests)
 
+add_executable(biocore-workflow-dag-tests workflow_dag_tests.cpp)
+target_link_libraries(
+    biocore-workflow-dag-tests
+    PRIVATE BioCore::domain BioCore::project_options BioCore::project_warnings BioCore::sanitizers
+)
+add_test(NAME domain.workflow_dag.valid COMMAND biocore-workflow-dag-tests valid)
+add_test(NAME domain.workflow_dag.deterministic COMMAND biocore-workflow-dag-tests deterministic)
+add_test(NAME domain.workflow_dag.missing_node COMMAND biocore-workflow-dag-tests missing-node)
+add_test(NAME domain.workflow_dag.missing_port COMMAND biocore-workflow-dag-tests missing-port)
+add_test(NAME domain.workflow_dag.duplicate_connection COMMAND biocore-workflow-dag-tests duplicate)
+add_test(NAME domain.workflow_dag.self_edge COMMAND biocore-workflow-dag-tests self-edge)
+add_test(NAME domain.workflow_dag.cycle COMMAND biocore-workflow-dag-tests cycle)
+add_test(NAME domain.workflow_dag.disconnected COMMAND biocore-workflow-dag-tests disconnected)
+
 add_executable(biocore-json-pipeline-io-tests json_pipeline_io_tests.cpp)
 target_link_libraries(
     biocore-json-pipeline-io-tests
