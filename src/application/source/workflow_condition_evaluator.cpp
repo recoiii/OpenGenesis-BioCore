@@ -71,8 +71,9 @@ using DecisionMap = std::map<std::string, domain::WorkflowBranchDecision, std::l
                 std::is_same_v<Predicate, WorkflowExitCodePredicate>
             ) {
                 return std::string{typed.source_node_id.value()};
+            } else {
+                return std::nullopt;
             }
-            return std::nullopt;
         },
         predicate
     );
