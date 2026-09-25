@@ -1,0 +1,146 @@
+name: OpenGenesis-BioCore v0.4 iteration validation
+
+on:
+  push:
+    branches:
+      - v0.4.0-dev
+  pull_request:
+    branches:
+      - v0.4.0-dev
+  workflow_dispatch:
+
+env:
+  BIOCORE_ITERATION: "069"
+  BIOCORE_TEST_FLOOR: "127"
+  BIOCORE_VERSION: "0.4.0"
+
+permissions:
+  contents: read
+
+jobs:
+  source-candidate:
+    name: Exact source candidate
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - name: Seal source candidate
+        shell: bash
+        run: |
+          mkdir -p artifacts/source
+          archive="artifacts/source/OpenGenesis-BioCore-iteration-${BIOCORE_ITERATION}-source-CANDIDATE.zip"
+          git archive --format=zip --prefix="OpenGenesis-BioCore/" --output="${archive}" HEAD
+          sha256sum "${archive}" | tee artifacts/source/SHA256SUMS.txt
+          git rev-parse HEAD | tee artifacts/source/COMMIT.txt
+      - name: Upload source candidate
+        uses: actions/upload-artifact@v4
+        with:
+          name: OpenGenesis-BioCore-iteration-${{ env.BIOCORE_ITERATION }}-source-CANDIDATE
+          path: artifacts/source/
+          if-no-files-found: error
+          retention-days: 30
+
+  linux-matrix:
+    name: ${{ matrix.preset }}
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        preset:
+          - linux-gcc-debug
+          - linux-gcc-release
+          - linux-clang-debug
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@v5
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build libsqlite3-dev zlib1g-dev clang
+      - name: Configure
+        run: cmake --preset "${{ matrix.preset }}"
+      - name: Build
+        run: cmake --build --preset "${{ matrix.preset }}" --parallel
+      - name: Require exact active test suite
+        shell: bash
+        run: |
+          count="$(ctest --preset "${{ matrix.preset }}" -N | sed -n 's/^Total Tests: //p')"
+          test "${count}" = "${BIOCORE_TEST_FLOOR}"
+          echo "CTest count: ${count}"
+      - name: Run regression suite
+        run: ctest --preset "${{ matrix.preset }}" --output-on-failure
+      - name: Verify v0.4 development identity
+        if: matrix.preset == 'linux-gcc-debug'
+        shell: bash
+        run: |
+          actual="$(build/linux-gcc-debug/apps/biocore/biocore --version)"
+          test "${actual}" = "${BIOCORE_VERSION}"
+          echo "Version: ${actual}"
+
+  sanitizers:
+    name: linux-gcc-debug-asan-ubsan
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@v5
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build libsqlite3-dev zlib1g-dev
+      - name: Configure ASan + UBSan
+        run: |
+          cmake -S . -B build/linux-gcc-asan-ubsan -G Ninja \
+            -DCMAKE_BUILD_TYPE=Debug \
+            -DBIOCORE_BUILD_TESTS=ON -DBIOCORE_WARNINGS_AS_ERRORS=ON \
+            -DBIOCORE_ENABLE_ASAN=ON -DBIOCORE_ENABLE_UBSAN=ON \
+            -DBIOCORE_VERSION_SUFFIX=
+      - name: Build ASan + UBSan
+        run: cmake --build build/linux-gcc-asan-ubsan --parallel
+      - name: Require exact active test suite
+        shell: bash
+        run: |
+          count="$(ctest --test-dir build/linux-gcc-asan-ubsan -N | sed -n 's/^Total Tests: //p')"
+          test "${count}" = "${BIOCORE_TEST_FLOOR}"
+          echo "CTest count: ${count}"
+      - name: Run ASan + UBSan regression suite
+        env:
+          ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
+          UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+        run: ctest --test-dir build/linux-gcc-asan-ubsan --output-on-failure
+
+  windows-native:
+    name: Native Windows validation
+    needs: source-candidate
+    runs-on: windows-latest
+    steps:
+      - name: Checkout validation scripts
+        uses: actions/checkout@v5
+      - name: Download exact sealed source candidate
+        uses: actions/download-artifact@v5
+        with:
+          name: OpenGenesis-BioCore-iteration-${{ env.BIOCORE_ITERATION }}-source-CANDIDATE
+          path: artifacts/source
+      - name: Validate exact sealed source on native Windows
+        shell: pwsh
+        run: |
+          $archive = Get-ChildItem artifacts/source -Filter *.zip | Select-Object -First 1
+          if ($null -eq $archive) { throw "Source archive not found" }
+          $sumLine = Get-Content artifacts/source/SHA256SUMS.txt | Select-Object -First 1
+          $sha = ($sumLine -split '\s+')[0]
+          & scripts/validate-windows-final.ps1 `
+            -SourceArchive $archive.FullName `
+            -ExpectedSourceSha256 $sha `
+            -ExpectedVersion "${env:BIOCORE_VERSION}" `
+            -ExpectedCTestCount ([int]${env:BIOCORE_TEST_FLOOR}) `
+            -Iteration ([int]${env:BIOCORE_ITERATION})
+      - name: Upload Windows validation evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: OpenGenesis-BioCore-iteration-${{ env.BIOCORE_ITERATION }}-windows-evidence
+          path: |
+            artifacts/windows-final-closure/
+            artifacts/OpenGenesis-BioCore-iteration-069-windows-evidence.zip
+          if-no-files-found: error
+          retention-days: 30
