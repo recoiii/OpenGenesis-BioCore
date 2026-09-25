@@ -570,6 +570,38 @@ add_test(NAME presentation.workflow_execution.api_contract COMMAND biocore-workf
 add_test(NAME presentation.workflow_execution.scope COMMAND biocore-workflow-builder-frontend-contract-tests execution-scope)
 
 add_executable(
+    biocore-v04-release-compatibility-tests
+    v04_release_compatibility_tests.cpp
+)
+target_link_libraries(
+    biocore-v04-release-compatibility-tests
+    PRIVATE BioCore::infrastructure BioCore::project_options
+            BioCore::project_warnings BioCore::sanitizers
+)
+target_compile_definitions(
+    biocore-v04-release-compatibility-tests
+    PRIVATE BIOCORE_SOURCE_ROOT="${PROJECT_SOURCE_DIR}"
+)
+add_test(NAME release.v04.v03_schema_upgrade COMMAND biocore-v04-release-compatibility-tests v03-schema-upgrade)
+add_test(NAME release.v04.v03_assets COMMAND biocore-v04-release-compatibility-tests v03-assets)
+add_test(NAME release.v04.identity COMMAND $<TARGET_FILE:biocore> --version)
+set_tests_properties(
+    release.v04.identity
+    PROPERTIES PASS_REGULAR_EXPRESSION "^0\\.4\\.0$"
+)
+
+add_executable(
+    biocore-workflow-engine-v04-e2e-tests
+    workflow_engine_v04_e2e_tests.cpp
+)
+target_link_libraries(
+    biocore-workflow-engine-v04-e2e-tests
+    PRIVATE BioCore::application BioCore::infrastructure BioCore::pipeline_protocol
+            BioCore::project_options BioCore::project_warnings BioCore::sanitizers
+)
+add_test(NAME release.v04.workflow_engine_e2e COMMAND biocore-workflow-engine-v04-e2e-tests)
+
+add_executable(
     biocore-workflow-execution-workspace-service-tests
     workflow_execution_workspace_service_tests.cpp
 )

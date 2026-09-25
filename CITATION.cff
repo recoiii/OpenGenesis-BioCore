@@ -3,8 +3,8 @@ message: "If you use OpenGenesis-BioCore in your research, please cite the softw
 
 title: "OpenGenesis-BioCore"
 type: software
-version: "0.3.0"
-date-released: "2026-09-15"
+version: "0.4.0"
+date-released: "2026-09-25"
 license: MIT
 
 repository-code: "https://github.com/recoiii/OpenGenesis-BioCore"
@@ -33,22 +33,23 @@ keywords:
 abstract: >-
   OpenGenesis-BioCore is a local-first, extensible bioinformatics platform
   designed for reproducible analysis workflows on Windows and Linux. Version
-  0.3.0 adds a canonical small-variant model, VCF ingestion and normalization,
-  local indel candidate realignment, unified probabilistic genotyping, advanced
-  filtering, generic prioritization, versioned local reference databases,
-  feature-overlap annotation, multi-sample matrices, case/control association,
-  indexed variant workspace queries, provenance-preserving export, and
-  truth-set benchmarking while retaining the C++20 native core, localhost
-  browser interface, SQLite project persistence, plugins and pipelines.
+  0.4.0 retains the canonical small-variant analysis layer introduced in v0.3
+  and adds Workflow Engine 2.0 contracts for DAG modeling and planning, typed
+  binding, bounded conditional execution, checkpoint/retry/resume planning,
+  durable SQLite workflow state and recovery, exact-version reusable workflow
+  templates, a browser Workflow Builder, and a persisted Execution Workspace.
+  The release retains the C++20 native core, localhost browser interface,
+  plugins, pipelines, scientific benchmark gates, and local-first provenance
+  model.
 
 preferred-citation:
   type: software
-  title: "OpenGenesis-BioCore v0.3.0"
+  title: "OpenGenesis-BioCore v0.4.0"
   authors:
     - family-names: "Çelik"
       given-names: "Recep"
       orcid: "https://orcid.org/0009-0003-2939-1009"
-  version: "0.3.0"
-  date-released: "2026-09-15"
+  version: "0.4.0"
+  date-released: "2026-09-25"
   doi: "10.5281/zenodo.22012037"
   url: "https://doi.org/10.5281/zenodo.22012037"

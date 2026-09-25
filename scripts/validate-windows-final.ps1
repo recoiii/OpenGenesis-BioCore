@@ -21,7 +21,10 @@ param(
 
     [Parameter(Mandatory = $true)]
     [ValidateRange(1, 999)]
-    [int]$Iteration
+    [int]$Iteration,
+
+    [ValidateRange(0, 100)]
+    [int]$ExpectedWorkflowTemplateCount = 0
 )
 
 Set-StrictMode -Version Latest
@@ -242,14 +245,23 @@ function Test-InstalledLayout {
     $frontendRoot = Join-Path $InstallRoot 'share\biocore\frontend'
     Assert-True (Test-Path -LiteralPath $pipelineRoot -PathType Container) "Installed pipeline directory is missing"
     Assert-True (Test-Path -LiteralPath $frontendRoot -PathType Container) "Installed frontend directory is missing"
-    Assert-True ((Get-ChildItem -LiteralPath $pipelineRoot -Filter '*.json' -File).Count -eq 12) "Expected exactly 12 frozen analysis pipelines in the install tree"
+
+    $analysisPipelines = @(
+        Get-ChildItem -LiteralPath $pipelineRoot -Filter '*.biocore-pipeline.json' -File
+    )
+    $workflowTemplates = @(
+        Get-ChildItem -LiteralPath $pipelineRoot -Filter '*.workflow-template.json' -File
+    )
+    Assert-True ($analysisPipelines.Count -eq 12) "Expected exactly 12 frozen analysis pipelines in the install tree"
+    Assert-True ($workflowTemplates.Count -eq $ExpectedWorkflowTemplateCount) "Expected $ExpectedWorkflowTemplateCount workflow template(s) in the install tree, found $($workflowTemplates.Count)"
     Assert-True (Test-Path -LiteralPath (Join-Path $frontendRoot 'index.html') -PathType Leaf) "Installed frontend index.html is missing"
 
     return [pscustomobject]@{
         Version = $version
         PluginCount = $plugins.Count
         RuntimeDlls = $coreRuntimeDlls
-        PipelineCount = (Get-ChildItem -LiteralPath $pipelineRoot -Filter '*.json' -File).Count
+        PipelineCount = $analysisPipelines.Count
+        WorkflowTemplateCount = $workflowTemplates.Count
     }
 }
 
@@ -392,12 +404,14 @@ Invoke-LoggedCommand '06-ctest-release' 'ctest' @('--preset', 'windows-msvc-rele
         installedVersion = $installLayout.Version
         installedPluginCount = $installLayout.PluginCount
         installedPipelineCount = $installLayout.PipelineCount
+        installedWorkflowTemplateCount = $installLayout.WorkflowTemplateCount
         appLocalMsvcRuntimeDlls = @($installLayout.RuntimeDlls)
         cpackFile = $package.Name
         cpackSha256 = $packageSha
         extractedVersion = $extractedLayout.Version
         extractedPluginCount = $extractedLayout.PluginCount
         extractedPipelineCount = $extractedLayout.PipelineCount
+        extractedWorkflowTemplateCount = $extractedLayout.WorkflowTemplateCount
         systemDirectoryPayload = 'NONE'
         result = 'PASS'
     }
