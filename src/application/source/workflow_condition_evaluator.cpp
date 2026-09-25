@@ -91,8 +91,8 @@ struct Evaluation final {
     switch (comparison) {
         case WorkflowIntegerComparison::equal: return observed == expected;
         case WorkflowIntegerComparison::not_equal: return observed != expected;
+        default: return false;
     }
-    return false;
 }
 
 [[nodiscard]] bool compare_numeric(
@@ -106,8 +106,8 @@ struct Evaluation final {
         case WorkflowNumericComparison::equal: return observed == threshold;
         case WorkflowNumericComparison::greater_or_equal: return observed >= threshold;
         case WorkflowNumericComparison::greater: return observed > threshold;
+        default: return false;
     }
-    return false;
 }
 
 }  // namespace
