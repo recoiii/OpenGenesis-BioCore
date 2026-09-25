@@ -399,6 +399,33 @@ add_test(NAME application.workflow_binding.required_input COMMAND biocore-workfl
 add_test(NAME application.workflow_binding.binding_conflict COMMAND biocore-workflow-binding-resolver-tests binding-conflict)
 add_test(NAME application.workflow_binding.version COMMAND biocore-workflow-binding-resolver-tests version)
 
+add_executable(biocore-workflow-condition-evaluator-tests workflow_condition_evaluator_tests.cpp)
+target_link_libraries(
+    biocore-workflow-condition-evaluator-tests
+    PRIVATE BioCore::application BioCore::domain BioCore::project_options BioCore::project_warnings BioCore::sanitizers
+)
+add_test(NAME application.workflow_condition.numeric COMMAND biocore-workflow-condition-evaluator-tests numeric)
+add_test(NAME application.workflow_condition.status COMMAND biocore-workflow-condition-evaluator-tests status)
+add_test(NAME application.workflow_condition.artifact COMMAND biocore-workflow-condition-evaluator-tests artifact)
+add_test(NAME application.workflow_condition.exit_branch COMMAND biocore-workflow-condition-evaluator-tests exit-branch)
+add_test(NAME application.workflow_condition.deferred COMMAND biocore-workflow-condition-evaluator-tests deferred)
+add_test(NAME application.workflow_condition.required_block COMMAND biocore-workflow-condition-evaluator-tests required-block)
+add_test(NAME application.workflow_condition.optional_skip COMMAND biocore-workflow-condition-evaluator-tests optional-skip)
+add_test(NAME application.workflow_condition.source_block COMMAND biocore-workflow-condition-evaluator-tests source-block)
+add_test(NAME application.workflow_condition.control_cycle COMMAND biocore-workflow-condition-evaluator-tests control-cycle)
+add_test(NAME application.workflow_condition.duplicate_rule COMMAND biocore-workflow-condition-evaluator-tests duplicate-rule)
+add_test(NAME application.workflow_condition.deterministic COMMAND biocore-workflow-condition-evaluator-tests deterministic)
+add_test(NAME application.workflow_condition.invalid_context COMMAND biocore-workflow-condition-evaluator-tests invalid-context)
+
+add_executable(biocore-workflow-branch-decision-codec-tests workflow_branch_decision_codec_tests.cpp)
+target_link_libraries(
+    biocore-workflow-branch-decision-codec-tests
+    PRIVATE BioCore::pipeline_protocol BioCore::domain BioCore::project_options BioCore::project_warnings BioCore::sanitizers
+)
+add_test(NAME pipeline_protocol.workflow_branch_decision.round_trip COMMAND biocore-workflow-branch-decision-codec-tests round-trip)
+add_test(NAME pipeline_protocol.workflow_branch_decision.deterministic COMMAND biocore-workflow-branch-decision-codec-tests deterministic)
+add_test(NAME pipeline_protocol.workflow_branch_decision.invalid COMMAND biocore-workflow-branch-decision-codec-tests invalid)
+
 add_executable(biocore-json-pipeline-io-tests json_pipeline_io_tests.cpp)
 target_link_libraries(
     biocore-json-pipeline-io-tests

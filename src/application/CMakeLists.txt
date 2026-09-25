@@ -33,6 +33,7 @@ target_sources(
         source/worker_runtime.cpp
         source/worker_runtime_error.cpp
         source/workflow_binding_resolver.cpp
+        source/workflow_condition_evaluator.cpp
     PUBLIC
         FILE_SET HEADERS
         BASE_DIRS include
@@ -93,6 +94,7 @@ target_sources(
             include/biocore/application/worker_runtime.hpp
             include/biocore/application/worker_runtime_error.hpp
             include/biocore/application/workflow_binding_resolver.hpp
+            include/biocore/application/workflow_condition_evaluator.hpp
 )
 
 target_include_directories(
