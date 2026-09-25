@@ -20,7 +20,7 @@ struct ExpectedMigration final {
     std::string_view name;
 };
 
-constexpr std::array<ExpectedMigration, 8> expected_migrations{{
+constexpr std::array<ExpectedMigration, 9> expected_migrations{{
     {1, "create_project_core_tables"},
     {2, "extend_jobs_for_repository"},
     {3, "register_generated_output_artifacts"},
@@ -29,6 +29,7 @@ constexpr std::array<ExpectedMigration, 8> expected_migrations{{
     {6, "associate_prepared_job_execution_plans"},
     {7, "persist_structured_job_failure_evidence"},
     {8, "add_explicit_retry_attempt_semantics"},
+    {9, "persist_workflow_state_and_recovery"},
 }};
 
 struct RequiredSchemaObject final {
@@ -36,7 +37,7 @@ struct RequiredSchemaObject final {
     std::string_view name;
 };
 
-constexpr std::array<RequiredSchemaObject, 16> required_current_objects{{
+constexpr std::array<RequiredSchemaObject, 22> required_current_objects{{
     {"table", "schema_migrations"},
     {"table", "project_metadata"},
     {"table", "managed_files"},
@@ -53,6 +54,12 @@ constexpr std::array<RequiredSchemaObject, 16> required_current_objects{{
     {"trigger", "jobs_validate_attempt_update"},
     {"trigger", "job_execution_plans_immutable_fields_update"},
     {"trigger", "job_execution_plans_launch_revision_monotonic"},
+    {"table", "workflow_states"},
+    {"table", "workflow_node_checkpoints"},
+    {"table", "workflow_checkpoint_artifacts"},
+    {"table", "workflow_branch_decisions"},
+    {"trigger", "workflow_branch_decisions_require_snapshot_insert"},
+    {"trigger", "workflow_states_prevent_branch_schema_clear"},
 }};
 
 class Statement final {

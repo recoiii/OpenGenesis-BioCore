@@ -58,7 +58,7 @@ private:
     infrastructure::sqlite::SqliteConnection connection{std::filesystem::path{":memory:"}};
     infrastructure::sqlite::ProjectMigrationRunner migrations{connection};
     migrations.apply_pending();
-    if (migrations.current_version() != 8) return false;
+    if (migrations.current_version() != infrastructure::sqlite::latest_project_schema_version) return false;
 
     infrastructure::sqlite::SqliteJobRepository repository{connection};
     infrastructure::sqlite::SqlitePreparedJobStore prepared{connection};

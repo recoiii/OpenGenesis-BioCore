@@ -35,6 +35,8 @@ target_sources(
         source/workflow_binding_resolver.cpp
         source/workflow_condition_evaluator.cpp
         source/workflow_resume_planner.cpp
+        source/workflow_state_service.cpp
+        source/workflow_state_recovery_service.cpp
     PUBLIC
         FILE_SET HEADERS
         BASE_DIRS include
@@ -98,6 +100,9 @@ target_sources(
             include/biocore/application/workflow_condition_evaluator.hpp
             include/biocore/application/i_workflow_checkpoint_artifact_verifier.hpp
             include/biocore/application/workflow_resume_planner.hpp
+            include/biocore/application/i_workflow_state_store.hpp
+            include/biocore/application/workflow_state_service.hpp
+            include/biocore/application/workflow_state_recovery_service.hpp
 )
 
 target_include_directories(

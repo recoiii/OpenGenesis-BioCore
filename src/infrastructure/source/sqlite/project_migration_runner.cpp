@@ -466,6 +466,149 @@ void apply_version_eight(SqliteConnection& connection) {
 
 }  // namespace
 
+void apply_version_nine(SqliteConnection& connection) {
+    connection.execute(R"sql(
+        CREATE TABLE workflow_states (
+            workflow_id TEXT PRIMARY KEY NOT NULL
+                CHECK(length(workflow_id) BETWEEN 1 AND 256),
+            workflow_document_json TEXT NOT NULL
+                CHECK(length(workflow_document_json) > 0 AND
+                      instr(workflow_document_json, char(0)) = 0),
+            checkpoint_schema_version INTEGER NOT NULL
+                CHECK(checkpoint_schema_version = 1),
+            branch_decision_schema_version INTEGER
+                CHECK(branch_decision_schema_version IS NULL OR
+                      branch_decision_schema_version = 1),
+            revision INTEGER NOT NULL DEFAULT 0 CHECK(revision >= 0),
+            updated_at_utc TEXT NOT NULL
+                CHECK(length(trim(updated_at_utc)) > 0 AND
+                      instr(updated_at_utc, char(0)) = 0)
+        );
+
+        CREATE TABLE workflow_node_checkpoints (
+            workflow_id TEXT NOT NULL
+                REFERENCES workflow_states(workflow_id) ON DELETE CASCADE,
+            node_id TEXT NOT NULL CHECK(length(node_id) BETWEEN 1 AND 128),
+            ordinal INTEGER NOT NULL CHECK(ordinal >= 0),
+            state TEXT NOT NULL CHECK(state IN (
+                'pending', 'running', 'completed', 'failed',
+                'interrupted', 'skipped', 'blocked'
+            )),
+            attempt_number INTEGER NOT NULL CHECK(attempt_number >= 0),
+            max_attempts INTEGER NOT NULL CHECK(max_attempts BETWEEN 1 AND 64),
+            failure_message TEXT,
+            failure_exit_code INTEGER,
+            PRIMARY KEY(workflow_id, node_id),
+            UNIQUE(workflow_id, ordinal),
+            CHECK(attempt_number <= max_attempts),
+            CHECK(
+                (state IN ('pending', 'skipped', 'blocked') AND attempt_number = 0) OR
+                (state NOT IN ('pending', 'skipped', 'blocked') AND attempt_number >= 1)
+            ),
+            CHECK(
+                (state IN ('failed', 'interrupted') AND
+                    failure_message IS NOT NULL AND
+                    length(trim(failure_message)) >= 1 AND
+                    length(CAST(failure_message AS BLOB)) <= 16384 AND
+                    instr(failure_message, char(0)) = 0) OR
+                (state NOT IN ('failed', 'interrupted') AND
+                    failure_message IS NULL AND failure_exit_code IS NULL)
+            )
+        );
+
+        CREATE TABLE workflow_checkpoint_artifacts (
+            workflow_id TEXT NOT NULL,
+            node_id TEXT NOT NULL,
+            output_port TEXT NOT NULL
+                CHECK(length(output_port) BETWEEN 1 AND 64),
+            ordinal INTEGER NOT NULL CHECK(ordinal >= 0),
+            relative_project_path TEXT NOT NULL
+                CHECK(length(relative_project_path) BETWEEN 1 AND 4096 AND
+                      instr(relative_project_path, char(0)) = 0),
+            size_bytes INTEGER NOT NULL CHECK(size_bytes >= 0),
+            sha256 TEXT NOT NULL CHECK(
+                length(sha256) = 64 AND sha256 NOT GLOB '*[^0-9a-f]*'
+            ),
+            PRIMARY KEY(workflow_id, node_id, output_port),
+            UNIQUE(workflow_id, node_id, ordinal),
+            FOREIGN KEY(workflow_id, node_id)
+                REFERENCES workflow_node_checkpoints(workflow_id, node_id)
+                ON DELETE CASCADE
+        );
+
+        CREATE TABLE workflow_branch_decisions (
+            workflow_id TEXT NOT NULL
+                REFERENCES workflow_states(workflow_id) ON DELETE CASCADE,
+            node_id TEXT NOT NULL CHECK(length(node_id) BETWEEN 1 AND 128),
+            ordinal INTEGER NOT NULL CHECK(ordinal >= 0),
+            state TEXT NOT NULL CHECK(state IN (
+                'selected', 'skipped', 'blocked', 'deferred'
+            )),
+            reason TEXT NOT NULL CHECK(reason IN (
+                'unconditional', 'condition_true', 'condition_false',
+                'condition_unresolved', 'required_input_unavailable',
+                'condition_source_unavailable'
+            )),
+            condition_result INTEGER CHECK(
+                condition_result IS NULL OR condition_result IN (0, 1)
+            ),
+            PRIMARY KEY(workflow_id, node_id),
+            UNIQUE(workflow_id, ordinal),
+            CHECK(
+                (state = 'selected' AND reason = 'unconditional' AND
+                    condition_result IS NULL) OR
+                (state = 'selected' AND reason = 'condition_true' AND
+                    condition_result = 1) OR
+                (state = 'skipped' AND reason = 'condition_false' AND
+                    condition_result = 0) OR
+                (state = 'deferred' AND reason = 'condition_unresolved' AND
+                    condition_result IS NULL) OR
+                (state = 'blocked' AND
+                    reason IN ('required_input_unavailable',
+                               'condition_source_unavailable') AND
+                    condition_result IS NULL)
+            )
+        );
+
+        CREATE TRIGGER workflow_branch_decisions_require_snapshot_insert
+        BEFORE INSERT ON workflow_branch_decisions
+        WHEN NOT EXISTS (
+            SELECT 1 FROM workflow_states
+            WHERE workflow_id = NEW.workflow_id
+              AND branch_decision_schema_version = 1
+        )
+        BEGIN
+            SELECT RAISE(
+                ABORT,
+                'workflow branch decisions require an active decision snapshot'
+            );
+        END;
+
+        CREATE TRIGGER workflow_states_prevent_branch_schema_clear
+        BEFORE UPDATE OF branch_decision_schema_version ON workflow_states
+        WHEN NEW.branch_decision_schema_version IS NULL AND EXISTS (
+            SELECT 1 FROM workflow_branch_decisions
+            WHERE workflow_id = NEW.workflow_id
+        )
+        BEGIN
+            SELECT RAISE(
+                ABORT,
+                'workflow branch decision rows must be removed before clearing schema'
+            );
+        END;
+
+        CREATE INDEX idx_workflow_states_revision
+            ON workflow_states(workflow_id, revision);
+
+        INSERT INTO schema_migrations(version, name, applied_at_utc)
+        VALUES (
+            9,
+            'persist_workflow_state_and_recovery',
+            strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+        );
+    )sql");
+}
+
 ProjectMigrationRunner::ProjectMigrationRunner(SqliteConnection& connection) noexcept
     : connection_{connection} {}
 
@@ -511,6 +654,9 @@ void ProjectMigrationRunner::apply_pending() {
     }
     if (version < 8) {
         apply_version_eight(connection_);
+    }
+    if (version < 9) {
+        apply_version_nine(connection_);
     }
     transaction.commit();
 }

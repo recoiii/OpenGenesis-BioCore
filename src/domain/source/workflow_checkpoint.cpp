@@ -55,6 +55,19 @@ std::string_view to_string(const WorkflowCheckpointNodeState state) noexcept {
     return "unknown";
 }
 
+std::optional<WorkflowCheckpointNodeState> workflow_checkpoint_node_state_from_string(
+    const std::string_view value
+) noexcept {
+    if (value == "pending") return WorkflowCheckpointNodeState::pending;
+    if (value == "running") return WorkflowCheckpointNodeState::running;
+    if (value == "completed") return WorkflowCheckpointNodeState::completed;
+    if (value == "failed") return WorkflowCheckpointNodeState::failed;
+    if (value == "interrupted") return WorkflowCheckpointNodeState::interrupted;
+    if (value == "skipped") return WorkflowCheckpointNodeState::skipped;
+    if (value == "blocked") return WorkflowCheckpointNodeState::blocked;
+    return std::nullopt;
+}
+
 WorkflowCheckpointManifest::WorkflowCheckpointManifest(
     const std::uint32_t schema_version,
     WorkflowId workflow_id,

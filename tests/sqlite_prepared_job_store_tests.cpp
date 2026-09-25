@@ -48,7 +48,7 @@ int main() {
     biocore::infrastructure::sqlite::SqliteConnection connection{db};
     biocore::infrastructure::sqlite::ProjectMigrationRunner migrations{connection};
     migrations.apply_pending();
-    require(migrations.current_version() == 8, "schema v8 required");
+    require(migrations.current_version() == biocore::infrastructure::sqlite::latest_project_schema_version, "current schema required");
     biocore::infrastructure::sqlite::SqlitePreparedJobStore prepared{connection};
     biocore::infrastructure::sqlite::SqliteJobRepository jobs{connection};
 

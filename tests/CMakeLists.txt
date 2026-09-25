@@ -467,6 +467,40 @@ add_test(NAME infrastructure.workflow_checkpoint_artifact.hash COMMAND biocore-f
 add_test(NAME infrastructure.workflow_checkpoint_artifact.size COMMAND biocore-filesystem-workflow-checkpoint-artifact-verifier-tests size)
 add_test(NAME infrastructure.workflow_checkpoint_artifact.traversal COMMAND biocore-filesystem-workflow-checkpoint-artifact-verifier-tests traversal)
 
+add_executable(biocore-workflow-state-service-tests workflow_state_service_tests.cpp)
+target_link_libraries(
+    biocore-workflow-state-service-tests
+    PRIVATE BioCore::application BioCore::domain BioCore::project_options BioCore::project_warnings BioCore::sanitizers
+)
+add_test(NAME application.workflow_state.create_update COMMAND biocore-workflow-state-service-tests create-update)
+add_test(NAME application.workflow_state.conflict COMMAND biocore-workflow-state-service-tests conflict)
+add_test(NAME application.workflow_state.identity COMMAND biocore-workflow-state-service-tests identity)
+add_test(NAME application.workflow_state.recovery_running COMMAND biocore-workflow-state-service-tests recovery-running)
+add_test(NAME application.workflow_state.recovery_idempotent COMMAND biocore-workflow-state-service-tests recovery-idempotent)
+add_test(NAME application.workflow_state.recovery_concurrent COMMAND biocore-workflow-state-service-tests recovery-concurrent)
+
+add_executable(biocore-sqlite-workflow-state-store-tests sqlite_workflow_state_store_tests.cpp)
+target_link_libraries(
+    biocore-sqlite-workflow-state-store-tests
+    PRIVATE BioCore::infrastructure SQLite::SQLite3 BioCore::project_options BioCore::project_warnings BioCore::sanitizers
+)
+add_test(NAME infrastructure.sqlite_workflow_state.round_trip COMMAND biocore-sqlite-workflow-state-store-tests round-trip)
+add_test(NAME infrastructure.sqlite_workflow_state.update COMMAND biocore-sqlite-workflow-state-store-tests update)
+add_test(NAME infrastructure.sqlite_workflow_state.immutable COMMAND biocore-sqlite-workflow-state-store-tests immutable)
+add_test(NAME infrastructure.sqlite_workflow_state.list COMMAND biocore-sqlite-workflow-state-store-tests list)
+add_test(NAME infrastructure.sqlite_workflow_state.constraints COMMAND biocore-sqlite-workflow-state-store-tests constraints)
+
+add_executable(
+    biocore-workflow-state-recovery-sqlite-integration-tests
+    workflow_state_recovery_sqlite_integration_tests.cpp
+)
+target_link_libraries(
+    biocore-workflow-state-recovery-sqlite-integration-tests
+    PRIVATE BioCore::infrastructure BioCore::application BioCore::project_options BioCore::project_warnings BioCore::sanitizers
+)
+add_test(NAME integration.workflow_state_recovery.reopen COMMAND biocore-workflow-state-recovery-sqlite-integration-tests reopen)
+add_test(NAME integration.workflow_state_recovery.verified_completed COMMAND biocore-workflow-state-recovery-sqlite-integration-tests verified-completed)
+
 add_executable(biocore-json-pipeline-io-tests json_pipeline_io_tests.cpp)
 target_link_libraries(
     biocore-json-pipeline-io-tests

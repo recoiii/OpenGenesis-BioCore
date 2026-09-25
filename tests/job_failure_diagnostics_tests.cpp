@@ -186,7 +186,7 @@ private:
 
     infrastructure::sqlite::ProjectMigrationRunner migrations{connection};
     migrations.apply_pending();
-    if (migrations.current_version() != 8) return false;
+    if (migrations.current_version() != infrastructure::sqlite::latest_project_schema_version) return false;
     infrastructure::sqlite::SqliteJobRepository repository{connection};
     const auto failed = repository.find_by_id("legacy-failed");
     const auto interrupted = repository.find_by_id("legacy-interrupted");

@@ -22,6 +22,9 @@ enum class WorkflowCheckpointNodeState {
 };
 
 [[nodiscard]] std::string_view to_string(WorkflowCheckpointNodeState state) noexcept;
+[[nodiscard]] std::optional<WorkflowCheckpointNodeState> workflow_checkpoint_node_state_from_string(
+    std::string_view value
+) noexcept;
 
 struct WorkflowCheckpointArtifact final {
     std::string output_port;
