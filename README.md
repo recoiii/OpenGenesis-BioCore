@@ -39,7 +39,7 @@ candidate identity. Historical evidence is never reused to close a newer source 
 See [`docs/release/VALIDATION.md`](docs/release/VALIDATION.md),
 [`docs/release/FINAL-WINDOWS-CLOSURE.md`](docs/release/FINAL-WINDOWS-CLOSURE.md),
 [`docs/release/KNOWN-LIMITATIONS.md`](docs/release/KNOWN-LIMITATIONS.md), and
-[`docs/release/RELEASE-NOTES-0.4.0.md`](docs/release/RELEASE-NOTES-0.3.0.md).
+[`docs/release/RELEASE-NOTES-0.4.0.md`](docs/release/RELEASE-NOTES-0.4.0.md).
 
 ## Build on Linux
 
