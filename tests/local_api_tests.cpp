@@ -21,6 +21,7 @@
 #include "biocore/application/i_job_repository.hpp"
 #include "biocore/application/i_job_submitter.hpp"
 #include "biocore/application/i_input_file_storage.hpp"
+#include "biocore/application/i_workflow_template_catalog.hpp"
 #include "biocore/application/i_managed_file_repository.hpp"
 #include "biocore/application/i_monotonic_clock.hpp"
 #include "biocore/application/i_utc_clock.hpp"
@@ -30,6 +31,7 @@
 #include "biocore/domain/job.hpp"
 #include "biocore/domain/managed_file.hpp"
 #include "biocore/domain/storage_mode.hpp"
+#include "biocore/domain/workflow_template.hpp"
 #include "biocore/presentation/local_api.hpp"
 #include "biocore/presentation/local_browser_session.hpp"
 
@@ -204,6 +206,56 @@ public:
             .computed_sha256 = std::string(64U, 'a'),
             .actual_size_bytes = 7,
         };
+
+
+class FakeWorkflowTemplateCatalog final
+    : public biocore::application::IWorkflowTemplateCatalog {
+public:
+    [[nodiscard]] std::optional<biocore::domain::WorkflowTemplate> find(
+        const std::string_view template_id,
+        const std::string_view template_version
+    ) const override {
+        if (template_id != "org.biocore.template.demo" ||
+            template_version != "1.0.0") {
+            return std::nullopt;
+        }
+        return biocore::domain::WorkflowTemplate{
+            1U,
+            "org.biocore.template.demo",
+            "1.0.0",
+            "Demo template",
+            "Builder fixture",
+            biocore::domain::Workflow{
+                1U,
+                biocore::domain::WorkflowId{"org.biocore.template.demo"},
+                "Demo template",
+                "Builder fixture",
+                {
+                    biocore::domain::WorkflowNode{
+                        biocore::domain::WorkflowNodeId{"step"},
+                        "Step",
+                        "org.biocore.test.step",
+                        "1.0.0",
+                        {},
+                        {biocore::domain::WorkflowOutputDeclaration{"result", "txt"}},
+                        {}
+                    }
+                },
+                {}
+            }
+        };
+    }
+
+    [[nodiscard]] std::vector<biocore::application::RegisteredWorkflowTemplate>
+    list() const override {
+        return {{
+            "org.biocore.template.demo",
+            "1.0.0",
+            "Demo template",
+            "Builder fixture"
+        }};
+    }
+};
     }
 };
 
@@ -291,6 +343,7 @@ int main() {
     FakeManagedFileRepository files_repo;
     files_repo.artifact = existing_artifact();
     FakeContentAccess content;
+    FakeWorkflowTemplateCatalog workflow_templates;
     FakeInputStorage input_storage;
     SequenceIdGenerator file_ids{{"upload-1", "file-1", "upload-2"}};
     biocore::application::JobService jobs{jobs_repo, ids, clock};
@@ -303,7 +356,8 @@ int main() {
     const std::string browser_token(64U, 'c');
     biocore::presentation::LocalBrowserSession browser_session{8421U, browser_token};
     biocore::presentation::LocalApiController api{
-        jobs, submissions, managed_files, artifacts, clock, bootstrap_token, browser_session
+        jobs, submissions, managed_files, artifacts, clock, bootstrap_token, browser_session,
+        nullptr, &workflow_templates
     };
 
     const auto health = api.handle({.method = biocore::presentation::HttpMethod::get, .target = "/api/v1/health", .authorization = {}, .body = {}});
@@ -316,6 +370,119 @@ int main() {
     require(prefix_only.status == 401, "empty bearer token must fail");
 
     const std::string auth = "Bearer " + bootstrap_token;
+
+
+    const auto template_list = api.handle({
+        .method = biocore::presentation::HttpMethod::get,
+        .target = "/api/v1/workflow-templates",
+        .authorization = auth,
+        .body = {}
+    });
+    require(template_list.status == 200, "workflow template list status");
+    require(
+        template_list.body.find("org.biocore.template.demo") != std::string::npos &&
+        template_list.body.find("\"version\":\"1.0.0\"") != std::string::npos,
+        "workflow template list content"
+    );
+
+    const auto template_detail = api.handle({
+        .method = biocore::presentation::HttpMethod::get,
+        .target = "/api/v1/workflow-templates/org.biocore.template.demo/1.0.0",
+        .authorization = auth,
+        .body = {}
+    });
+    require(template_detail.status == 200, "workflow template detail status");
+    require(
+        template_detail.body.find("\"workflow\":{") != std::string::npos &&
+        template_detail.body.find("\"moduleId\":\"org.biocore.test.step\"") != std::string::npos,
+        "workflow template detail embeds canonical workflow"
+    );
+
+    const auto missing_template = api.handle({
+        .method = biocore::presentation::HttpMethod::get,
+        .target = "/api/v1/workflow-templates/org.biocore.template.demo/9.0.0",
+        .authorization = auth,
+        .body = {}
+    });
+    require(missing_template.status == 404, "missing exact workflow template version");
+
+    const std::string valid_workflow = R"({
+        "schemaVersion":1,
+        "id":"org.biocore.workflow.builder",
+        "name":"Builder workflow",
+        "description":"",
+        "nodes":[
+            {
+                "id":"source",
+                "label":"Source",
+                "moduleId":"org.biocore.test.source",
+                "pluginVersion":"1.0.0",
+                "inputs":[],
+                "outputs":[{"name":"result","artifactType":"txt"}],
+                "parameters":{}
+            },
+            {
+                "id":"target",
+                "label":"Target",
+                "moduleId":"org.biocore.test.target",
+                "pluginVersion":"1.0.0",
+                "inputs":[{"name":"input","artifactType":"txt","required":true}],
+                "outputs":[],
+                "parameters":{}
+            }
+        ],
+        "edges":[
+            {
+                "sourceNode":"source",
+                "sourceOutput":"result",
+                "targetNode":"target",
+                "targetInput":"input"
+            }
+        ]
+    })";
+    const auto workflow_validation = api.handle({
+        .method = biocore::presentation::HttpMethod::post,
+        .target = "/api/v1/workflows/validate",
+        .authorization = auth,
+        .body = valid_workflow
+    });
+    require(workflow_validation.status == 200, "workflow builder validation status");
+    require(
+        workflow_validation.body.find("\"valid\":true") != std::string::npos &&
+        workflow_validation.body.find("\"orderedNodes\":[\"source\",\"target\"]") != std::string::npos &&
+        workflow_validation.body.find("\"stages\":[[\"source\"],[\"target\"]]") != std::string::npos,
+        "workflow builder validation plan"
+    );
+
+    const std::string cyclic_workflow = R"({
+        "schemaVersion":1,
+        "id":"org.biocore.workflow.cyclic",
+        "name":"Cyclic workflow",
+        "description":"",
+        "nodes":[
+            {
+                "id":"a","label":"A","moduleId":"org.biocore.test.a","pluginVersion":"1.0.0",
+                "inputs":[{"name":"in","artifactType":"txt","required":true}],
+                "outputs":[{"name":"out","artifactType":"txt"}],"parameters":{}
+            },
+            {
+                "id":"b","label":"B","moduleId":"org.biocore.test.b","pluginVersion":"1.0.0",
+                "inputs":[{"name":"in","artifactType":"txt","required":true}],
+                "outputs":[{"name":"out","artifactType":"txt"}],"parameters":{}
+            }
+        ],
+        "edges":[
+            {"sourceNode":"a","sourceOutput":"out","targetNode":"b","targetInput":"in"},
+            {"sourceNode":"b","sourceOutput":"out","targetNode":"a","targetInput":"in"}
+        ]
+    })";
+    const auto cyclic_validation = api.handle({
+        .method = biocore::presentation::HttpMethod::post,
+        .target = "/api/v1/workflows/validate",
+        .authorization = auth,
+        .body = cyclic_workflow
+    });
+    require(cyclic_validation.status == 400, "workflow builder cycle rejected");
 
     const auto wrong_origin_session = api.handle({
         .method = biocore::presentation::HttpMethod::post,

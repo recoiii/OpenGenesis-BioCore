@@ -29,7 +29,7 @@ target_sources(
 target_link_libraries(
     biocore-presentation
     PUBLIC BioCore::application BioCore::project_options
-    PRIVATE BioCore::project_warnings BioCore::sanitizers
+    PRIVATE BioCore::pipeline_protocol BioCore::project_warnings BioCore::sanitizers
 )
 
 if(Drogon_FOUND)

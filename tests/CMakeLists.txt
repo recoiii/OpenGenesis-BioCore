@@ -546,6 +546,25 @@ add_test(NAME infrastructure.workflow_template_catalog.exact COMMAND biocore-fil
 add_test(NAME infrastructure.workflow_template_catalog.duplicate COMMAND biocore-filesystem-workflow-template-catalog-tests duplicate)
 add_test(NAME infrastructure.workflow_template_catalog.snapshot COMMAND biocore-filesystem-workflow-template-catalog-tests snapshot)
 
+add_executable(
+    biocore-workflow-builder-frontend-contract-tests
+    workflow_builder_frontend_contract_tests.cpp
+)
+target_link_libraries(
+    biocore-workflow-builder-frontend-contract-tests
+    PRIVATE BioCore::presentation BioCore::infrastructure
+            BioCore::project_options BioCore::project_warnings BioCore::sanitizers
+)
+target_compile_definitions(
+    biocore-workflow-builder-frontend-contract-tests
+    PRIVATE BIOCORE_SOURCE_ROOT="${PROJECT_SOURCE_DIR}"
+)
+add_test(NAME presentation.workflow_builder.surface COMMAND biocore-workflow-builder-frontend-contract-tests surface)
+add_test(NAME presentation.workflow_builder.safe_rendering COMMAND biocore-workflow-builder-frontend-contract-tests safe-rendering)
+add_test(NAME presentation.workflow_builder.scope COMMAND biocore-workflow-builder-frontend-contract-tests scope)
+add_test(NAME presentation.workflow_builder.asset_store COMMAND biocore-workflow-builder-frontend-contract-tests asset-store)
+add_test(NAME integration.workflow_builder.bundled_template COMMAND biocore-workflow-builder-frontend-contract-tests bundled-template)
+
 add_executable(biocore-json-pipeline-io-tests json_pipeline_io_tests.cpp)
 target_link_libraries(
     biocore-json-pipeline-io-tests

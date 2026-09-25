@@ -903,6 +903,21 @@
 
   if (typeof document === "undefined") return;
 
+  const builderState = {
+    templates: [],
+    workflow: {
+      schemaVersion: 1,
+      id: "org.biocore.workflow.draft",
+      name: "Untitled workflow",
+      description: "",
+      nodes: [],
+      edges: []
+    },
+    selectedNodeId: null,
+    sourceTemplate: null,
+    validatedCanonical: null
+  };
+
   const state = {
     jobs: new Map(),
     logs: new Map(),
@@ -1888,10 +1903,541 @@
     return true;
   };
 
+  const setBuilderMessage = (message, kind = "") => {
+    const element = byId("builder-message");
+    element.textContent = message;
+    element.className = `form-message ${kind}`.trim();
+  };
+
+  const setBuilderNodeMessage = (message, kind = "") => {
+    const element = byId("builder-node-message");
+    element.textContent = message;
+    element.className = `form-message ${kind}`.trim();
+  };
+
+  const cloneJson = value => JSON.parse(JSON.stringify(value));
+
+  const blankWorkflow = () => ({
+    schemaVersion: 1,
+    id: "org.biocore.workflow.draft",
+    name: "Untitled workflow",
+    description: "",
+    nodes: [],
+    edges: []
+  });
+
+  const invalidateBuilderValidation = (message = "") => {
+    builderState.validatedCanonical = null;
+    const status = byId("builder-validation-status");
+    status.textContent = "Not validated";
+    status.className = "status-badge status-idle";
+    byId("builder-export").disabled = true;
+    if (message) setBuilderMessage(message, "warning");
+  };
+
+  const currentWorkflowJson = () => JSON.stringify(builderState.workflow, null, 2);
+
+  const syncBuilderMetadataFromFields = () => {
+    builderState.workflow.id = byId("builder-workflow-id").value.trim();
+    builderState.workflow.name = byId("builder-workflow-name").value.trim();
+    builderState.workflow.description = byId("builder-workflow-description").value;
+  };
+
+  const renderBuilderPreview = value => {
+    byId("builder-json-preview").textContent = JSON.stringify(value, null, 2);
+  };
+
+  const clearBuilderNodeEditor = () => {
+    builderState.selectedNodeId = null;
+    byId("builder-node-id").value = "";
+    byId("builder-node-label").value = "";
+    byId("builder-node-module").value = "";
+    byId("builder-node-version").value = "";
+    byId("builder-node-inputs").value = "";
+    byId("builder-node-outputs").value = "";
+    byId("builder-node-parameters").value = "";
+    byId("builder-save-node").textContent = "Add node";
+    byId("builder-remove-node").disabled = true;
+    setBuilderNodeMessage("");
+  };
+
+  const formatInputs = inputs => (Array.isArray(inputs) ? inputs : [])
+    .map(input => `${input.name} | ${input.artifactType} | ${input.required ? "true" : "false"}`)
+    .join("\n");
+
+  const formatOutputs = outputs => (Array.isArray(outputs) ? outputs : [])
+    .map(output => `${output.name} | ${output.artifactType}`)
+    .join("\n");
+
+  const formatParameters = parameters => {
+    if (!parameters || typeof parameters !== "object" || Array.isArray(parameters)) return "";
+    return Object.keys(parameters).sort().map(name => `${name}=${parameters[name]}`).join("\n");
+  };
+
+  const selectBuilderNode = nodeId => {
+    const node = builderState.workflow.nodes.find(item => item.id === nodeId);
+    if (!node) {
+      clearBuilderNodeEditor();
+      return;
+    }
+    builderState.selectedNodeId = node.id;
+    byId("builder-node-id").value = node.id;
+    byId("builder-node-label").value = node.label;
+    byId("builder-node-module").value = node.moduleId;
+    byId("builder-node-version").value = node.pluginVersion;
+    byId("builder-node-inputs").value = formatInputs(node.inputs);
+    byId("builder-node-outputs").value = formatOutputs(node.outputs);
+    byId("builder-node-parameters").value = formatParameters(node.parameters);
+    byId("builder-save-node").textContent = "Update node";
+    byId("builder-remove-node").disabled = false;
+    setBuilderNodeMessage(`Editing ${node.id}.`);
+    renderBuilderGraph();
+  };
+
+  const appendOption = (select, value, label) => {
+    const option = document.createElement("option");
+    option.value = value;
+    option.textContent = label;
+    select.appendChild(option);
+  };
+
+  const refreshBuilderEdgeSelectors = () => {
+    const sourceNode = byId("builder-edge-source-node");
+    const targetNode = byId("builder-edge-target-node");
+    const sourceOutput = byId("builder-edge-source-output");
+    const targetInput = byId("builder-edge-target-input");
+
+    const previousSource = sourceNode.value;
+    const previousTarget = targetNode.value;
+    sourceNode.replaceChildren();
+    targetNode.replaceChildren();
+
+    for (const node of builderState.workflow.nodes) {
+      appendOption(sourceNode, node.id, node.id);
+      appendOption(targetNode, node.id, node.id);
+    }
+
+    if (builderState.workflow.nodes.some(node => node.id === previousSource)) sourceNode.value = previousSource;
+    if (builderState.workflow.nodes.some(node => node.id === previousTarget)) targetNode.value = previousTarget;
+    if (!targetNode.value && builderState.workflow.nodes.length > 1) {
+      targetNode.value = builderState.workflow.nodes[1].id;
+    }
+
+    const renderPorts = () => {
+      sourceOutput.replaceChildren();
+      targetInput.replaceChildren();
+      const source = builderState.workflow.nodes.find(node => node.id === sourceNode.value);
+      const target = builderState.workflow.nodes.find(node => node.id === targetNode.value);
+      for (const output of source && Array.isArray(source.outputs) ? source.outputs : []) {
+        appendOption(sourceOutput, output.name, `${output.name} · ${output.artifactType}`);
+      }
+      for (const input of target && Array.isArray(target.inputs) ? target.inputs : []) {
+        appendOption(targetInput, input.name, `${input.name} · ${input.artifactType}${input.required ? " · required" : ""}`);
+      }
+    };
+
+    sourceNode.onchange = renderPorts;
+    targetNode.onchange = renderPorts;
+    renderPorts();
+
+    const disabled = builderState.workflow.nodes.length === 0;
+    sourceNode.disabled = disabled;
+    targetNode.disabled = disabled;
+    sourceOutput.disabled = disabled || sourceOutput.options.length === 0;
+    targetInput.disabled = disabled || targetInput.options.length === 0;
+    byId("builder-add-edge").disabled =
+      disabled || sourceOutput.options.length === 0 || targetInput.options.length === 0;
+  };
+
+  function renderBuilderGraph() {
+    syncBuilderMetadataFromFields();
+    const nodeList = byId("builder-node-list");
+    nodeList.replaceChildren();
+
+    if (builderState.workflow.nodes.length === 0) {
+      const empty = document.createElement("div");
+      empty.className = "builder-empty";
+      empty.textContent = "Add a node or load a reusable template.";
+      nodeList.appendChild(empty);
+    } else {
+      for (const node of builderState.workflow.nodes) {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "builder-node-card";
+        if (node.id === builderState.selectedNodeId) button.classList.add("active");
+
+        const title = document.createElement("strong");
+        title.textContent = node.label;
+        button.appendChild(title);
+
+        const identity = document.createElement("span");
+        identity.textContent = `${node.id} · ${node.moduleId}@${node.pluginVersion}`;
+        button.appendChild(identity);
+
+        const ports = document.createElement("div");
+        ports.className = "builder-node-ports";
+        for (const input of node.inputs || []) {
+          const chip = document.createElement("span");
+          chip.className = "builder-port-chip";
+          chip.textContent = `in: ${input.name} · ${input.artifactType}`;
+          ports.appendChild(chip);
+        }
+        for (const output of node.outputs || []) {
+          const chip = document.createElement("span");
+          chip.className = "builder-port-chip";
+          chip.textContent = `out: ${output.name} · ${output.artifactType}`;
+          ports.appendChild(chip);
+        }
+        button.appendChild(ports);
+        button.addEventListener("click", () => selectBuilderNode(node.id));
+        nodeList.appendChild(button);
+      }
+    }
+
+    const edgeList = byId("builder-edge-list");
+    edgeList.replaceChildren();
+    if (builderState.workflow.edges.length === 0) {
+      const empty = document.createElement("div");
+      empty.className = "builder-empty";
+      empty.textContent = "No edges.";
+      edgeList.appendChild(empty);
+    } else {
+      builderState.workflow.edges.forEach((edge, index) => {
+        const row = document.createElement("div");
+        row.className = "builder-edge-row";
+        const label = document.createElement("code");
+        label.textContent = `${edge.sourceNode}.${edge.sourceOutput} → ${edge.targetNode}.${edge.targetInput}`;
+        row.appendChild(label);
+        const remove = document.createElement("button");
+        remove.type = "button";
+        remove.className = "button button-danger button-small builder-edge-remove";
+        remove.textContent = "Remove";
+        remove.addEventListener("click", () => {
+          builderState.workflow.edges.splice(index, 1);
+          invalidateBuilderValidation("Graph changed; validate again.");
+          renderBuilderGraph();
+        });
+        row.appendChild(remove);
+        edgeList.appendChild(row);
+      });
+    }
+
+    byId("builder-graph-summary").textContent =
+      `${builderState.workflow.nodes.length} nodes · ${builderState.workflow.edges.length} edges`;
+    refreshBuilderEdgeSelectors();
+    renderBuilderPreview(builderState.validatedCanonical || builderState.workflow);
+  }
+
+  const parseBuilderInputs = text => {
+    const result = [];
+    const names = new Set();
+    for (const raw of text.split(/\r?\n/)) {
+      const line = raw.trim();
+      if (!line) continue;
+      const parts = line.split("|").map(value => value.trim());
+      if (parts.length !== 3 || !parts[0] || !parts[1] ||
+          (parts[2] !== "true" && parts[2] !== "false")) {
+        throw new Error("Inputs must use: name | artifactType | true/false.");
+      }
+      if (names.has(parts[0])) throw new Error(`Duplicate input port: ${parts[0]}.`);
+      names.add(parts[0]);
+      result.push({ name: parts[0], artifactType: parts[1], required: parts[2] === "true" });
+    }
+    return result;
+  };
+
+  const parseBuilderOutputs = text => {
+    const result = [];
+    const names = new Set();
+    for (const raw of text.split(/\r?\n/)) {
+      const line = raw.trim();
+      if (!line) continue;
+      const parts = line.split("|").map(value => value.trim());
+      if (parts.length !== 2 || !parts[0] || !parts[1]) {
+        throw new Error("Outputs must use: name | artifactType.");
+      }
+      if (names.has(parts[0])) throw new Error(`Duplicate output port: ${parts[0]}.`);
+      names.add(parts[0]);
+      result.push({ name: parts[0], artifactType: parts[1] });
+    }
+    return result;
+  };
+
+  const parseBuilderParameters = text => {
+    const result = {};
+    for (const raw of text.split(/\r?\n/)) {
+      const line = raw.trim();
+      if (!line) continue;
+      const separator = line.indexOf("=");
+      if (separator <= 0) throw new Error("Parameters must use: name=value.");
+      const name = line.slice(0, separator).trim();
+      const value = line.slice(separator + 1);
+      if (!name) throw new Error("Parameter name must not be empty.");
+      if (Object.prototype.hasOwnProperty.call(result, name)) {
+        throw new Error(`Duplicate parameter: ${name}.`);
+      }
+      result[name] = value;
+    }
+    return result;
+  };
+
+  const saveBuilderNode = () => {
+    try {
+      syncBuilderMetadataFromFields();
+      const id = byId("builder-node-id").value.trim();
+      const label = byId("builder-node-label").value.trim();
+      const moduleId = byId("builder-node-module").value.trim();
+      const pluginVersion = byId("builder-node-version").value.trim();
+      if (!id || !label || !moduleId || !pluginVersion) {
+        throw new Error("Node ID, label, module ID, and plugin version are required.");
+      }
+      const node = {
+        id,
+        label,
+        moduleId,
+        pluginVersion,
+        inputs: parseBuilderInputs(byId("builder-node-inputs").value),
+        outputs: parseBuilderOutputs(byId("builder-node-outputs").value),
+        parameters: parseBuilderParameters(byId("builder-node-parameters").value)
+      };
+
+      const editing = builderState.selectedNodeId;
+      const duplicate = builderState.workflow.nodes.some(
+        current => current.id === id && current.id !== editing
+      );
+      if (duplicate) throw new Error(`Node ID already exists: ${id}.`);
+
+      if (editing) {
+        const index = builderState.workflow.nodes.findIndex(current => current.id === editing);
+        if (index < 0) throw new Error("Selected node no longer exists.");
+        builderState.workflow.nodes[index] = node;
+        if (editing !== id) {
+          for (const edge of builderState.workflow.edges) {
+            if (edge.sourceNode === editing) edge.sourceNode = id;
+            if (edge.targetNode === editing) edge.targetNode = id;
+          }
+        }
+      } else {
+        builderState.workflow.nodes.push(node);
+      }
+
+      builderState.selectedNodeId = id;
+      invalidateBuilderValidation("Node changed; validate the graph again.");
+      setBuilderNodeMessage(`${editing ? "Updated" : "Added"} ${id}.`, "ready");
+      renderBuilderGraph();
+      selectBuilderNode(id);
+    } catch (error) {
+      setBuilderNodeMessage(error instanceof Error ? error.message : "Node update failed.", "error");
+    }
+  };
+
+  const removeBuilderNode = () => {
+    const id = builderState.selectedNodeId;
+    if (!id) return;
+    builderState.workflow.nodes = builderState.workflow.nodes.filter(node => node.id !== id);
+    builderState.workflow.edges = builderState.workflow.edges.filter(
+      edge => edge.sourceNode !== id && edge.targetNode !== id
+    );
+    clearBuilderNodeEditor();
+    invalidateBuilderValidation("Node removed; validate the graph again.");
+    renderBuilderGraph();
+  };
+
+  const addBuilderEdge = () => {
+    const edge = {
+      sourceNode: byId("builder-edge-source-node").value,
+      sourceOutput: byId("builder-edge-source-output").value,
+      targetNode: byId("builder-edge-target-node").value,
+      targetInput: byId("builder-edge-target-input").value
+    };
+    if (!edge.sourceNode || !edge.sourceOutput || !edge.targetNode || !edge.targetInput) {
+      setBuilderMessage("Choose complete source and target ports first.", "warning");
+      return;
+    }
+    const duplicate = builderState.workflow.edges.some(current =>
+      current.sourceNode === edge.sourceNode &&
+      current.sourceOutput === edge.sourceOutput &&
+      current.targetNode === edge.targetNode &&
+      current.targetInput === edge.targetInput
+    );
+    if (duplicate) {
+      setBuilderMessage("That edge already exists.", "warning");
+      return;
+    }
+    builderState.workflow.edges.push(edge);
+    invalidateBuilderValidation("Edge added; validate the graph again.");
+    renderBuilderGraph();
+  };
+
+  const setBuilderWorkflow = (workflow, sourceTemplate = null) => {
+    builderState.workflow = cloneJson(workflow);
+    builderState.sourceTemplate = sourceTemplate;
+    builderState.selectedNodeId = null;
+    builderState.validatedCanonical = null;
+
+    byId("builder-workflow-id").value = builderState.workflow.id || "";
+    byId("builder-workflow-name").value = builderState.workflow.name || "";
+    byId("builder-workflow-description").value = builderState.workflow.description || "";
+    byId("builder-template-provenance").textContent = sourceTemplate
+      ? `Template: ${sourceTemplate.id}@${sourceTemplate.version}`
+      : "Scratch workflow";
+    clearBuilderNodeEditor();
+    invalidateBuilderValidation();
+    renderBuilderGraph();
+  };
+
+  const loadWorkflowTemplates = async () => {
+    const response = await fetch("/api/v1/workflow-templates", {
+      method: "GET",
+      cache: "no-store",
+      credentials: "same-origin",
+      headers: { "Accept": "application/json" }
+    });
+    if (!response.ok) throw new Error(`workflow-templates-${response.status}`);
+    const payload = await response.json();
+    builderState.templates = Array.isArray(payload)
+      ? payload.filter(item =>
+          item && typeof item.id === "string" && typeof item.version === "string" &&
+          typeof item.name === "string")
+      : [];
+
+    const select = byId("builder-template-select");
+    select.replaceChildren();
+    appendOption(select, "", builderState.templates.length
+      ? "Select exact template version"
+      : "No reusable templates discovered");
+    builderState.templates.forEach((item, index) => {
+      appendOption(select, String(index), `${item.name} · ${item.id}@${item.version}`);
+    });
+    byId("builder-load-template").disabled = builderState.templates.length === 0;
+  };
+
+  const loadSelectedWorkflowTemplate = async () => {
+    const index = Number.parseInt(byId("builder-template-select").value, 10);
+    if (!Number.isInteger(index) || index < 0 || index >= builderState.templates.length) {
+      setBuilderMessage("Select an exact template version first.", "warning");
+      return;
+    }
+    const selected = builderState.templates[index];
+    byId("builder-load-template").disabled = true;
+    try {
+      const response = await fetch(
+        `/api/v1/workflow-templates/${selected.id}/${selected.version}`,
+        {
+          method: "GET",
+          cache: "no-store",
+          credentials: "same-origin",
+          headers: { "Accept": "application/json" }
+        }
+      );
+      let payload = null;
+      try { payload = await response.json(); } catch (_) { payload = null; }
+      if (!response.ok || !payload || !payload.workflow) {
+        const message = payload && payload.error && typeof payload.error.message === "string"
+          ? payload.error.message
+          : `Template load failed (${response.status}).`;
+        throw new Error(message);
+      }
+      setBuilderWorkflow(payload.workflow, {
+        id: payload.id,
+        version: payload.version
+      });
+      setBuilderMessage(
+        `Loaded immutable template ${payload.id}@${payload.version}. Edit the draft and validate before export.`,
+        "ready"
+      );
+    } catch (error) {
+      setBuilderMessage(error instanceof Error ? error.message : "Template load failed.", "error");
+    } finally {
+      byId("builder-load-template").disabled = builderState.templates.length === 0;
+    }
+  };
+
+  const validateBuilderWorkflow = async () => {
+    syncBuilderMetadataFromFields();
+    const status = byId("builder-validation-status");
+    const button = byId("builder-validate");
+    button.disabled = true;
+    status.textContent = "Validating…";
+    status.className = "status-badge status-idle";
+    setBuilderMessage("Validating against the canonical Workflow v1 / DAG contract…");
+    try {
+      const response = await fetch("/api/v1/workflows/validate", {
+        method: "POST",
+        cache: "no-store",
+        credentials: "same-origin",
+        headers: {
+          "Accept": "application/json",
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(builderState.workflow)
+      });
+      let payload = null;
+      try { payload = await response.json(); } catch (_) { payload = null; }
+      if (!response.ok || !payload || payload.valid !== true || !payload.workflow) {
+        const message = payload && payload.error && typeof payload.error.message === "string"
+          ? payload.error.message
+          : `Workflow validation failed (${response.status}).`;
+        throw new Error(message);
+      }
+
+      builderState.workflow = cloneJson(payload.workflow);
+      builderState.validatedCanonical = cloneJson(payload.workflow);
+      byId("builder-workflow-id").value = builderState.workflow.id;
+      byId("builder-workflow-name").value = builderState.workflow.name;
+      byId("builder-workflow-description").value = builderState.workflow.description || "";
+      status.textContent = "Valid";
+      status.className = "status-badge status-ready";
+      byId("builder-export").disabled = false;
+      const stages = Array.isArray(payload.stages) ? payload.stages.length : 0;
+      const ordered = Array.isArray(payload.orderedNodes) ? payload.orderedNodes.join(" → ") : "";
+      setBuilderMessage(
+        `Canonical validation passed · ${stages} execution stage${stages === 1 ? "" : "s"}${ordered ? ` · order: ${ordered}` : ""}.`,
+        "ready"
+      );
+      renderBuilderGraph();
+    } catch (error) {
+      builderState.validatedCanonical = null;
+      status.textContent = "Invalid";
+      status.className = "status-badge status-warning";
+      byId("builder-export").disabled = true;
+      setBuilderMessage(error instanceof Error ? error.message : "Workflow validation failed.", "error");
+      renderBuilderPreview(builderState.workflow);
+    } finally {
+      button.disabled = false;
+    }
+  };
+
+  const exportBuilderWorkflow = () => {
+    if (!builderState.validatedCanonical) {
+      setBuilderMessage("Validate the workflow before exporting canonical JSON.", "warning");
+      return;
+    }
+    const content = JSON.stringify(builderState.validatedCanonical, null, 2) + "\n";
+    const blob = new Blob([content], { type: "application/json;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    const safeId = builderState.validatedCanonical.id.replace(/[^A-Za-z0-9._-]+/g, "_");
+    anchor.href = url;
+    anchor.download = `${safeId || "workflow"}.workflow.json`;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    URL.revokeObjectURL(url);
+    setBuilderMessage("Canonical Workflow v1 JSON exported locally.", "ready");
+  };
+
   const probeSession = async () => {
     try {
       await loadJobs();
       await loadManagedFiles();
+      await loadWorkflowTemplates().catch(() => {
+        builderState.templates = [];
+        const select = byId("builder-template-select");
+        select.replaceChildren();
+        appendOption(select, "", "Template catalog unavailable");
+        byId("builder-load-template").disabled = true;
+      });
       state.authenticated = true;
       sessionGate.hidden = true;
       appShell.hidden = false;
@@ -2335,6 +2881,8 @@
       const view = navigation.dataset.view;
       if (view === "wizard") {
         byId("analysis-wizard-panel").scrollIntoView({ behavior: "smooth", block: "start" });
+      } else if (view === "builder") {
+        byId("workflow-builder-panel").scrollIntoView({ behavior: "smooth", block: "start" });
       } else if (view === "submit") {
         byId("submit-panel").scrollIntoView({ behavior: "smooth", block: "start" });
       } else if (view === "results") {
@@ -2354,6 +2902,35 @@
     });
   }
 
+  for (const id of [
+    "builder-workflow-id",
+    "builder-workflow-name",
+    "builder-workflow-description"
+  ]) {
+    byId(id).addEventListener("input", () => {
+      syncBuilderMetadataFromFields();
+      invalidateBuilderValidation("Workflow metadata changed; validate again.");
+      renderBuilderPreview(builderState.workflow);
+    });
+  }
+
+  byId("builder-new").addEventListener("click", () => {
+    setBuilderWorkflow(blankWorkflow(), null);
+    setBuilderMessage("Started a new blank Workflow v1 draft.");
+  });
+  byId("builder-load-template").addEventListener("click", () => {
+    loadSelectedWorkflowTemplate().catch(() => {});
+  });
+  byId("builder-clear-node").addEventListener("click", clearBuilderNodeEditor);
+  byId("builder-save-node").addEventListener("click", saveBuilderNode);
+  byId("builder-remove-node").addEventListener("click", removeBuilderNode);
+  byId("builder-add-edge").addEventListener("click", addBuilderEdge);
+  byId("builder-validate").addEventListener("click", () => {
+    validateBuilderWorkflow().catch(() => {});
+  });
+  byId("builder-export").addEventListener("click", exportBuilderWorkflow);
+
+  setBuilderWorkflow(blankWorkflow(), null);
   renderWizardFields(false);
   checkHealth();
 })();

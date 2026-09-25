@@ -1,0 +1,8 @@
+{
+  "schemaVersion": 1,
+  "id": "org.biocore.template.fastq-trim-qc",
+  "version": "1.0.0",
+  "name": "Single-end FASTQ trim + QC",
+  "description": "Reusable two-stage workflow template: trim a single-end FASTQ input, then calculate QC statistics on the trimmed output.",
+  "workflowDocument": "{\"schemaVersion\":1,\"id\":\"org.biocore.template.fastq-trim-qc\",\"name\":\"FASTQ trim then QC blueprint\",\"description\":\"Trim a single-end FASTQ input and run FASTQ quality statistics on the trimmed reads.\",\"nodes\":[{\"id\":\"trim\",\"label\":\"Trim FASTQ\",\"moduleId\":\"org.biocore.fastqqc.trim-single\",\"pluginVersion\":\"0.1.0\",\"inputs\":[{\"name\":\"source\",\"artifactType\":\"fastq\",\"required\":true}],\"outputs\":[{\"name\":\"trimmed\",\"artifactType\":\"fastq\"},{\"name\":\"summary\",\"artifactType\":\"json\"},{\"name\":\"table\",\"artifactType\":\"tsv\"}],\"parameters\":{\"minimum-length\":\"20\",\"quality-threshold\":\"20\"}},{\"id\":\"qc\",\"label\":\"QC trimmed FASTQ\",\"moduleId\":\"org.biocore.fastqqc.stats\",\"pluginVersion\":\"0.1.0\",\"inputs\":[{\"name\":\"source\",\"artifactType\":\"fastq\",\"required\":true}],\"outputs\":[{\"name\":\"summary\",\"artifactType\":\"json\"},{\"name\":\"table\",\"artifactType\":\"tsv\"}],\"parameters\":{}}],\"edges\":[{\"sourceNode\":\"trim\",\"sourceOutput\":\"trimmed\",\"targetNode\":\"qc\",\"targetInput\":\"source\"}]}"
+}

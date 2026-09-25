@@ -14,6 +14,7 @@ class JobRetryService;
 class ManagedFileService;
 class IJobSubmitter;
 class IUtcClock;
+class IWorkflowTemplateCatalog;
 }
 
 namespace biocore::presentation {
@@ -60,7 +61,8 @@ public:
         application::IUtcClock& clock,
         std::string bootstrap_token,
         LocalBrowserSession& browser_session,
-        application::JobRetryService* retries = nullptr
+        application::JobRetryService* retries = nullptr,
+        const application::IWorkflowTemplateCatalog* workflow_templates = nullptr
     );
 
     [[nodiscard]] LocalHttpResponse handle(const LocalHttpRequest& request);
@@ -88,6 +90,7 @@ private:
     application::ManagedFileService& managed_files_;
     application::ArtifactPresentationService& artifacts_;
     application::IUtcClock& clock_;
+    const application::IWorkflowTemplateCatalog* workflow_templates_;
     std::string bootstrap_token_;
     LocalBrowserSession& browser_session_;
 };

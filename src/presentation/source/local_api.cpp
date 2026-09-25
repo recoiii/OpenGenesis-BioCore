@@ -22,6 +22,7 @@
 #include "biocore/application/job_service.hpp"
 #include "biocore/application/job_service_error.hpp"
 #include "biocore/application/i_job_submitter.hpp"
+#include "biocore/application/i_workflow_template_catalog.hpp"
 #include "biocore/application/job_submission_service_error.hpp"
 #include "biocore/application/managed_file_service.hpp"
 #include "biocore/application/managed_file_service_error.hpp"
@@ -33,6 +34,8 @@
 #include "biocore/domain/job_priority.hpp"
 #include "biocore/domain/job_status.hpp"
 #include "biocore/domain/storage_mode.hpp"
+#include "biocore/domain/workflow_dag.hpp"
+#include "biocore/pipeline_protocol/workflow_document_codec.hpp"
 #include "biocore/presentation/artifact_report.hpp"
 #include "biocore/presentation/health_json.hpp"
 #include "biocore/presentation/local_browser_session.hpp"
@@ -196,6 +199,61 @@ namespace {
            std::to_string(application::ManagedFileService::maximum_upload_chunk_bytes) + "}";
 }
 
+
+[[nodiscard]] std::string render_workflow_template_list(
+    const std::vector<application::RegisteredWorkflowTemplate>& templates
+) {
+    std::string body{"["};
+    for (std::size_t index = 0U; index < templates.size(); ++index) {
+        if (index != 0U) body += ',';
+        const auto& value = templates[index];
+        body += "{\"id\":" + quote(value.id) +
+                ",\"version\":" + quote(value.version) +
+                ",\"name\":" + quote(value.name) +
+                ",\"description\":" + quote(value.description) + "}";
+    }
+    body += ']';
+    return body;
+}
+
+[[nodiscard]] std::string render_workflow_template(
+    const domain::WorkflowTemplate& value
+) {
+    return "{\"id\":" + quote(value.id()) +
+           ",\"version\":" + quote(value.version()) +
+           ",\"name\":" + quote(value.name()) +
+           ",\"description\":" + quote(value.description()) +
+           ",\"workflow\":" +
+           pipeline_protocol::serialize_workflow_document(value.blueprint()) +
+           "}";
+}
+
+[[nodiscard]] std::string render_workflow_validation(
+    const domain::Workflow& workflow,
+    const domain::WorkflowDagPlan& plan
+) {
+    std::string body{"{\"valid\":true,\"workflow\":"};
+    body += pipeline_protocol::serialize_workflow_document(workflow);
+    body += ",\"orderedNodes\":[";
+    for (std::size_t index = 0U; index < plan.ordered_nodes().size(); ++index) {
+        if (index != 0U) body += ',';
+        body += quote(plan.ordered_nodes()[index].id.value());
+    }
+    body += "],\"stages\":[";
+    for (std::size_t stage = 0U; stage < plan.execution_stages().size(); ++stage) {
+        if (stage != 0U) body += ',';
+        body += '[';
+        const auto& nodes = plan.execution_stages()[stage];
+        for (std::size_t index = 0U; index < nodes.size(); ++index) {
+            if (index != 0U) body += ',';
+            body += quote(nodes[index].value());
+        }
+        body += ']';
+    }
+    body += "]}";
+    return body;
+}
+
 void validate_utf8(const std::string_view value) {
     std::size_t index = 0U;
     while (index < value.size()) {
@@ -247,6 +305,18 @@ void validate_utf8(const std::string_view value) {
         const auto c = static_cast<unsigned char>(character);
         return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
                (c >= '0' && c <= '9') || c == '-' || c == '_' || c == '.';
+    });
+}
+
+[[nodiscard]] bool safe_template_atom(const std::string_view value) noexcept {
+    if (value.empty() || value.size() > 256U || value == "." || value == "..") {
+        return false;
+    }
+    return std::ranges::all_of(value, [](const char character) {
+        const auto c = static_cast<unsigned char>(character);
+        return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
+               (c >= '0' && c <= '9') || c == '-' || c == '_' ||
+               c == '.' || c == '+';
     });
 }
 
@@ -934,9 +1004,11 @@ LocalApiController::LocalApiController(
     application::IUtcClock& clock,
     std::string bootstrap_token,
     LocalBrowserSession& browser_session,
-    application::JobRetryService* retries
+    application::JobRetryService* retries,
+    const application::IWorkflowTemplateCatalog* workflow_templates
 )
-    : jobs_{jobs}, retries_{retries}, submissions_{submissions}, managed_files_{managed_files}, artifacts_{artifacts}, clock_{clock},
+    : jobs_{jobs}, retries_{retries}, submissions_{submissions}, managed_files_{managed_files},
+      artifacts_{artifacts}, clock_{clock}, workflow_templates_{workflow_templates},
       bootstrap_token_{std::move(bootstrap_token)}, browser_session_{browser_session} {
     if (bootstrap_token_.size() < 32U || bootstrap_token_.size() > 2048U) {
         throw std::invalid_argument("Bootstrap token length is invalid");
@@ -965,13 +1037,20 @@ LocalHttpResponse LocalApiController::handle(const LocalHttpRequest& request) {
         path[2] == "files" && path[3] == "uploads" &&
         safe_path_atom(path[4]) && path[5] == "chunks" &&
         request.method == HttpMethod::post;
+    const bool workflow_validation_route =
+        path.size() == 4U && path[0] == "api" && path[1] == "v1" &&
+        path[2] == "workflows" && path[3] == "validate" &&
+        request.method == HttpMethod::post;
     if (upload_chunk_route) {
         if (request.body.empty() ||
             request.body.size() > application::ManagedFileService::maximum_upload_chunk_bytes) {
             return error_response(413, "upload_chunk_size", "Upload chunk must contain 1 to 1048576 bytes");
         }
     } else {
-        if (request.body.size() > maximum_request_body_bytes) {
+        const std::size_t maximum_body_bytes = workflow_validation_route
+            ? pipeline_protocol::maximum_workflow_document_bytes
+            : maximum_request_body_bytes;
+        if (request.body.size() > maximum_body_bytes) {
             return error_response(413, "request_too_large", "Request body is too large");
         }
         try {
@@ -1023,6 +1102,44 @@ LocalHttpResponse LocalApiController::handle(const LocalHttpRequest& request) {
     }
 
     try {
+
+if (path.size() == 3U && path[2] == "workflow-templates" &&
+    request.method == HttpMethod::get) {
+    if (workflow_templates_ == nullptr) {
+        return error_response(
+            503, "workflow_templates_unavailable",
+            "Workflow template catalog is unavailable"
+        );
+    }
+    return json_response(
+        200, render_workflow_template_list(workflow_templates_->list())
+    );
+}
+if (path.size() == 5U && path[2] == "workflow-templates" &&
+    safe_template_atom(path[3]) && safe_template_atom(path[4]) &&
+    request.method == HttpMethod::get) {
+    if (workflow_templates_ == nullptr) {
+        return error_response(
+            503, "workflow_templates_unavailable",
+            "Workflow template catalog is unavailable"
+        );
+    }
+    const auto value = workflow_templates_->find(path[3], path[4]);
+    if (!value.has_value()) {
+        return error_response(
+            404, "workflow_template_not_found",
+            "Workflow template id/version was not found"
+        );
+    }
+    return json_response(200, render_workflow_template(*value));
+}
+if (path.size() == 4U && path[2] == "workflows" && path[3] == "validate" &&
+    request.method == HttpMethod::post) {
+    const domain::Workflow workflow =
+        pipeline_protocol::parse_workflow_document(request.body);
+    const domain::WorkflowDagPlan plan = domain::plan_workflow_dag(workflow);
+    return json_response(200, render_workflow_validation(workflow, plan));
+}
 
 if (path.size() == 3U && path[2] == "files" && request.method == HttpMethod::get) {
     return json_response(200, render_managed_inputs(managed_files_.list()));

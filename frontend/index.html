@@ -60,6 +60,10 @@
             <span class="nav-icon" aria-hidden="true">✦</span>
             Analysis wizard
           </button>
+          <button class="nav-item" type="button" data-view="builder">
+            <span class="nav-icon" aria-hidden="true">⌘</span>
+            Workflow builder
+          </button>
           <button class="nav-item" type="button" data-view="submit">
             <span class="nav-icon" aria-hidden="true">▶</span>
             New job
@@ -313,6 +317,158 @@
               </div>
             </article>
           </div>
+
+          <article class="panel workflow-builder-panel" id="workflow-builder-panel" aria-labelledby="workflow-builder-title">
+            <div class="panel-heading">
+              <div>
+                <div class="kicker">Workflow Engine 2.0</div>
+                <h3 id="workflow-builder-title">Workflow builder</h3>
+              </div>
+              <span class="badge badge-muted">Draft / validate / export</span>
+            </div>
+            <p class="panel-copy">
+              Build a canonical Workflow v1 graph locally. Start from an immutable exact-version template or
+              create a graph from scratch, then validate the draft against the server-side workflow/DAG contract.
+              This builder does not execute workflows; execution workspace behavior is intentionally deferred.
+            </p>
+
+            <div class="builder-toolbar">
+              <label class="builder-template-picker">
+                <span>Reusable template</span>
+                <select id="builder-template-select">
+                  <option value="">No template selected</option>
+                </select>
+              </label>
+              <button class="button button-quiet" id="builder-load-template" type="button">Load exact template</button>
+              <button class="button button-quiet" id="builder-new" type="button">New blank workflow</button>
+              <span class="status-badge status-idle" id="builder-validation-status">Not validated</span>
+            </div>
+
+            <div class="builder-metadata-grid">
+              <label>
+                <span>Workflow ID</span>
+                <input id="builder-workflow-id" type="text" value="org.biocore.workflow.draft"
+                       autocomplete="off" spellcheck="false">
+              </label>
+              <label>
+                <span>Name</span>
+                <input id="builder-workflow-name" type="text" value="Untitled workflow"
+                       autocomplete="off">
+              </label>
+              <label class="builder-description-field">
+                <span>Description</span>
+                <input id="builder-workflow-description" type="text" value=""
+                       autocomplete="off">
+              </label>
+            </div>
+
+            <div class="builder-layout">
+              <section class="builder-editor" aria-labelledby="builder-node-editor-title">
+                <div class="builder-section-heading">
+                  <div>
+                    <div class="kicker">Node editor</div>
+                    <h4 id="builder-node-editor-title">Node definition</h4>
+                  </div>
+                  <button class="button button-quiet button-small" id="builder-clear-node" type="button">Clear</button>
+                </div>
+
+                <div class="builder-node-grid">
+                  <label>
+                    <span>Node ID</span>
+                    <input id="builder-node-id" type="text" placeholder="align" autocomplete="off" spellcheck="false">
+                  </label>
+                  <label>
+                    <span>Label</span>
+                    <input id="builder-node-label" type="text" placeholder="Align reads" autocomplete="off">
+                  </label>
+                  <label>
+                    <span>Module ID</span>
+                    <input id="builder-node-module" type="text" placeholder="org.biocore.align"
+                           autocomplete="off" spellcheck="false">
+                  </label>
+                  <label>
+                    <span>Plugin version</span>
+                    <input id="builder-node-version" type="text" placeholder="1.0.0"
+                           autocomplete="off" spellcheck="false">
+                  </label>
+                </div>
+
+                <label class="builder-wide-field">
+                  <span>Inputs — one per line: <code>name | artifactType | required</code></span>
+                  <textarea id="builder-node-inputs" rows="4"
+                            placeholder="reads | fastq | true&#10;reference | fasta | true"></textarea>
+                </label>
+                <label class="builder-wide-field">
+                  <span>Outputs — one per line: <code>name | artifactType</code></span>
+                  <textarea id="builder-node-outputs" rows="4"
+                            placeholder="alignment | bam"></textarea>
+                </label>
+                <label class="builder-wide-field">
+                  <span>Parameters — one per line: <code>name=value</code></span>
+                  <textarea id="builder-node-parameters" rows="4"
+                            placeholder="threads=8&#10;mode=sensitive"></textarea>
+                </label>
+
+                <div class="builder-node-actions">
+                  <button class="button button-primary button-small" id="builder-save-node" type="button">Add node</button>
+                  <button class="button button-danger button-small" id="builder-remove-node" type="button" disabled>Remove selected</button>
+                </div>
+                <p class="form-message" id="builder-node-message" role="status" aria-live="polite"></p>
+              </section>
+
+              <section class="builder-canvas-section" aria-labelledby="builder-canvas-title">
+                <div class="builder-section-heading">
+                  <div>
+                    <div class="kicker">Graph</div>
+                    <h4 id="builder-canvas-title">Nodes &amp; edges</h4>
+                  </div>
+                  <span id="builder-graph-summary">0 nodes · 0 edges</span>
+                </div>
+
+                <div class="builder-canvas" id="builder-node-list" aria-live="polite">
+                  <div class="builder-empty">Add a node or load a reusable template.</div>
+                </div>
+
+                <div class="builder-edge-editor">
+                  <div class="builder-edge-grid">
+                    <label>
+                      <span>Source node</span>
+                      <select id="builder-edge-source-node"></select>
+                    </label>
+                    <label>
+                      <span>Source output</span>
+                      <select id="builder-edge-source-output"></select>
+                    </label>
+                    <label>
+                      <span>Target node</span>
+                      <select id="builder-edge-target-node"></select>
+                    </label>
+                    <label>
+                      <span>Target input</span>
+                      <select id="builder-edge-target-input"></select>
+                    </label>
+                  </div>
+                  <button class="button button-quiet button-small" id="builder-add-edge" type="button">Add edge</button>
+                </div>
+
+                <div class="builder-edge-list" id="builder-edge-list">
+                  <div class="builder-empty">No edges.</div>
+                </div>
+              </section>
+            </div>
+
+            <div class="builder-actions">
+              <button class="button button-primary" id="builder-validate" type="button">Validate canonical workflow</button>
+              <button class="button button-quiet" id="builder-export" type="button" disabled>Export canonical JSON</button>
+              <span id="builder-template-provenance">Scratch workflow</span>
+            </div>
+            <p class="form-message" id="builder-message" role="status" aria-live="polite"></p>
+
+            <details class="builder-preview">
+              <summary>Canonical workflow JSON</summary>
+              <pre id="builder-json-preview"></pre>
+            </details>
+          </article>
 
           <article class="panel submit-panel" id="submit-panel">
             <div class="panel-heading">

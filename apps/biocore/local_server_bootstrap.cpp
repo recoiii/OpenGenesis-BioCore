@@ -23,6 +23,7 @@
 #include "biocore/infrastructure/filesystem_output_artifact_inspector.hpp"
 #include "biocore/infrastructure/filesystem_partial_output_cleaner.hpp"
 #include "biocore/infrastructure/filesystem_pipeline_catalog.hpp"
+#include "biocore/infrastructure/filesystem_workflow_template_catalog.hpp"
 #include "biocore/infrastructure/filesystem_plugin_registry.hpp"
 #include "biocore/infrastructure/filesystem_quarantine_retention_store.hpp"
 #include "biocore/infrastructure/json_execution_plan_store.hpp"
@@ -268,6 +269,9 @@ int run_local_server(
     }
     infrastructure::FilesystemPluginRegistry plugins{{assets.plugin_root}};
     const auto plugin_report = plugins.refresh();
+    infrastructure::FilesystemWorkflowTemplateCatalog workflow_templates{
+        assets.pipeline_root
+    };
     if (plugin_report.loaded_modules == 0U) {
         throw std::runtime_error("No valid plugin modules are available to the local server");
     }
@@ -291,12 +295,15 @@ int run_local_server(
         arguments.port, infrastructure::generate_secure_token_hex()
     };
     presentation::LocalApiController api{
-        api_jobs, submissions, managed_files, artifacts, clock, token, browser_session, &retries
+        api_jobs, submissions, managed_files, artifacts, clock, token, browser_session,
+        &retries, &workflow_templates
     };
     standard_output << "OpenGenesis-BioCore project recovery: " << recovery_result.recovered_jobs.size()
                     << " stale job(s) interrupted, " << recovery_result.issues.size() << " issue(s).\n";
     standard_output << "OpenGenesis-BioCore pipelines: " << pipeline_report.loaded_pipelines
-                    << ", plugin modules: " << plugin_report.loaded_modules << ".\n";
+                    << ", plugin modules: " << plugin_report.loaded_modules
+                    << ", workflow templates: "
+                    << workflow_templates.report().loaded_templates << ".\n";
     standard_output << "OpenGenesis-BioCore worker concurrency: "
                     << arguments.maximum_concurrent_jobs << " / "
                     << application::JobScheduler::maximum_supported_concurrent_jobs
