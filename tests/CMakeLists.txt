@@ -501,6 +501,51 @@ target_link_libraries(
 add_test(NAME integration.workflow_state_recovery.reopen COMMAND biocore-workflow-state-recovery-sqlite-integration-tests reopen)
 add_test(NAME integration.workflow_state_recovery.verified_completed COMMAND biocore-workflow-state-recovery-sqlite-integration-tests verified-completed)
 
+add_executable(biocore-workflow-template-tests workflow_template_tests.cpp)
+target_link_libraries(
+    biocore-workflow-template-tests
+    PRIVATE BioCore::domain BioCore::project_options BioCore::project_warnings BioCore::sanitizers
+)
+add_test(NAME domain.workflow_template.valid COMMAND biocore-workflow-template-tests valid)
+add_test(NAME domain.workflow_template.invalid COMMAND biocore-workflow-template-tests invalid)
+
+add_executable(
+    biocore-workflow-template-document-codec-tests
+    workflow_template_document_codec_tests.cpp
+)
+target_link_libraries(
+    biocore-workflow-template-document-codec-tests
+    PRIVATE BioCore::pipeline_protocol BioCore::domain BioCore::project_options BioCore::project_warnings BioCore::sanitizers
+)
+add_test(NAME pipeline_protocol.workflow_template.round_trip COMMAND biocore-workflow-template-document-codec-tests round-trip)
+add_test(NAME pipeline_protocol.workflow_template.deterministic COMMAND biocore-workflow-template-document-codec-tests deterministic)
+add_test(NAME pipeline_protocol.workflow_template.invalid COMMAND biocore-workflow-template-document-codec-tests invalid)
+
+add_executable(
+    biocore-workflow-template-instantiation-service-tests
+    workflow_template_instantiation_service_tests.cpp
+)
+target_link_libraries(
+    biocore-workflow-template-instantiation-service-tests
+    PRIVATE BioCore::application BioCore::domain BioCore::project_options BioCore::project_warnings BioCore::sanitizers
+)
+add_test(NAME application.workflow_template.exact_version COMMAND biocore-workflow-template-instantiation-service-tests exact-version)
+add_test(NAME application.workflow_template.metadata COMMAND biocore-workflow-template-instantiation-service-tests metadata)
+add_test(NAME application.workflow_template.override COMMAND biocore-workflow-template-instantiation-service-tests override)
+add_test(NAME application.workflow_template.errors COMMAND biocore-workflow-template-instantiation-service-tests errors)
+
+add_executable(
+    biocore-filesystem-workflow-template-catalog-tests
+    filesystem_workflow_template_catalog_tests.cpp
+)
+target_link_libraries(
+    biocore-filesystem-workflow-template-catalog-tests
+    PRIVATE BioCore::infrastructure BioCore::pipeline_protocol BioCore::project_options BioCore::project_warnings BioCore::sanitizers
+)
+add_test(NAME infrastructure.workflow_template_catalog.exact COMMAND biocore-filesystem-workflow-template-catalog-tests exact)
+add_test(NAME infrastructure.workflow_template_catalog.duplicate COMMAND biocore-filesystem-workflow-template-catalog-tests duplicate)
+add_test(NAME infrastructure.workflow_template_catalog.snapshot COMMAND biocore-filesystem-workflow-template-catalog-tests snapshot)
+
 add_executable(biocore-json-pipeline-io-tests json_pipeline_io_tests.cpp)
 target_link_libraries(
     biocore-json-pipeline-io-tests

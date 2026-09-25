@@ -10,6 +10,7 @@ target_sources(
         source/filesystem_output_artifact_inspector.cpp
         source/filesystem_partial_output_cleaner.cpp
         source/filesystem_pipeline_catalog.cpp
+        source/filesystem_workflow_template_catalog.cpp
         source/filesystem_path_canonicalizer.cpp
         source/filesystem_plugin_registry.cpp
         source/filesystem_project_workspace.cpp
@@ -17,6 +18,7 @@ target_sources(
         source/json_execution_plan_store.cpp
         source/json_plugin_invocation_store.cpp
         source/json_pipeline_definition_loader.cpp
+        source/json_workflow_template_loader.cpp
         source/platform_plugin_process_runner.cpp
         source/platform_worker_supervisor.cpp
         source/monotonic_clock.cpp
@@ -47,6 +49,7 @@ target_sources(
             include/biocore/infrastructure/filesystem_output_artifact_inspector.hpp
             include/biocore/infrastructure/filesystem_partial_output_cleaner.hpp
             include/biocore/infrastructure/filesystem_pipeline_catalog.hpp
+            include/biocore/infrastructure/filesystem_workflow_template_catalog.hpp
             include/biocore/infrastructure/filesystem_path_canonicalizer.hpp
             include/biocore/infrastructure/filesystem_plugin_registry.hpp
             include/biocore/infrastructure/filesystem_project_workspace.hpp
@@ -54,6 +57,7 @@ target_sources(
             include/biocore/infrastructure/json_execution_plan_store.hpp
             include/biocore/infrastructure/json_plugin_invocation_store.hpp
             include/biocore/infrastructure/json_pipeline_definition_loader.hpp
+            include/biocore/infrastructure/json_workflow_template_loader.hpp
             include/biocore/infrastructure/platform_plugin_process_runner.hpp
             include/biocore/infrastructure/platform_worker_supervisor.hpp
             include/biocore/infrastructure/monotonic_clock.hpp
