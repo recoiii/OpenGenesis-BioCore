@@ -381,6 +381,23 @@ add_test(NAME domain.workflow_dag.self_edge COMMAND biocore-workflow-dag-tests s
 add_test(NAME domain.workflow_dag.cycle COMMAND biocore-workflow-dag-tests cycle)
 add_test(NAME domain.workflow_dag.disconnected COMMAND biocore-workflow-dag-tests disconnected)
 
+add_executable(biocore-workflow-binding-resolver-tests workflow_binding_resolver_tests.cpp)
+target_link_libraries(
+    biocore-workflow-binding-resolver-tests
+    PRIVATE BioCore::application BioCore::domain BioCore::project_options BioCore::project_warnings BioCore::sanitizers
+)
+add_test(NAME application.workflow_binding.valid COMMAND biocore-workflow-binding-resolver-tests valid)
+add_test(NAME application.workflow_binding.deterministic COMMAND biocore-workflow-binding-resolver-tests deterministic)
+add_test(NAME application.workflow_binding.module_contract COMMAND biocore-workflow-binding-resolver-tests module-contract)
+add_test(NAME application.workflow_binding.edge_type COMMAND biocore-workflow-binding-resolver-tests edge-type)
+add_test(NAME application.workflow_binding.parameter_reference COMMAND biocore-workflow-binding-resolver-tests parameter-reference)
+add_test(NAME application.workflow_binding.parameter_invalid COMMAND biocore-workflow-binding-resolver-tests parameter-invalid)
+add_test(NAME application.workflow_binding.resource_propagation COMMAND biocore-workflow-binding-resolver-tests resource-propagation)
+add_test(NAME application.workflow_binding.resource_invalid COMMAND biocore-workflow-binding-resolver-tests resource-invalid)
+add_test(NAME application.workflow_binding.required_input COMMAND biocore-workflow-binding-resolver-tests required-input)
+add_test(NAME application.workflow_binding.binding_conflict COMMAND biocore-workflow-binding-resolver-tests binding-conflict)
+add_test(NAME application.workflow_binding.version COMMAND biocore-workflow-binding-resolver-tests version)
+
 add_executable(biocore-json-pipeline-io-tests json_pipeline_io_tests.cpp)
 target_link_libraries(
     biocore-json-pipeline-io-tests
