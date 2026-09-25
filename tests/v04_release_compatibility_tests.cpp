@@ -7,6 +7,7 @@
 #include <string>
 #include <string_view>
 
+#include "biocore/application/build_info.hpp"
 #include "biocore/infrastructure/filesystem_workflow_template_catalog.hpp"
 #include "biocore/infrastructure/sqlite/project_database_guard.hpp"
 #include "biocore/infrastructure/sqlite/project_migration_runner.hpp"
@@ -186,6 +187,11 @@ int main(const int argc, char** argv) {
     }
     if (mode == "v03-assets") {
         return v03_asset_compatibility_contract() ? EXIT_SUCCESS : EXIT_FAILURE;
+    }
+    if (mode == "identity") {
+        return biocore::application::BuildInfo::version() == "0.4.0"
+            ? EXIT_SUCCESS
+            : EXIT_FAILURE;
     }
     return EXIT_FAILURE;
 }

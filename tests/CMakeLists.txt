@@ -575,7 +575,7 @@ add_executable(
 )
 target_link_libraries(
     biocore-v04-release-compatibility-tests
-    PRIVATE BioCore::infrastructure BioCore::project_options
+    PRIVATE BioCore::application BioCore::infrastructure BioCore::project_options
             BioCore::project_warnings BioCore::sanitizers
 )
 target_compile_definitions(
@@ -584,11 +584,7 @@ target_compile_definitions(
 )
 add_test(NAME release.v04.v03_schema_upgrade COMMAND biocore-v04-release-compatibility-tests v03-schema-upgrade)
 add_test(NAME release.v04.v03_assets COMMAND biocore-v04-release-compatibility-tests v03-assets)
-add_test(NAME release.v04.identity COMMAND $<TARGET_FILE:biocore> --version)
-set_tests_properties(
-    release.v04.identity
-    PROPERTIES PASS_REGULAR_EXPRESSION "^0\\.4\\.0$"
-)
+add_test(NAME release.v04.identity COMMAND biocore-v04-release-compatibility-tests identity)
 
 add_executable(
     biocore-workflow-engine-v04-e2e-tests

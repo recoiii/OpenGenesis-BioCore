@@ -141,7 +141,9 @@ jobs:
             biocore-variant-workspace-benchmark \
             biocore-variant-export-benchmark \
             biocore-truth-set-benchmark-benchmark \
-            biocore-giab-truth-benchmark
+            biocore-giab-truth-benchmark \
+            biocore-v04-release-compatibility-tests \
+            biocore-workflow-engine-v04-e2e-tests
       - name: Run v0.3 compatibility closure gates
         shell: bash
         run: |
