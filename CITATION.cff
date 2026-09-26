@@ -4,12 +4,22 @@ message: "If you use OpenGenesis-BioCore in your research, please cite the softw
 title: "OpenGenesis-BioCore"
 type: software
 version: "0.4.0"
-date-released: "2026-09-25"
+date-released: "2026-09-26"
 license: MIT
 
 repository-code: "https://github.com/recoiii/OpenGenesis-BioCore"
-doi: "10.5281/zenodo.22012037"
-url: "https://doi.org/10.5281/zenodo.22012037"
+repository-artifact: "https://github.com/recoiii/OpenGenesis-BioCore/releases/tag/v0.4.0"
+
+doi: "10.5281/zenodo.22975313"
+url: "https://doi.org/10.5281/zenodo.22975313"
+
+identifiers:
+  - type: doi
+    value: "10.5281/zenodo.22975313"
+    description: "Version DOI for OpenGenesis-BioCore v0.4.0"
+  - type: doi
+    value: "10.5281/zenodo.22012037"
+    description: "Concept DOI for all versions of OpenGenesis-BioCore"
 
 authors:
   - family-names: "Çelik"
@@ -50,6 +60,6 @@ preferred-citation:
       given-names: "Recep"
       orcid: "https://orcid.org/0009-0003-2939-1009"
   version: "0.4.0"
-  date-released: "2026-09-25"
-  doi: "10.5281/zenodo.22012037"
-  url: "https://doi.org/10.5281/zenodo.22012037"
+  date-released: "2026-09-26"
+  doi: "10.5281/zenodo.22975313"
+  url: "https://doi.org/10.5281/zenodo.22975313"
