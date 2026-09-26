@@ -47,5 +47,6 @@ review. Historical evidence cannot substitute for the exact candidate.
 
 ## Citation
 
-The stable concept DOI is `10.5281/zenodo.22012037`. A version-specific v0.4.0 DOI is added only after the accepted
-release source is deposited to Zenodo.
+Version DOI for OpenGenesis-BioCore v0.4.0: `10.5281/zenodo.22975313`.
+
+Stable concept DOI for all OpenGenesis-BioCore versions: `10.5281/zenodo.22012037`.

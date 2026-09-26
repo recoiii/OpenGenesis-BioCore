@@ -1,6 +1,7 @@
 # OpenGenesis-BioCore
 
-[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.22012037.svg)](https://doi.org/10.5281/zenodo.22012037)
+[![Version DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.22975313.svg)](https://doi.org/10.5281/zenodo.22975313)
+[![Concept DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.22012037.svg)](https://doi.org/10.5281/zenodo.22012037)
 
 OpenGenesis-BioCore is a local-first C++20 bioinformatics platform with a localhost browser UI, native worker
 processes, SQLite project persistence, plugin/pipeline execution, live job telemetry, durable artifacts,
@@ -101,8 +102,8 @@ OpenGenesis-BioCore is distributed under the [MIT License](LICENSE).
 
 ## Citation
 
-The stable Zenodo concept DOI for OpenGenesis-BioCore is **10.5281/zenodo.22012037**. The repository citation
-metadata identify this source as v0.4.0. A version-specific v0.4.0 DOI is added only after the accepted release
-source is deposited; no unreleased DOI is fabricated in this candidate.
+For the exact OpenGenesis-BioCore v0.4.0 release, use the version DOI
+**10.5281/zenodo.22975313**. The stable concept DOI covering all OpenGenesis-BioCore versions is
+**10.5281/zenodo.22012037**.
 
 Citation metadata are available in [`CITATION.cff`](CITATION.cff).
