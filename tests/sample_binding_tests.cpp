@@ -1,6 +1,7 @@
 #include <sqlite3.h>
 #include <zlib.h>
 
+#include <algorithm>
 #include <array>
 #include <chrono>
 #include <cstdint>
