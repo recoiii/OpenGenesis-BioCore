@@ -43,14 +43,14 @@ jobs:
           ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
           UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
         run: |
-          test "$(ctest --preset "${{ matrix.preset }}" -N | sed -n 's/^Total Tests: //p')" = "252"
+          test "$(ctest --preset "${{ matrix.preset }}" -N | sed -n 's/^Total Tests: //p')" = "260"
           ctest --preset "${{ matrix.preset }}" --output-on-failure --output-junit results.xml
           test "$(build/${{ matrix.preset }}/apps/biocore/biocore --version)" = "0.5.0-dev"
       - name: Upload test evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: iteration-082-${{ matrix.label }}-${{ github.sha }}
+          name: iteration-083-${{ matrix.label }}-${{ github.sha }}
           path: |
             results.xml
             build/${{ matrix.preset }}/Testing/Temporary/LastTest.log
@@ -62,11 +62,11 @@ jobs:
       - name: Seal exact source
         run: |
           mkdir artifacts
-          git archive --format=zip --prefix=OpenGenesis-BioCore/ --output=artifacts/OpenGenesis-BioCore-iteration-082-source-CANDIDATE.zip HEAD
+          git archive --format=zip --prefix=OpenGenesis-BioCore/ --output=artifacts/OpenGenesis-BioCore-iteration-083-source-CANDIDATE.zip HEAD
           git rev-parse HEAD > artifacts/COMMIT.txt
           cd artifacts
-          sha256sum OpenGenesis-BioCore-iteration-082-source-CANDIDATE.zip > SHA256SUMS.txt
+          sha256sum OpenGenesis-BioCore-iteration-083-source-CANDIDATE.zip > SHA256SUMS.txt
       - uses: actions/upload-artifact@v4
         with:
-          name: iteration-082-source-${{ github.sha }}
+          name: iteration-083-source-${{ github.sha }}
           path: artifacts/

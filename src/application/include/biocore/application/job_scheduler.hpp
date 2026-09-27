@@ -9,6 +9,7 @@
 
 namespace biocore::application {
 
+class IBatchSchedulingPolicy;
 class IPreparedJobStore;
 class IWorkerSupervisor;
 class JobService;
@@ -22,6 +23,7 @@ struct JobSchedulerTickResult final {
     std::vector<WorkerLaunchRequest> launched_workers;
     std::vector<std::string> launch_failed_job_ids;
     std::vector<std::string> skipped_job_ids;
+    std::vector<std::string> quota_deferred_job_ids;
 };
 
 class JobScheduler final {
@@ -33,7 +35,8 @@ public:
         JobService& job_service,
         IPreparedJobStore& prepared_jobs,
         IWorkerSupervisor& worker_supervisor,
-        std::size_t maximum_concurrent_jobs
+        std::size_t maximum_concurrent_jobs,
+        IBatchSchedulingPolicy* batch_scheduling_policy = nullptr
     );
 
     [[nodiscard]] JobSchedulerTickResult tick();
@@ -45,6 +48,7 @@ private:
     IPreparedJobStore& prepared_jobs_;
     IWorkerSupervisor& worker_supervisor_;
     std::size_t maximum_concurrent_jobs_;
+    IBatchSchedulingPolicy* batch_scheduling_policy_{nullptr};
     std::atomic_flag tick_in_progress_ = ATOMIC_FLAG_INIT;
 };
 

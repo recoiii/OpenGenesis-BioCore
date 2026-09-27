@@ -965,3 +965,17 @@ target_link_libraries(
 foreach(mode deterministic preview exclusion stale template-freeze persistence migration rollback)
     add_test(NAME integration.batch_planning_${mode} COMMAND biocore-batch-planning-tests ${mode})
 endforeach()
+
+add_executable(biocore-batch-execution-tests batch_execution_tests.cpp)
+target_compile_definitions(
+    biocore-batch-execution-tests
+    PRIVATE BIOCORE_SOURCE_ROOT="${PROJECT_SOURCE_DIR}"
+)
+target_link_libraries(
+    biocore-batch-execution-tests
+    PRIVATE BioCore::application BioCore::infrastructure SQLite::SQLite3
+            BioCore::project_options BioCore::project_warnings BioCore::sanitizers
+)
+foreach(mode submit quota outputs partial-failure cancel persistence migration rollback)
+    add_test(NAME integration.batch_execution_${mode} COMMAND biocore-batch-execution-tests ${mode})
+endforeach()

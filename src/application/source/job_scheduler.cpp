@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <exception>
 #include <iterator>
+#include <map>
 #include <optional>
 #include <stdexcept>
 #include <string>
@@ -11,6 +12,7 @@
 #include <utility>
 #include <vector>
 
+#include "biocore/application/i_batch_scheduling_policy.hpp"
 #include "biocore/application/i_prepared_job_store.hpp"
 #include "biocore/application/i_worker_supervisor.hpp"
 #include "biocore/application/job_scheduler_error.hpp"
@@ -104,12 +106,14 @@ JobScheduler::JobScheduler(
     JobService& job_service,
     IPreparedJobStore& prepared_jobs,
     IWorkerSupervisor& worker_supervisor,
-    const std::size_t maximum_concurrent_jobs
+    const std::size_t maximum_concurrent_jobs,
+    IBatchSchedulingPolicy* const batch_scheduling_policy
 )
     : job_service_{job_service},
       prepared_jobs_{prepared_jobs},
       worker_supervisor_{worker_supervisor},
-      maximum_concurrent_jobs_{maximum_concurrent_jobs} {
+      maximum_concurrent_jobs_{maximum_concurrent_jobs},
+      batch_scheduling_policy_{batch_scheduling_policy} {
     if (maximum_concurrent_jobs_ == 0U ||
         maximum_concurrent_jobs_ > maximum_supported_concurrent_jobs) {
         throw std::invalid_argument(
@@ -137,6 +141,21 @@ JobSchedulerTickResult JobScheduler::tick(const std::size_t externally_reserved_
     occupied_slots += std::min(result.reserved_slots, maximum_concurrent_jobs_ - occupied_slots);
     result.available_slots = maximum_concurrent_jobs_ - occupied_slots;
 
+    std::map<std::string, std::size_t, std::less<>> active_batch_jobs;
+    if (batch_scheduling_policy_ != nullptr) {
+        for (const domain::Job& job : jobs) {
+            if (!domain::occupies_worker_slot(job.status())) continue;
+            const auto quota = batch_scheduling_policy_->quota_for_job(job.id());
+            if (!quota.has_value()) continue;
+            if (quota->group_id.empty() ||
+                quota->maximum_concurrent_jobs == 0U ||
+                quota->maximum_concurrent_jobs > maximum_concurrent_jobs_) {
+                throw std::logic_error("Batch scheduling policy returned an invalid quota");
+            }
+            ++active_batch_jobs[quota->group_id];
+        }
+    }
+
     std::vector<domain::Job> queued_jobs;
     std::ranges::copy_if(jobs, std::back_inserter(queued_jobs), [](const domain::Job& job) {
         return job.status() == domain::JobStatus::queued;
@@ -158,6 +177,23 @@ JobSchedulerTickResult JobScheduler::tick(const std::size_t externally_reserved_
         }
 
         const std::string job_id{queued_job.id()};
+        std::optional<BatchSchedulingQuota> batch_quota;
+        if (batch_scheduling_policy_ != nullptr) {
+            batch_quota = batch_scheduling_policy_->quota_for_job(job_id);
+            if (batch_quota.has_value()) {
+                if (batch_quota->group_id.empty() ||
+                    batch_quota->maximum_concurrent_jobs == 0U ||
+                    batch_quota->maximum_concurrent_jobs > maximum_concurrent_jobs_) {
+                    throw std::logic_error("Batch scheduling policy returned an invalid quota");
+                }
+                if (active_batch_jobs[batch_quota->group_id] >=
+                    batch_quota->maximum_concurrent_jobs) {
+                    result.quota_deferred_job_ids.push_back(job_id);
+                    continue;
+                }
+            }
+        }
+
         const auto prepared_execution = prepared_jobs_.find_execution(job_id);
         if (!prepared_execution.has_value()) {
             result.skipped_job_ids.push_back(job_id);
@@ -193,6 +229,9 @@ JobSchedulerTickResult JobScheduler::tick(const std::size_t externally_reserved_
             WorkerLaunchRequest launch_request = make_launch_request(preparing_job, *prepared_execution);
             worker_supervisor_.launch(launch_request);
             result.launched_job_ids.push_back(job_id);
+            if (batch_quota.has_value()) {
+                ++active_batch_jobs[batch_quota->group_id];
+            }
             result.launched_workers.push_back(std::move(launch_request));
         } catch (...) {
             try {

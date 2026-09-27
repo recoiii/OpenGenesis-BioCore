@@ -1,78 +1,6 @@
-#include "biocore/infrastructure/sqlite/project_migration_runner.hpp"
+-- Exact migration SQL extracted from frozen 078 (0a19e5e8a56a939c5cbc53c5b5d94f17b1800689).
+CREATE TABLE schema_migrations(version INTEGER PRIMARY KEY NOT NULL, name TEXT NOT NULL, applied_at_utc TEXT NOT NULL);
 
-#include <sqlite3.h>
-
-#include <cstdint>
-#include <string>
-
-#include "biocore/infrastructure/sqlite/sqlite_connection.hpp"
-#include "biocore/infrastructure/sqlite/sqlite_error.hpp"
-
-namespace biocore::infrastructure::sqlite {
-namespace {
-
-class Transaction final {
-public:
-    explicit Transaction(SqliteConnection& connection) : connection_{connection} {
-        connection_.execute("BEGIN IMMEDIATE;");
-    }
-
-    ~Transaction() {
-        if (!committed_) {
-            try {
-                connection_.execute("ROLLBACK;");
-            } catch (...) {
-                // Destructors must not emit exceptions. The original failure remains authoritative.
-            }
-        }
-    }
-
-    Transaction(const Transaction&) = delete;
-    Transaction& operator=(const Transaction&) = delete;
-
-    void commit() {
-        connection_.execute("COMMIT;");
-        committed_ = true;
-    }
-
-private:
-    SqliteConnection& connection_;
-    bool committed_{false};
-};
-
-[[nodiscard]] std::int32_t read_current_version(sqlite3* const database) {
-    constexpr const char* sql = "SELECT COALESCE(MAX(version), 0) FROM schema_migrations;";
-    sqlite3_stmt* statement = nullptr;
-    const int prepare_result = sqlite3_prepare_v2(database, sql, -1, &statement, nullptr);
-    if (prepare_result != SQLITE_OK) {
-        throw SqliteError{
-            prepare_result,
-            std::string{"Unable to read project schema version: "} + sqlite3_errmsg(database),
-        };
-    }
-
-    const int step_result = sqlite3_step(statement);
-    if (step_result != SQLITE_ROW) {
-        const std::string message =
-            std::string{"Unable to read project schema version: "} + sqlite3_errmsg(database);
-        sqlite3_finalize(statement);
-        throw SqliteError{step_result, message};
-    }
-
-    const auto version = static_cast<std::int32_t>(sqlite3_column_int(statement, 0));
-    const int finalize_result = sqlite3_finalize(statement);
-    if (finalize_result != SQLITE_OK) {
-        throw SqliteError{
-            finalize_result,
-            std::string{"Unable to finalize project schema version query: "} +
-                sqlite3_errmsg(database),
-        };
-    }
-    return version;
-}
-
-void apply_version_one(SqliteConnection& connection) {
-    connection.execute(R"sql(
         CREATE TABLE project_metadata (
             singleton INTEGER PRIMARY KEY NOT NULL CHECK(singleton = 1),
             project_id TEXT UNIQUE NOT NULL CHECK(length(project_id) BETWEEN 1 AND 128),
@@ -145,11 +73,8 @@ void apply_version_one(SqliteConnection& connection) {
 
         INSERT INTO schema_migrations(version, name, applied_at_utc)
         VALUES (1, 'create_project_core_tables', strftime('%Y-%m-%dT%H:%M:%fZ', 'now'));
-    )sql");
-}
+    
 
-void apply_version_two(SqliteConnection& connection) {
-    connection.execute(R"sql(
         ALTER TABLE jobs ADD COLUMN analysis_id TEXT
             CHECK(analysis_id IS NULL OR length(trim(analysis_id)) BETWEEN 1 AND 128);
         ALTER TABLE jobs ADD COLUMN pipeline_id TEXT
@@ -180,11 +105,8 @@ void apply_version_two(SqliteConnection& connection) {
 
         INSERT INTO schema_migrations(version, name, applied_at_utc)
         VALUES (2, 'extend_jobs_for_repository', strftime('%Y-%m-%dT%H:%M:%fZ', 'now'));
-    )sql");
-}
+    
 
-void apply_version_three(SqliteConnection& connection) {
-    connection.execute(R"sql(
         CREATE TABLE generated_artifacts (
             managed_file_id TEXT PRIMARY KEY NOT NULL
                 REFERENCES managed_files(id) ON DELETE CASCADE,
@@ -206,11 +128,8 @@ void apply_version_three(SqliteConnection& connection) {
 
         INSERT INTO schema_migrations(version, name, applied_at_utc)
         VALUES (3, 'register_generated_output_artifacts', strftime('%Y-%m-%dT%H:%M:%fZ', 'now'));
-    )sql");
-}
+    
 
-void apply_version_four(SqliteConnection& connection) {
-    connection.execute(R"sql(
         ALTER TABLE generated_artifacts ADD COLUMN step_progress REAL NOT NULL DEFAULT 0.0
             CHECK(step_progress >= 0.0 AND step_progress <= 1.0);
 
@@ -224,11 +143,8 @@ void apply_version_four(SqliteConnection& connection) {
 
         INSERT INTO schema_migrations(version, name, applied_at_utc)
         VALUES (4, 'checkpoint_generated_output_progress', strftime('%Y-%m-%dT%H:%M:%fZ', 'now'));
-    )sql");
-}
+    
 
-void apply_version_five(SqliteConnection& connection) {
-    connection.execute(R"sql(
         CREATE TRIGGER require_generated_output_sha256_insert
         BEFORE INSERT ON managed_files
         WHEN NEW.storage_mode = 'generated_output' AND (
@@ -257,11 +173,8 @@ void apply_version_five(SqliteConnection& connection) {
 
         INSERT INTO schema_migrations(version, name, applied_at_utc)
         VALUES (5, 'require_generated_output_sha256', strftime('%Y-%m-%dT%H:%M:%fZ', 'now'));
-    )sql");
-}
+    
 
-void apply_version_six(SqliteConnection& connection) {
-    connection.execute(R"sql(
         CREATE TABLE job_execution_plans (
             job_id TEXT PRIMARY KEY NOT NULL REFERENCES jobs(id) ON DELETE CASCADE,
             launch_revision INTEGER NOT NULL CHECK(launch_revision >= 1),
@@ -305,11 +218,8 @@ void apply_version_six(SqliteConnection& connection) {
 
         INSERT INTO schema_migrations(version, name, applied_at_utc)
         VALUES (6, 'associate_prepared_job_execution_plans', strftime('%Y-%m-%dT%H:%M:%fZ', 'now'));
-    )sql");
-}
+    
 
-void apply_version_seven(SqliteConnection& connection) {
-    connection.execute(R"sql(
         ALTER TABLE jobs ADD COLUMN failure_kind TEXT
             CHECK(failure_kind IS NULL OR failure_kind IN (
                 'worker_reported_failure',
@@ -412,11 +322,8 @@ void apply_version_seven(SqliteConnection& connection) {
 
         INSERT INTO schema_migrations(version, name, applied_at_utc)
         VALUES (7, 'persist_structured_job_failure_evidence', strftime('%Y-%m-%dT%H:%M:%fZ', 'now'));
-    )sql");
- }
+    
 
-void apply_version_eight(SqliteConnection& connection) {
-    connection.execute(R"sql(
         ALTER TABLE jobs ADD COLUMN attempt_number INTEGER NOT NULL DEFAULT 1
             CHECK(attempt_number >= 1);
 
@@ -461,13 +368,8 @@ void apply_version_eight(SqliteConnection& connection) {
 
         INSERT INTO schema_migrations(version, name, applied_at_utc)
         VALUES (8, 'add_explicit_retry_attempt_semantics', strftime('%Y-%m-%dT%H:%M:%fZ', 'now'));
-    )sql");
-}
+    
 
-}  // namespace
-
-void apply_version_nine(SqliteConnection& connection) {
-    connection.execute(R"sql(
         CREATE TABLE workflow_states (
             workflow_id TEXT PRIMARY KEY NOT NULL
                 CHECK(length(workflow_id) BETWEEN 1 AND 256),
@@ -606,128 +508,113 @@ void apply_version_nine(SqliteConnection& connection) {
             'persist_workflow_state_and_recovery',
             strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
         );
-    )sql");
-}
+    
 
-void apply_version_ten(SqliteConnection& connection) {
-    connection.execute(R"sql(
-        ALTER TABLE project_metadata ADD COLUMN research_description TEXT NOT NULL DEFAULT ''
-            CHECK(length(CAST(research_description AS BLOB)) <= 4096 AND
-                  instr(research_description, char(0)) = 0);
-        ALTER TABLE project_metadata ADD COLUMN research_organism TEXT NOT NULL DEFAULT ''
-            CHECK(length(CAST(research_organism AS BLOB)) <= 256 AND
-                  instr(research_organism, char(0)) = 0);
-        ALTER TABLE project_metadata ADD COLUMN research_revision INTEGER NOT NULL DEFAULT 0
-            CHECK(typeof(research_revision) = 'integer' AND research_revision >= 0);
-        ALTER TABLE project_metadata ADD COLUMN research_updated_at_utc TEXT NOT NULL DEFAULT ''
-            CHECK(instr(research_updated_at_utc, char(0)) = 0 AND
-                  (research_revision = 0 OR length(trim(research_updated_at_utc, char(9)||char(10)||char(11)||char(12)||char(13)||' ')) > 0));
-        UPDATE project_metadata SET research_updated_at_utc = updated_at_utc;
+ALTER TABLE project_metadata ADD COLUMN research_description TEXT NOT NULL DEFAULT ''
+    CHECK(length(CAST(research_description AS BLOB)) <= 4096 AND
+          instr(research_description, char(0)) = 0);
+ALTER TABLE project_metadata ADD COLUMN research_organism TEXT NOT NULL DEFAULT ''
+    CHECK(length(CAST(research_organism AS BLOB)) <= 256 AND
+          instr(research_organism, char(0)) = 0);
+ALTER TABLE project_metadata ADD COLUMN research_revision INTEGER NOT NULL DEFAULT 0
+    CHECK(typeof(research_revision) = 'integer' AND research_revision >= 0);
+ALTER TABLE project_metadata ADD COLUMN research_updated_at_utc TEXT NOT NULL DEFAULT ''
+    CHECK(instr(research_updated_at_utc, char(0)) = 0 AND
+          (research_revision = 0 OR length(trim(research_updated_at_utc, char(9)||char(10)||char(11)||char(12)||char(13)||' ')) > 0));
+UPDATE project_metadata SET research_updated_at_utc = updated_at_utc;
 
-        CREATE TRIGGER project_research_metadata_initialize
-        AFTER INSERT ON project_metadata
-        WHEN NEW.research_updated_at_utc = ''
-        BEGIN
-            UPDATE project_metadata SET research_updated_at_utc = NEW.updated_at_utc
-            WHERE singleton = NEW.singleton;
-        END;
+CREATE TRIGGER project_research_metadata_initialize
+AFTER INSERT ON project_metadata
+WHEN NEW.research_updated_at_utc = ''
+BEGIN
+    UPDATE project_metadata SET research_updated_at_utc = NEW.updated_at_utc
+    WHERE singleton = NEW.singleton;
+END;
 
-        CREATE TRIGGER project_research_metadata_revision
-        BEFORE UPDATE OF research_description, research_organism, research_revision, research_updated_at_utc
-        ON project_metadata
-        WHEN NOT (
-            OLD.research_updated_at_utc = '' AND
-            NEW.research_updated_at_utc = OLD.updated_at_utc AND
-            NEW.research_revision = OLD.research_revision AND
-            NEW.research_description = OLD.research_description AND
-            NEW.research_organism = OLD.research_organism
-        ) AND NEW.research_revision != OLD.research_revision + 1
-        BEGIN
-            SELECT RAISE(ABORT, 'project research metadata revision must advance by one');
-        END;
+CREATE TRIGGER project_research_metadata_revision
+BEFORE UPDATE OF research_description, research_organism, research_revision, research_updated_at_utc
+ON project_metadata
+WHEN NOT (
+    OLD.research_updated_at_utc = '' AND
+    NEW.research_updated_at_utc = OLD.updated_at_utc AND
+    NEW.research_revision = OLD.research_revision AND
+    NEW.research_description = OLD.research_description AND
+    NEW.research_organism = OLD.research_organism
+) AND NEW.research_revision != OLD.research_revision + 1
+BEGIN
+    SELECT RAISE(ABORT, 'project research metadata revision must advance by one');
+END;
 
-        CREATE TRIGGER project_metadata_identity_immutable
-        BEFORE UPDATE OF project_id ON project_metadata
-        WHEN NEW.project_id != OLD.project_id
-        BEGIN
-            SELECT RAISE(ABORT, 'project identity is immutable');
-        END;
+CREATE TRIGGER project_metadata_identity_immutable
+BEFORE UPDATE OF project_id ON project_metadata
+WHEN NEW.project_id != OLD.project_id
+BEGIN
+    SELECT RAISE(ABORT, 'project identity is immutable');
+END;
 
-        INSERT INTO schema_migrations(version, name, applied_at_utc)
-        VALUES (10, 'add_project_research_metadata', strftime('%Y-%m-%dT%H:%M:%fZ', 'now'));
-    )sql");
-}
+INSERT INTO schema_migrations(version, name, applied_at_utc)
+VALUES (10, 'add_project_research_metadata', strftime('%Y-%m-%dT%H:%M:%fZ', 'now'));
 
 
-void apply_version_eleven(SqliteConnection& connection) {
-    connection.execute(R"sql(
-        CREATE TABLE project_samples (
-            project_id TEXT NOT NULL
-                REFERENCES project_metadata(project_id) ON DELETE CASCADE,
-            sample_id TEXT NOT NULL CHECK(
-                length(CAST(sample_id AS BLOB)) BETWEEN 1 AND 128 AND
-                instr(sample_id, char(0)) = 0 AND
-                length(trim(sample_id, char(9)||char(10)||char(11)||char(12)||char(13)||' ')) > 0
-            ),
-            display_name TEXT NOT NULL DEFAULT '' CHECK(
-                length(CAST(display_name AS BLOB)) <= 255 AND
-                instr(display_name, char(0)) = 0
-            ),
-            group_label TEXT NOT NULL DEFAULT '' CHECK(
-                length(CAST(group_label AS BLOB)) <= 128 AND
-                instr(group_label, char(0)) = 0
-            ),
-            PRIMARY KEY(project_id, sample_id)
-        );
+CREATE TABLE project_samples (
+    project_id TEXT NOT NULL
+        REFERENCES project_metadata(project_id) ON DELETE CASCADE,
+    sample_id TEXT NOT NULL CHECK(
+        length(CAST(sample_id AS BLOB)) BETWEEN 1 AND 128 AND
+        instr(sample_id, char(0)) = 0 AND
+        length(trim(sample_id, char(9)||char(10)||char(11)||char(12)||char(13)||' ')) > 0
+    ),
+    display_name TEXT NOT NULL DEFAULT '' CHECK(
+        length(CAST(display_name AS BLOB)) <= 255 AND
+        instr(display_name, char(0)) = 0
+    ),
+    group_label TEXT NOT NULL DEFAULT '' CHECK(
+        length(CAST(group_label AS BLOB)) <= 128 AND
+        instr(group_label, char(0)) = 0
+    ),
+    PRIMARY KEY(project_id, sample_id)
+);
 
-        INSERT INTO schema_migrations(version, name, applied_at_utc)
-        VALUES (11, 'add_project_sample_registry', strftime('%Y-%m-%dT%H:%M:%fZ', 'now'));
-    )sql");
-}
+INSERT INTO schema_migrations(version, name, applied_at_utc)
+VALUES (11, 'add_project_sample_registry', strftime('%Y-%m-%dT%H:%M:%fZ', 'now'));
 
 
-void apply_version_twelve(SqliteConnection& connection) {
-    connection.execute(R"sql(
-        CREATE TABLE project_sample_bindings (
-            project_id TEXT NOT NULL,
-            sample_id TEXT NOT NULL,
-            input_layout TEXT NOT NULL CHECK(input_layout IN (
-                'single_fastq', 'paired_fastq', 'alignment', 'variants'
-            )),
-            primary_file_id TEXT NOT NULL
-                REFERENCES managed_files(id) ON DELETE RESTRICT,
-            secondary_file_id TEXT
-                REFERENCES managed_files(id) ON DELETE RESTRICT,
-            reference_file_id TEXT
-                REFERENCES managed_files(id) ON DELETE RESTRICT,
-            PRIMARY KEY(project_id, sample_id),
-            FOREIGN KEY(project_id, sample_id)
-                REFERENCES project_samples(project_id, sample_id)
-                ON DELETE CASCADE,
-            CHECK(
-                (input_layout = 'paired_fastq' AND
-                    secondary_file_id IS NOT NULL AND
-                    secondary_file_id != primary_file_id) OR
-                (input_layout != 'paired_fastq' AND secondary_file_id IS NULL)
-            ),
-            CHECK(
-                reference_file_id IS NULL OR (
-                    reference_file_id != primary_file_id AND
-                    (secondary_file_id IS NULL OR
-                     reference_file_id != secondary_file_id)
-                )
-            )
-        );
+CREATE TABLE project_sample_bindings (
+    project_id TEXT NOT NULL,
+    sample_id TEXT NOT NULL,
+    input_layout TEXT NOT NULL CHECK(input_layout IN (
+        'single_fastq', 'paired_fastq', 'alignment', 'variants'
+    )),
+    primary_file_id TEXT NOT NULL
+        REFERENCES managed_files(id) ON DELETE RESTRICT,
+    secondary_file_id TEXT
+        REFERENCES managed_files(id) ON DELETE RESTRICT,
+    reference_file_id TEXT
+        REFERENCES managed_files(id) ON DELETE RESTRICT,
+    PRIMARY KEY(project_id, sample_id),
+    FOREIGN KEY(project_id, sample_id)
+        REFERENCES project_samples(project_id, sample_id)
+        ON DELETE CASCADE,
+    CHECK(
+        (input_layout = 'paired_fastq' AND
+            secondary_file_id IS NOT NULL AND
+            secondary_file_id != primary_file_id) OR
+        (input_layout != 'paired_fastq' AND secondary_file_id IS NULL)
+    ),
+    CHECK(
+        reference_file_id IS NULL OR (
+            reference_file_id != primary_file_id AND
+            (secondary_file_id IS NULL OR
+             reference_file_id != secondary_file_id)
+        )
+    )
+);
 
-        INSERT INTO schema_migrations(version, name, applied_at_utc)
-        VALUES (12, 'bind_samples_to_inputs_and_references',
-                strftime('%Y-%m-%dT%H:%M:%fZ', 'now'));
-    )sql");
-}
+INSERT INTO schema_migrations(version, name, applied_at_utc)
+VALUES (12, 'bind_samples_to_inputs_and_references',
+        strftime('%Y-%m-%dT%H:%M:%fZ', 'now'));
 
 
-void apply_version_thirteen(SqliteConnection& connection) {
-    connection.execute(R"sql(
         CREATE TABLE batch_plans (
             plan_id TEXT PRIMARY KEY NOT NULL CHECK(
                 length(CAST(plan_id AS BLOB)) BETWEEN 1 AND 128 AND
@@ -1011,201 +898,4 @@ void apply_version_thirteen(SqliteConnection& connection) {
         INSERT INTO schema_migrations(version, name, applied_at_utc)
         VALUES (13, 'persist_immutable_batch_plans',
                 strftime('%Y-%m-%dT%H:%M:%fZ', 'now'));
-    )sql");
-}
-
-
-void apply_version_fourteen(SqliteConnection& connection) {
-    connection.execute(R"sql(
-        CREATE TABLE batch_executions (
-            plan_id TEXT PRIMARY KEY NOT NULL
-                REFERENCES batch_plans(plan_id) ON DELETE RESTRICT,
-            maximum_concurrent_jobs INTEGER NOT NULL
-                CHECK(maximum_concurrent_jobs BETWEEN 1 AND 64),
-            cancellation_requested INTEGER NOT NULL DEFAULT 0
-                CHECK(cancellation_requested IN (0, 1)),
-            submitted_at_utc TEXT NOT NULL CHECK(
-                length(CAST(submitted_at_utc AS BLOB)) BETWEEN 1 AND 200 AND
-                instr(submitted_at_utc, char(0)) = 0
-            ),
-            updated_at_utc TEXT NOT NULL CHECK(
-                length(CAST(updated_at_utc AS BLOB)) BETWEEN 1 AND 200 AND
-                instr(updated_at_utc, char(0)) = 0
-            ),
-            sealed INTEGER NOT NULL DEFAULT 0 CHECK(sealed IN (0, 1))
-        );
-
-        CREATE TABLE batch_execution_jobs (
-            plan_id TEXT NOT NULL
-                REFERENCES batch_executions(plan_id) ON DELETE CASCADE,
-            sample_id TEXT NOT NULL CHECK(
-                length(CAST(sample_id AS BLOB)) BETWEEN 1 AND 128 AND
-                instr(sample_id, char(0)) = 0
-            ),
-            ordinal INTEGER NOT NULL CHECK(ordinal >= 0),
-            job_id TEXT NOT NULL UNIQUE
-                REFERENCES jobs(id) ON DELETE RESTRICT,
-            PRIMARY KEY(plan_id, sample_id),
-            UNIQUE(plan_id, ordinal),
-            FOREIGN KEY(plan_id, sample_id)
-                REFERENCES batch_plan_samples(plan_id, sample_id)
-                ON DELETE RESTRICT
-        );
-
-        CREATE INDEX idx_batch_execution_jobs_job_id
-            ON batch_execution_jobs(job_id);
-
-        CREATE TRIGGER batch_executions_require_sealed_plan
-        BEFORE INSERT ON batch_executions
-        WHEN NOT EXISTS (
-            SELECT 1 FROM batch_plans
-            WHERE plan_id = NEW.plan_id AND sealed = 1
-        )
-        BEGIN
-            SELECT RAISE(ABORT, 'batch execution requires a sealed approved plan');
-        END;
-
-        CREATE TRIGGER batch_executions_validate_update
-        BEFORE UPDATE ON batch_executions
-        WHEN NOT (
-            (
-                OLD.sealed = 0 AND NEW.sealed = 1 AND
-                NEW.plan_id = OLD.plan_id AND
-                NEW.maximum_concurrent_jobs = OLD.maximum_concurrent_jobs AND
-                NEW.cancellation_requested = OLD.cancellation_requested AND
-                NEW.submitted_at_utc = OLD.submitted_at_utc AND
-                NEW.updated_at_utc = OLD.updated_at_utc AND
-                EXISTS (
-                    SELECT 1 FROM batch_execution_jobs
-                    WHERE plan_id = OLD.plan_id
-                )
-            ) OR (
-                OLD.sealed = 1 AND NEW.sealed = 1 AND
-                OLD.cancellation_requested = 0 AND
-                NEW.cancellation_requested = 1 AND
-                NEW.plan_id = OLD.plan_id AND
-                NEW.maximum_concurrent_jobs = OLD.maximum_concurrent_jobs AND
-                NEW.submitted_at_utc = OLD.submitted_at_utc AND
-                length(CAST(NEW.updated_at_utc AS BLOB)) BETWEEN 1 AND 200 AND
-                instr(NEW.updated_at_utc, char(0)) = 0
-            )
-        )
-        BEGIN
-            SELECT RAISE(ABORT, 'batch execution identity and submission ledger are immutable');
-        END;
-
-        CREATE TRIGGER batch_executions_immutable_delete
-        BEFORE DELETE ON batch_executions
-        BEGIN
-            SELECT RAISE(ABORT, 'batch execution cannot be deleted');
-        END;
-
-        CREATE TRIGGER batch_execution_jobs_require_included_sample
-        BEFORE INSERT ON batch_execution_jobs
-        WHEN NOT EXISTS (
-            SELECT 1 FROM batch_plan_samples
-            WHERE plan_id = NEW.plan_id
-              AND sample_id = NEW.sample_id
-              AND disposition = 'included'
-        )
-        BEGIN
-            SELECT RAISE(ABORT, 'batch execution job requires an included approved sample');
-        END;
-
-        CREATE TRIGGER batch_execution_jobs_immutable_insert
-        BEFORE INSERT ON batch_execution_jobs
-        WHEN (SELECT sealed FROM batch_executions WHERE plan_id = NEW.plan_id) = 1
-        BEGIN
-            SELECT RAISE(ABORT, 'sealed batch execution jobs are immutable');
-        END;
-
-        CREATE TRIGGER batch_execution_jobs_immutable_update
-        BEFORE UPDATE ON batch_execution_jobs
-        BEGIN
-            SELECT RAISE(ABORT, 'batch execution jobs are immutable');
-        END;
-
-        CREATE TRIGGER batch_execution_jobs_immutable_delete
-        BEFORE DELETE ON batch_execution_jobs
-        BEGIN
-            SELECT RAISE(ABORT, 'batch execution jobs are immutable');
-        END;
-
-        INSERT INTO schema_migrations(version, name, applied_at_utc)
-        VALUES (14, 'submit_batch_plans_through_scheduler',
-                strftime('%Y-%m-%dT%H:%M:%fZ', 'now'));
-    )sql");
-}
-
-ProjectMigrationRunner::ProjectMigrationRunner(SqliteConnection& connection) noexcept
-    : connection_{connection} {}
-
-void ProjectMigrationRunner::apply_pending() {
-    connection_.execute(R"sql(
-        CREATE TABLE IF NOT EXISTS schema_migrations (
-            version INTEGER PRIMARY KEY NOT NULL,
-            name TEXT NOT NULL,
-            applied_at_utc TEXT NOT NULL
-        );
-    )sql");
-
-    const std::int32_t version = current_version();
-    if (version > latest_project_schema_version) {
-        throw SqliteError{SQLITE_ERROR, "Project schema is newer than this OpenGenesis-BioCore build supports"};
-    }
-
-    if (version == latest_project_schema_version) {
-        return;
-    }
-
-    Transaction transaction{connection_};
-    if (version < 1) {
-        apply_version_one(connection_);
-    }
-    if (version < 2) {
-        apply_version_two(connection_);
-    }
-    if (version < 3) {
-        apply_version_three(connection_);
-    }
-    if (version < 4) {
-        apply_version_four(connection_);
-    }
-    if (version < 5) {
-        apply_version_five(connection_);
-    }
-    if (version < 6) {
-        apply_version_six(connection_);
-    }
-    if (version < 7) {
-        apply_version_seven(connection_);
-    }
-    if (version < 8) {
-        apply_version_eight(connection_);
-    }
-    if (version < 9) {
-        apply_version_nine(connection_);
-    }
-    if (version < 10) {
-        apply_version_ten(connection_);
-    }
-    if (version < 11) {
-        apply_version_eleven(connection_);
-    }
-    if (version < 12) {
-        apply_version_twelve(connection_);
-    }
-    if (version < 13) {
-        apply_version_thirteen(connection_);
-    }
-    if (version < 14) {
-        apply_version_fourteen(connection_);
-    }
-    transaction.commit();
-}
-
-std::int32_t ProjectMigrationRunner::current_version() const {
-    return read_current_version(connection_.native_handle());
-}
-
-}  // namespace biocore::infrastructure::sqlite
+    

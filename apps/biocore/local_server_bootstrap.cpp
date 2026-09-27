@@ -37,6 +37,7 @@
 #include "biocore/infrastructure/sqlite/project_database_guard.hpp"
 #include "biocore/infrastructure/sqlite/project_migration_runner.hpp"
 #include "biocore/infrastructure/sqlite/sqlite_connection.hpp"
+#include "biocore/infrastructure/sqlite/sqlite_batch_execution_store.hpp"
 #include "biocore/infrastructure/sqlite/sqlite_job_repository.hpp"
 #include "biocore/infrastructure/sqlite/sqlite_managed_file_repository.hpp"
 #include "biocore/infrastructure/sqlite/sqlite_prepared_job_store.hpp"
@@ -247,6 +248,7 @@ int run_local_server(
     infrastructure::sqlite::SqliteJobRepository runtime_job_repository{runtime_connection};
     infrastructure::sqlite::SqlitePreparedJobStore runtime_prepared_jobs{runtime_connection};
     infrastructure::sqlite::SqliteManagedFileRepository runtime_managed_files{runtime_connection};
+    infrastructure::sqlite::SqliteBatchExecutionStore runtime_batch_executions{runtime_connection};
 
     infrastructure::SystemClock clock;
     infrastructure::MonotonicClock monotonic_clock;
@@ -299,7 +301,10 @@ int run_local_server(
     application::JobRetryService retries{api_jobs, api_prepared_jobs, clock};
 
     infrastructure::PlatformWorkerSupervisor supervisor{assets.worker_executable, root};
-    application::JobScheduler scheduler{runtime_jobs, runtime_prepared_jobs, supervisor, arguments.maximum_concurrent_jobs};
+    application::JobScheduler scheduler{
+        runtime_jobs, runtime_prepared_jobs, supervisor,
+        arguments.maximum_concurrent_jobs, &runtime_batch_executions
+    };
     infrastructure::FilesystemOutputArtifactInspector output_inspector{root};
     application::OutputArtifactService output_artifacts{runtime_managed_files, output_inspector, runtime_ids, clock};
     presentation::WorkerLifecycleEventBroadcastHub lifecycle_events;
