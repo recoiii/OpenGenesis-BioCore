@@ -31,6 +31,7 @@ target_sources(
         source/project.cpp
         source/project_research_metadata.cpp
         source/project_sample.cpp
+        source/project_sample_binding.cpp
         source/reference_genome.cpp
         source/reference_database.cpp
         source/reference_database_tsv.cpp
@@ -88,6 +89,7 @@ target_sources(
             include/biocore/domain/project.hpp
             include/biocore/domain/project_research_metadata.hpp
             include/biocore/domain/project_sample.hpp
+            include/biocore/domain/project_sample_binding.hpp
             include/biocore/domain/reference_genome.hpp
             include/biocore/domain/reference_database.hpp
             include/biocore/domain/storage_mode.hpp

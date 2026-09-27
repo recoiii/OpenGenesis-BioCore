@@ -20,7 +20,7 @@ struct ExpectedMigration final {
     std::string_view name;
 };
 
-constexpr std::array<ExpectedMigration, 11> expected_migrations{{
+constexpr std::array<ExpectedMigration, 12> expected_migrations{{
     {1, "create_project_core_tables"},
     {2, "extend_jobs_for_repository"},
     {3, "register_generated_output_artifacts"},
@@ -32,6 +32,7 @@ constexpr std::array<ExpectedMigration, 11> expected_migrations{{
     {9, "persist_workflow_state_and_recovery"},
     {10, "add_project_research_metadata"},
     {11, "add_project_sample_registry"},
+    {12, "bind_samples_to_inputs_and_references"},
 }};
 
 struct RequiredSchemaObject final {
@@ -39,10 +40,11 @@ struct RequiredSchemaObject final {
     std::string_view name;
 };
 
-constexpr std::array<RequiredSchemaObject, 26> required_current_objects{{
+constexpr std::array<RequiredSchemaObject, 27> required_current_objects{{
     {"table", "schema_migrations"},
     {"table", "project_metadata"},
     {"table", "project_samples"},
+    {"table", "project_sample_bindings"},
     {"trigger", "project_research_metadata_initialize"},
     {"trigger", "project_research_metadata_revision"},
     {"trigger", "project_metadata_identity_immutable"},

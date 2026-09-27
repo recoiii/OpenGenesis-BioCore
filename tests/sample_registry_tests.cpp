@@ -248,7 +248,7 @@ void migration_contract() {
     check(migrations.current_version() == 10, "fixture is not v10");
     migrations.apply_pending();
     ProjectDatabaseGuard{connection}.validate_current_schema();
-    check(migrations.current_version() == 11, "v11 migration missing");
+    check(migrations.current_version() == latest_project_schema_version, "latest migration missing");
     check(scalar(connection,
         "SELECT research_description FROM project_metadata WHERE project_id='p-001';") ==
         "legacy research", "research metadata changed");

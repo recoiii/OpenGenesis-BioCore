@@ -1,3 +1,5 @@
+find_package(ZLIB REQUIRED)
+
 add_library(biocore-infrastructure STATIC)
 add_library(BioCore::infrastructure ALIAS biocore-infrastructure)
 
@@ -7,6 +9,7 @@ target_sources(
         source/filesystem_artifact_content_access.cpp
         source/filesystem_workflow_checkpoint_artifact_verifier.cpp
         source/filesystem_input_file_storage.cpp
+        source/filesystem_reference_compatibility_inspector.cpp
         source/filesystem_output_artifact_inspector.cpp
         source/filesystem_partial_output_cleaner.cpp
         source/filesystem_pipeline_catalog.cpp
@@ -40,6 +43,7 @@ target_sources(
         source/sqlite/sqlite_project_repository.cpp
         source/sqlite/sqlite_project_research_metadata_store.cpp
         source/sqlite/sqlite_project_sample_store.cpp
+        source/sqlite/sqlite_project_sample_binding_store.cpp
         source/sqlite/sqlite_workflow_state_store.cpp
     PUBLIC
         FILE_SET HEADERS
@@ -48,6 +52,7 @@ target_sources(
             include/biocore/infrastructure/filesystem_artifact_content_access.hpp
             include/biocore/infrastructure/filesystem_workflow_checkpoint_artifact_verifier.hpp
             include/biocore/infrastructure/filesystem_input_file_storage.hpp
+            include/biocore/infrastructure/filesystem_reference_compatibility_inspector.hpp
             include/biocore/infrastructure/filesystem_output_artifact_inspector.hpp
             include/biocore/infrastructure/filesystem_partial_output_cleaner.hpp
             include/biocore/infrastructure/filesystem_pipeline_catalog.hpp
@@ -81,13 +86,14 @@ target_sources(
             include/biocore/infrastructure/sqlite/sqlite_project_repository.hpp
             include/biocore/infrastructure/sqlite/sqlite_project_research_metadata_store.hpp
             include/biocore/infrastructure/sqlite/sqlite_project_sample_store.hpp
+            include/biocore/infrastructure/sqlite/sqlite_project_sample_binding_store.hpp
             include/biocore/infrastructure/sqlite/sqlite_workflow_state_store.hpp
 )
 
 target_link_libraries(
     biocore-infrastructure
     PUBLIC BioCore::application BioCore::project_options
-    PRIVATE SQLite::SQLite3 BioCore::worker_protocol BioCore::pipeline_protocol BioCore::plugin_protocol BioCore::project_warnings BioCore::sanitizers
+    PRIVATE SQLite::SQLite3 ZLIB::ZLIB BioCore::worker_protocol BioCore::pipeline_protocol BioCore::plugin_protocol BioCore::project_warnings BioCore::sanitizers
 )
 
 if(WIN32)

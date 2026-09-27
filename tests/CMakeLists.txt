@@ -937,3 +937,17 @@ target_link_libraries(
 foreach(mode domain preview persistence import roundtrip migration rollback)
     add_test(NAME integration.sample_registry_${mode} COMMAND biocore-sample-registry-tests ${mode})
 endforeach()
+
+add_executable(biocore-sample-binding-tests sample_binding_tests.cpp)
+target_compile_definitions(
+    biocore-sample-binding-tests
+    PRIVATE BIOCORE_SOURCE_ROOT="${PROJECT_SOURCE_DIR}"
+)
+target_link_libraries(
+    biocore-sample-binding-tests
+    PRIVATE BioCore::application BioCore::infrastructure SQLite::SQLite3 ZLIB::ZLIB
+            BioCore::project_options BioCore::project_warnings BioCore::sanitizers
+)
+foreach(mode domain roles integrity reference persistence inspector migration rollback)
+    add_test(NAME integration.sample_binding_${mode} COMMAND biocore-sample-binding-tests ${mode})
+endforeach()

@@ -72,7 +72,7 @@ namespace fs = std::filesystem;
     ProjectMigrationRunner initial{connection};
     initial.apply_pending();
     if (initial.current_version() != latest_project_schema_version ||
-        latest_project_schema_version != 11) {
+        latest_project_schema_version != 12) {
         return false;
     }
 
@@ -90,6 +90,7 @@ namespace fs = std::filesystem;
         DROP TABLE workflow_checkpoint_artifacts;
         DROP TABLE workflow_node_checkpoints;
         DROP TABLE workflow_states;
+        DROP TABLE project_sample_bindings;
         DROP TABLE project_samples;
         DROP TRIGGER project_research_metadata_initialize;
         DROP TRIGGER project_research_metadata_revision;
