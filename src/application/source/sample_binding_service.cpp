@@ -114,7 +114,7 @@ SampleBindingService::SampleBindingService(
 SampleBindingPreview SampleBindingService::preview(
     const domain::ProjectSampleBinding& binding
 ) {
-    SampleBindingPreview result{binding};
+    SampleBindingPreview result{binding, SampleBindingReferenceStatus::not_requested, {}};
 
     if (!sample_exists(samples_, binding.project_id(), binding.sample_id())) {
         issue(
