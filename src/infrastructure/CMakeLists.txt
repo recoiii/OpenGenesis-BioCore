@@ -38,6 +38,7 @@ target_sources(
         source/sqlite/sqlite_managed_file_repository.cpp
         source/sqlite/sqlite_prepared_job_store.cpp
         source/sqlite/sqlite_project_repository.cpp
+        source/sqlite/sqlite_project_research_metadata_store.cpp
         source/sqlite/sqlite_workflow_state_store.cpp
     PUBLIC
         FILE_SET HEADERS
@@ -77,6 +78,7 @@ target_sources(
             include/biocore/infrastructure/sqlite/sqlite_managed_file_repository.hpp
             include/biocore/infrastructure/sqlite/sqlite_prepared_job_store.hpp
             include/biocore/infrastructure/sqlite/sqlite_project_repository.hpp
+            include/biocore/infrastructure/sqlite/sqlite_project_research_metadata_store.hpp
             include/biocore/infrastructure/sqlite/sqlite_workflow_state_store.hpp
 )
 

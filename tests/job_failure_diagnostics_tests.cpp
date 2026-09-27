@@ -152,6 +152,15 @@ private:
             (4, 'checkpoint_generated_output_progress', 't'),
             (5, 'require_generated_output_sha256', 't'),
             (6, 'associate_prepared_job_execution_plans', 't');
+        CREATE TABLE project_metadata (
+            singleton INTEGER PRIMARY KEY NOT NULL CHECK(singleton = 1),
+            project_id TEXT UNIQUE NOT NULL CHECK(length(project_id) BETWEEN 1 AND 128),
+            name TEXT NOT NULL CHECK(length(trim(name)) BETWEEN 1 AND 200),
+            root_path TEXT UNIQUE NOT NULL CHECK(length(root_path) > 0),
+            created_at_utc TEXT NOT NULL CHECK(length(created_at_utc) > 0),
+            updated_at_utc TEXT NOT NULL CHECK(length(updated_at_utc) > 0)
+        );
+
         CREATE TABLE jobs(
             id TEXT PRIMARY KEY NOT NULL,
             status TEXT NOT NULL,

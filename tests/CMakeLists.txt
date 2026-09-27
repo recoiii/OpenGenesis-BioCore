@@ -919,3 +919,10 @@ add_test(NAME infrastructure.sqlite_prepared_job_store COMMAND biocore-sqlite-pr
 add_executable(biocore-filesystem-pipeline-catalog-tests filesystem_pipeline_catalog_tests.cpp)
 target_link_libraries(biocore-filesystem-pipeline-catalog-tests PRIVATE BioCore::infrastructure BioCore::project_options BioCore::project_warnings BioCore::sanitizers)
 add_test(NAME infrastructure.filesystem_pipeline_catalog COMMAND biocore-filesystem-pipeline-catalog-tests)
+
+add_executable(biocore-project-research-metadata-tests project_research_metadata_tests.cpp)
+target_compile_definitions(biocore-project-research-metadata-tests PRIVATE BIOCORE_SOURCE_ROOT="${PROJECT_SOURCE_DIR}")
+target_link_libraries(biocore-project-research-metadata-tests PRIVATE BioCore::infrastructure BioCore::pipeline_protocol SQLite::SQLite3 BioCore::project_warnings BioCore::sanitizers)
+foreach(mode domain persistence conflict migration rollback)
+    add_test(NAME integration.project_research_metadata_${mode} COMMAND biocore-project-research-metadata-tests ${mode})
+endforeach()

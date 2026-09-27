@@ -20,7 +20,7 @@ struct ExpectedMigration final {
     std::string_view name;
 };
 
-constexpr std::array<ExpectedMigration, 9> expected_migrations{{
+constexpr std::array<ExpectedMigration, 10> expected_migrations{{
     {1, "create_project_core_tables"},
     {2, "extend_jobs_for_repository"},
     {3, "register_generated_output_artifacts"},
@@ -30,6 +30,7 @@ constexpr std::array<ExpectedMigration, 9> expected_migrations{{
     {7, "persist_structured_job_failure_evidence"},
     {8, "add_explicit_retry_attempt_semantics"},
     {9, "persist_workflow_state_and_recovery"},
+    {10, "add_project_research_metadata"},
 }};
 
 struct RequiredSchemaObject final {
@@ -37,9 +38,12 @@ struct RequiredSchemaObject final {
     std::string_view name;
 };
 
-constexpr std::array<RequiredSchemaObject, 22> required_current_objects{{
+constexpr std::array<RequiredSchemaObject, 25> required_current_objects{{
     {"table", "schema_migrations"},
     {"table", "project_metadata"},
+    {"trigger", "project_research_metadata_initialize"},
+    {"trigger", "project_research_metadata_revision"},
+    {"trigger", "project_metadata_identity_immutable"},
     {"table", "managed_files"},
     {"table", "jobs"},
     {"table", "settings"},

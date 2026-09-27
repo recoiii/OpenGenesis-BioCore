@@ -66,6 +66,7 @@ target_sources(
             include/biocore/application/i_plugin_process_runner.hpp
             include/biocore/application/i_plugin_registry.hpp
             include/biocore/application/i_project_repository.hpp
+            include/biocore/application/i_project_research_metadata_store.hpp
             include/biocore/application/i_quarantine_retention_store.hpp
             include/biocore/application/i_project_workspace.hpp
             include/biocore/application/i_utc_clock.hpp

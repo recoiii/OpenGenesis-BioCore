@@ -72,7 +72,7 @@ namespace fs = std::filesystem;
     ProjectMigrationRunner initial{connection};
     initial.apply_pending();
     if (initial.current_version() != latest_project_schema_version ||
-        latest_project_schema_version != 9) {
+        latest_project_schema_version != 10) {
         return false;
     }
 
@@ -90,7 +90,14 @@ namespace fs = std::filesystem;
         DROP TABLE workflow_checkpoint_artifacts;
         DROP TABLE workflow_node_checkpoints;
         DROP TABLE workflow_states;
-        DELETE FROM schema_migrations WHERE version = 9;
+        DROP TRIGGER project_research_metadata_initialize;
+        DROP TRIGGER project_research_metadata_revision;
+        DROP TRIGGER project_metadata_identity_immutable;
+        ALTER TABLE project_metadata DROP COLUMN research_description;
+        ALTER TABLE project_metadata DROP COLUMN research_organism;
+        ALTER TABLE project_metadata DROP COLUMN research_updated_at_utc;
+        ALTER TABLE project_metadata DROP COLUMN research_revision;
+        DELETE FROM schema_migrations WHERE version >= 9;
     )sql");
 
     ProjectMigrationRunner legacy{connection};
@@ -107,7 +114,7 @@ namespace fs = std::filesystem;
     ProjectDatabaseGuard after{connection};
     after.validate_current_schema();
 
-    return legacy.current_version() == 9 &&
+    return legacy.current_version() == latest_project_schema_version &&
            table_exists(connection, "workflow_states") &&
            table_exists(connection, "workflow_node_checkpoints") &&
            table_exists(connection, "workflow_checkpoint_artifacts") &&
@@ -189,7 +196,7 @@ int main(const int argc, char** argv) {
         return v03_asset_compatibility_contract() ? EXIT_SUCCESS : EXIT_FAILURE;
     }
     if (mode == "identity") {
-        return biocore::application::BuildInfo::version() == "0.4.0"
+        return biocore::application::BuildInfo::version() == "0.5.0-dev"
             ? EXIT_SUCCESS
             : EXIT_FAILURE;
     }

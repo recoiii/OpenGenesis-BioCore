@@ -1,0 +1,72 @@
+name: OpenGenesis-BioCore v0.5 candidate validation
+on:
+  push:
+    branches: [v0.5.0-dev]
+  pull_request:
+    branches: [v0.5.0-dev]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  linux:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - preset: linux-gcc-debug
+            sanitizers: "OFF"
+            label: gcc-debug
+          - preset: linux-gcc-release
+            sanitizers: "OFF"
+            label: gcc-release
+          - preset: linux-clang-debug
+            sanitizers: "OFF"
+            label: clang-debug
+          - preset: linux-gcc-debug
+            sanitizers: "ON"
+            label: gcc-asan-ubsan
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build libsqlite3-dev zlib1g-dev clang
+      - name: Configure
+        run: cmake --preset "${{ matrix.preset }}" -DBIOCORE_ENABLE_ASAN=${{ matrix.sanitizers }} -DBIOCORE_ENABLE_UBSAN=${{ matrix.sanitizers }}
+      - name: Build
+        run: cmake --build --preset "${{ matrix.preset }}" --parallel 4
+      - name: Validate candidate
+        env:
+          ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
+          UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+        run: |
+          test "$(ctest --preset "${{ matrix.preset }}" -N | sed -n 's/^Total Tests: //p')" = "229"
+          ctest --preset "${{ matrix.preset }}" --output-on-failure --output-junit results.xml
+          test "$(build/${{ matrix.preset }}/apps/biocore/biocore --version)" = "0.5.0-dev"
+      - name: Upload test evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: iteration-079-${{ matrix.label }}-${{ github.sha }}
+          path: |
+            results.xml
+            build/${{ matrix.preset }}/Testing/Temporary/LastTest.log
+          if-no-files-found: warn
+  source:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - name: Seal exact source
+        run: |
+          mkdir artifacts
+          git archive --format=zip --prefix=OpenGenesis-BioCore/ --output=artifacts/OpenGenesis-BioCore-iteration-079-source-CANDIDATE.zip HEAD
+          git rev-parse HEAD > artifacts/COMMIT.txt
+          cd artifacts
+          sha256sum OpenGenesis-BioCore-iteration-079-source-CANDIDATE.zip > SHA256SUMS.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: iteration-079-source-${{ github.sha }}
+          path: artifacts/

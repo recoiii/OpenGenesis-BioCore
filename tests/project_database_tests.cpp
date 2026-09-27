@@ -341,6 +341,15 @@ private:
             updated_at_utc TEXT NOT NULL DEFAULT 'u'
         );
 
+        CREATE TABLE project_metadata (
+            singleton INTEGER PRIMARY KEY NOT NULL CHECK(singleton = 1),
+            project_id TEXT UNIQUE NOT NULL CHECK(length(project_id) BETWEEN 1 AND 128),
+            name TEXT NOT NULL CHECK(length(trim(name)) BETWEEN 1 AND 200),
+            root_path TEXT UNIQUE NOT NULL CHECK(length(root_path) > 0),
+            created_at_utc TEXT NOT NULL CHECK(length(created_at_utc) > 0),
+            updated_at_utc TEXT NOT NULL CHECK(length(updated_at_utc) > 0)
+        );
+
         CREATE TABLE jobs (
             id TEXT PRIMARY KEY NOT NULL,
             status TEXT NOT NULL,
@@ -522,6 +531,15 @@ private:
         );
         INSERT INTO schema_migrations(version, name, applied_at_utc)
         VALUES (3, 'register_generated_output_artifacts', '2026-08-07T10:00:00Z');
+
+        CREATE TABLE project_metadata (
+            singleton INTEGER PRIMARY KEY NOT NULL CHECK(singleton = 1),
+            project_id TEXT UNIQUE NOT NULL CHECK(length(project_id) BETWEEN 1 AND 128),
+            name TEXT NOT NULL CHECK(length(trim(name)) BETWEEN 1 AND 200),
+            root_path TEXT UNIQUE NOT NULL CHECK(length(root_path) > 0),
+            created_at_utc TEXT NOT NULL CHECK(length(created_at_utc) > 0),
+            updated_at_utc TEXT NOT NULL CHECK(length(updated_at_utc) > 0)
+        );
 
         CREATE TABLE jobs (
             id TEXT PRIMARY KEY NOT NULL,
