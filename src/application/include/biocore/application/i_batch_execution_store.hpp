@@ -3,6 +3,7 @@
 #include <optional>
 #include <span>
 #include <string_view>
+#include <vector>
 
 #include "biocore/application/batch_execution.hpp"
 #include "biocore/application/i_batch_scheduling_policy.hpp"
@@ -20,6 +21,16 @@ public:
 
     [[nodiscard]] virtual std::optional<BatchExecutionRecord> find(
         std::string_view plan_id
+    ) = 0;
+
+    [[nodiscard]] virtual std::vector<BatchExecutionRecord> list() = 0;
+
+    [[nodiscard]] virtual std::vector<BatchExecutionAttemptRecord> list_attempts(
+        std::string_view plan_id
+    ) = 0;
+
+    virtual AddBatchAttemptResult add_attempt(
+        const BatchPreparedAttempt& attempt
     ) = 0;
 
     virtual bool request_cancellation(

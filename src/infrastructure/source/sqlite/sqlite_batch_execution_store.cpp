@@ -8,6 +8,7 @@
 #include <stdexcept>
 #include <string>
 #include <string_view>
+#include <vector>
 
 #include "biocore/domain/job_priority.hpp"
 #include "biocore/domain/job_status.hpp"
@@ -148,6 +149,60 @@ void validate_submission(
     }
 }
 
+void validate_attempt(const application::BatchPreparedAttempt& item) {
+    const auto& attempt = item.attempt;
+    if (attempt.plan_id.empty() || attempt.plan_id.size() > 128U ||
+        attempt.sample_id.empty() || attempt.sample_id.size() > 128U ||
+        attempt.attempt_number < 2 || attempt.attempt_number > 64 ||
+        attempt.job_id.empty() || attempt.job_id != item.job.id() ||
+        !attempt.parent_job_id.has_value() || attempt.parent_job_id->empty() ||
+        (attempt.mode != application::BatchAttemptMode::resume &&
+         attempt.mode != application::BatchAttemptMode::retry) ||
+        attempt.created_at_utc.empty() ||
+        item.job.analysis_id() != std::optional<std::string>{attempt.plan_id} ||
+        item.job.attempt_number() != 1) {
+        throw std::invalid_argument{"Batch recovery attempt record is invalid"};
+    }
+
+    if (item.execution.has_value()) {
+        if (item.job.status() != domain::JobStatus::queued ||
+            item.job.revision() != 1 ||
+            item.execution->job_id != item.job.id() ||
+            item.execution->attempt_number != 1 ||
+            item.execution->launch_revision != 2 ||
+            !item.job.pipeline_id().has_value() ||
+            !item.job.pipeline_version().has_value() ||
+            item.execution->pipeline_id != *item.job.pipeline_id() ||
+            item.execution->pipeline_version != *item.job.pipeline_version() ||
+            item.execution->execution_plan_path.empty() ||
+            item.execution->prepared_at_utc.empty() ||
+            attempt.execution_node_ids.empty()) {
+            throw std::invalid_argument{"Prepared batch recovery attempt is inconsistent"};
+        }
+    } else if (item.job.status() != domain::JobStatus::completed ||
+               item.job.progress() != 1.0 ||
+               !attempt.execution_node_ids.empty()) {
+        throw std::invalid_argument{"Checkpoint-only recovery attempt is inconsistent"};
+    }
+}
+
+void bind_job_row(Statement& statement, const domain::Job& job) {
+    statement.bind_text(1, job.id());
+    statement.bind_optional_text(2, job.analysis_id());
+    statement.bind_optional_text(3, job.pipeline_id());
+    statement.bind_optional_text(4, job.pipeline_version());
+    statement.bind_text(5, domain::to_string(job.status()));
+    statement.bind_text(6, domain::to_string(job.priority()));
+    statement.bind_double(7, job.progress());
+    statement.bind_optional_text(8, job.active_step_id());
+    statement.bind_text(9, job.created_at_utc());
+    statement.bind_text(10, job.updated_at_utc());
+    statement.bind_optional_text(11, job.started_at_utc());
+    statement.bind_optional_text(12, job.finished_at_utc());
+    statement.bind_integer(13, job.revision());
+    statement.bind_integer(14, job.attempt_number());
+}
+
 }  // namespace
 
 SqliteBatchExecutionStore::SqliteBatchExecutionStore(
@@ -203,24 +258,28 @@ application::AddBatchExecutionResult SqliteBatchExecutionStore::add(
         VALUES(?,?,?,?);
     )sql";
 
+
+    constexpr const char* insert_attempt = R"sql(
+        INSERT INTO batch_execution_attempts(
+            plan_id,sample_id,attempt_number,job_id,parent_job_id,mode,created_at_utc
+        ) VALUES(?,?,1,?,NULL,'initial',?);
+    )sql";
+
+    constexpr const char* insert_attempt_nodes = R"sql(
+        INSERT INTO batch_execution_attempt_nodes(
+            plan_id,sample_id,attempt_number,ordinal,node_id
+        )
+        SELECT plan_id,sample_id,1,ordinal,node_id
+        FROM batch_plan_nodes
+        WHERE plan_id=? AND sample_id=?
+        ORDER BY ordinal;
+    )sql";
+
     for (const auto& item : jobs) {
         Statement job_statement{
             database, insert_job, "Unable to insert batch prepared job"
         };
-        job_statement.bind_text(1, item.job.id());
-        job_statement.bind_optional_text(2, item.job.analysis_id());
-        job_statement.bind_optional_text(3, item.job.pipeline_id());
-        job_statement.bind_optional_text(4, item.job.pipeline_version());
-        job_statement.bind_text(5, domain::to_string(item.job.status()));
-        job_statement.bind_text(6, domain::to_string(item.job.priority()));
-        job_statement.bind_double(7, item.job.progress());
-        job_statement.bind_optional_text(8, item.job.active_step_id());
-        job_statement.bind_text(9, item.job.created_at_utc());
-        job_statement.bind_text(10, item.job.updated_at_utc());
-        job_statement.bind_optional_text(11, item.job.started_at_utc());
-        job_statement.bind_optional_text(12, item.job.finished_at_utc());
-        job_statement.bind_integer(13, item.job.revision());
-        job_statement.bind_integer(14, item.job.attempt_number());
+        bind_job_row(job_statement, item.job);
         require_done(database, job_statement, "Unable to insert batch prepared job");
         if (sqlite3_changes(database) != 1) {
             return application::AddBatchExecutionResult::job_identifier_conflict;
@@ -250,6 +309,24 @@ application::AddBatchExecutionResult SqliteBatchExecutionStore::add(
         link_statement.bind_text(4, item.link.job_id);
         require_done(
             database, link_statement, "Unable to insert batch execution sample link"
+        );
+
+        Statement attempt_statement{
+            database, insert_attempt, "Unable to insert initial batch attempt"
+        };
+        attempt_statement.bind_text(1, execution.plan_id);
+        attempt_statement.bind_text(2, item.link.sample_id);
+        attempt_statement.bind_text(3, item.link.job_id);
+        attempt_statement.bind_text(4, execution.submitted_at_utc);
+        require_done(database, attempt_statement, "Unable to insert initial batch attempt");
+
+        Statement node_statement{
+            database, insert_attempt_nodes, "Unable to snapshot initial batch attempt nodes"
+        };
+        node_statement.bind_text(1, execution.plan_id);
+        node_statement.bind_text(2, item.link.sample_id);
+        require_done(
+            database, node_statement, "Unable to snapshot initial batch attempt nodes"
         );
     }
 
@@ -339,6 +416,188 @@ std::optional<application::BatchExecutionRecord> SqliteBatchExecutionStore::find
     return execution;
 }
 
+std::vector<application::BatchExecutionRecord> SqliteBatchExecutionStore::list() {
+    sqlite3* const database = connection_.native_handle();
+    Statement query{
+        database,
+        "SELECT plan_id FROM batch_executions WHERE sealed=1 ORDER BY submitted_at_utc,plan_id;",
+        "Unable to list batch executions"
+    };
+    std::vector<application::BatchExecutionRecord> records;
+    for (;;) {
+        const int result = query.step();
+        if (result == SQLITE_DONE) break;
+        if (result != SQLITE_ROW) {
+            throw SqliteError{
+                result, std::string{"Unable to list batch executions: "} +
+                    sqlite3_errmsg(database)
+            };
+        }
+        const auto record = find(query.text(0));
+        if (!record.has_value()) {
+            throw SqliteError{SQLITE_CORRUPT, "Listed batch execution disappeared"};
+        }
+        records.push_back(*record);
+    }
+    return records;
+}
+
+std::vector<application::BatchExecutionAttemptRecord>
+SqliteBatchExecutionStore::list_attempts(const std::string_view plan_id) {
+    sqlite3* const database = connection_.native_handle();
+    Statement query{
+        database,
+        "SELECT sample_id,attempt_number,job_id,parent_job_id,mode,created_at_utc "
+        "FROM batch_execution_attempts WHERE plan_id=? "
+        "ORDER BY sample_id,attempt_number;",
+        "Unable to list batch execution attempts"
+    };
+    query.bind_text(1, plan_id);
+    std::vector<application::BatchExecutionAttemptRecord> attempts;
+    for (;;) {
+        const int result = query.step();
+        if (result == SQLITE_DONE) break;
+        if (result != SQLITE_ROW) {
+            throw SqliteError{
+                result, std::string{"Unable to list batch execution attempts: "} +
+                    sqlite3_errmsg(database)
+            };
+        }
+        const auto mode = application::batch_attempt_mode_from_string(query.text(4));
+        if (!mode.has_value()) {
+            throw SqliteError{SQLITE_CORRUPT, "Batch attempt mode is invalid"};
+        }
+        application::BatchExecutionAttemptRecord attempt{
+            .plan_id = std::string{plan_id},
+            .sample_id = query.text(0),
+            .attempt_number = query.integer(1),
+            .job_id = query.text(2),
+            .parent_job_id = query.is_null(3)
+                ? std::optional<std::string>{}
+                : std::optional<std::string>{query.text(3)},
+            .mode = *mode,
+            .created_at_utc = query.text(5),
+            .execution_node_ids = {},
+        };
+
+        Statement nodes{
+            database,
+            "SELECT node_id FROM batch_execution_attempt_nodes "
+            "WHERE plan_id=? AND sample_id=? AND attempt_number=? ORDER BY ordinal;",
+            "Unable to list batch execution attempt nodes"
+        };
+        nodes.bind_text(1, plan_id);
+        nodes.bind_text(2, attempt.sample_id);
+        nodes.bind_integer(3, attempt.attempt_number);
+        for (;;) {
+            const int node_result = nodes.step();
+            if (node_result == SQLITE_DONE) break;
+            if (node_result != SQLITE_ROW) {
+                throw SqliteError{
+                    node_result,
+                    std::string{"Unable to list batch execution attempt nodes: "} +
+                        sqlite3_errmsg(database)
+                };
+            }
+            attempt.execution_node_ids.push_back(nodes.text(0));
+        }
+        attempts.push_back(std::move(attempt));
+    }
+    return attempts;
+}
+
+application::AddBatchAttemptResult SqliteBatchExecutionStore::add_attempt(
+    const application::BatchPreparedAttempt& item
+) {
+    validate_attempt(item);
+    sqlite3* const database = connection_.native_handle();
+    Transaction transaction{connection_};
+
+    Statement expected{
+        database,
+        "SELECT COALESCE(MAX(attempt_number),0),cancellation_requested "
+        "FROM batch_execution_attempts AS a "
+        "JOIN batch_executions AS e ON e.plan_id=a.plan_id "
+        "WHERE a.plan_id=? AND a.sample_id=?;",
+        "Unable to inspect batch attempt lineage"
+    };
+    expected.bind_text(1, item.attempt.plan_id);
+    expected.bind_text(2, item.attempt.sample_id);
+    const int expected_result = expected.step();
+    if (expected_result != SQLITE_ROW || expected.integer(1) != 0 ||
+        expected.integer(0) + 1 != item.attempt.attempt_number) {
+        return application::AddBatchAttemptResult::attempt_conflict;
+    }
+
+    constexpr const char* insert_job = R"sql(
+        INSERT INTO jobs(
+            id, analysis_id, pipeline_id, pipeline_version, status, priority, progress,
+            active_step_id, created_at_utc, updated_at_utc, started_at_utc,
+            finished_at_utc, revision, attempt_number
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO NOTHING;
+    )sql";
+    Statement job_statement{database, insert_job, "Unable to insert batch recovery job"};
+    bind_job_row(job_statement, item.job);
+    require_done(database, job_statement, "Unable to insert batch recovery job");
+    if (sqlite3_changes(database) != 1) {
+        return application::AddBatchAttemptResult::job_identifier_conflict;
+    }
+
+    if (item.execution.has_value()) {
+        Statement execution_statement{
+            database,
+            "INSERT INTO job_execution_plans("
+            "job_id,launch_revision,pipeline_id,pipeline_version,execution_plan_path,prepared_at_utc"
+            ") VALUES(?,?,?,?,?,?);",
+            "Unable to insert batch recovery execution plan"
+        };
+        execution_statement.bind_text(1, item.execution->job_id);
+        execution_statement.bind_integer(2, item.execution->launch_revision);
+        execution_statement.bind_text(3, item.execution->pipeline_id);
+        execution_statement.bind_text(4, item.execution->pipeline_version);
+        execution_statement.bind_text(5, item.execution->execution_plan_path);
+        execution_statement.bind_text(6, item.execution->prepared_at_utc);
+        require_done(
+            database, execution_statement, "Unable to insert batch recovery execution plan"
+        );
+    }
+
+    Statement attempt_statement{
+        database,
+        "INSERT INTO batch_execution_attempts("
+        "plan_id,sample_id,attempt_number,job_id,parent_job_id,mode,created_at_utc"
+        ") VALUES(?,?,?,?,?,?,?);",
+        "Unable to insert batch recovery attempt"
+    };
+    attempt_statement.bind_text(1, item.attempt.plan_id);
+    attempt_statement.bind_text(2, item.attempt.sample_id);
+    attempt_statement.bind_integer(3, item.attempt.attempt_number);
+    attempt_statement.bind_text(4, item.attempt.job_id);
+    attempt_statement.bind_optional_text(5, item.attempt.parent_job_id);
+    attempt_statement.bind_text(6, application::to_string(item.attempt.mode));
+    attempt_statement.bind_text(7, item.attempt.created_at_utc);
+    require_done(database, attempt_statement, "Unable to insert batch recovery attempt");
+
+    for (std::size_t ordinal = 0U; ordinal < item.attempt.execution_node_ids.size(); ++ordinal) {
+        Statement node_statement{
+            database,
+            "INSERT INTO batch_execution_attempt_nodes("
+            "plan_id,sample_id,attempt_number,ordinal,node_id) VALUES(?,?,?,?,?);",
+            "Unable to insert batch recovery attempt node"
+        };
+        node_statement.bind_text(1, item.attempt.plan_id);
+        node_statement.bind_text(2, item.attempt.sample_id);
+        node_statement.bind_integer(3, item.attempt.attempt_number);
+        node_statement.bind_integer(4, static_cast<std::int64_t>(ordinal));
+        node_statement.bind_text(5, item.attempt.execution_node_ids[ordinal]);
+        require_done(database, node_statement, "Unable to insert batch recovery attempt node");
+    }
+
+    transaction.commit();
+    return application::AddBatchAttemptResult::created;
+}
+
 bool SqliteBatchExecutionStore::request_cancellation(
     const std::string_view plan_id,
     const std::string_view updated_at_utc
@@ -385,9 +644,9 @@ SqliteBatchExecutionStore::quota_for_job(const std::string_view job_id) {
     Statement query{
         connection_.native_handle(),
         "SELECT e.plan_id,e.maximum_concurrent_jobs "
-        "FROM batch_execution_jobs AS j "
-        "JOIN batch_executions AS e ON e.plan_id=j.plan_id "
-        "WHERE j.job_id=? AND e.sealed=1;",
+        "FROM batch_execution_attempts AS a "
+        "JOIN batch_executions AS e ON e.plan_id=a.plan_id "
+        "WHERE a.job_id=? AND e.sealed=1;",
         "Unable to read batch scheduling quota"
     };
     query.bind_text(1, job_id);

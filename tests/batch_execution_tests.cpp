@@ -348,6 +348,8 @@ void submit_contract() {
           "wrong prepared job count");
     check(scalar(harness.connection, "SELECT COUNT(*) FROM batch_execution_jobs;") == 2,
           "wrong execution ledger count");
+    check(scalar(harness.connection, "SELECT COUNT(*) FROM batch_execution_attempts;") == 2,
+          "initial attempt lineage was not created");
 
     const auto second = harness.service.submit("batch.plan.083", 2U);
     check(second.samples[0].job_id == first.samples[0].job_id &&
@@ -491,6 +493,12 @@ void persistence_contract() {
     const auto execution = harness.executions.find("batch.plan.083");
     check(execution.has_value() && execution->jobs.size() == 1U,
           "sealed execution ledger did not round-trip");
+    const auto attempts = harness.executions.list_attempts("batch.plan.083");
+    check(attempts.size() == 1U && attempts[0].attempt_number == 1 &&
+          attempts[0].mode == application::BatchAttemptMode::initial &&
+          !attempts[0].parent_job_id.has_value() &&
+          attempts[0].execution_node_ids == std::vector<std::string>{"qc"},
+          "initial attempt lineage did not round-trip");
     const auto quota = harness.executions.quota_for_job("job-a");
     check(quota.has_value() &&
           quota->group_id == "batch.plan.083" &&
@@ -559,37 +567,91 @@ void migration_contract() {
     check(migrations.current_version() == 13, "fixture is not v13");
     migrations.apply_pending();
     ProjectDatabaseGuard{connection}.validate_current_schema();
-    check(migrations.current_version() == 14, "v14 migration missing");
+    check(migrations.current_version() == 15, "v15 migration missing");
     check(scalar(connection, "SELECT COUNT(*) FROM batch_plans;") == 1,
           "v13 approved plan was not preserved");
     check(scalar(connection, "SELECT COUNT(*) FROM batch_executions;") == 0,
           "migration invented batch execution state");
 }
 
+void load_v14(SqliteConnection& connection) {
+    std::ifstream input{
+        std::filesystem::path{BIOCORE_SOURCE_ROOT} /
+        "tests/fixtures/project-schema-v14.sql"
+    };
+    check(input.good(), "v14 fixture missing");
+    const std::string sql{
+        std::istreambuf_iterator<char>{input},
+        std::istreambuf_iterator<char>{}
+    };
+    connection.execute(sql);
+    connection.execute(R"sql(
+        INSERT INTO project_metadata(
+            singleton,project_id,name,root_path,created_at_utc,updated_at_utc,
+            research_description,research_organism,research_revision,
+            research_updated_at_utc
+        ) VALUES(1,'p-001','Research','/local/project','t','t','','',0,'t');
+
+        INSERT INTO batch_plans(
+            plan_id,project_id,template_id,template_version,approved_at_utc,sealed
+        ) VALUES('legacy.plan','p-001','org.test.template','1.0.0','t',0);
+        INSERT INTO batch_plan_samples(
+            plan_id,sample_id,ordinal,disposition,workflow_id
+        ) VALUES('legacy.plan','S1',0,'included','legacy.plan.sample.s1');
+        INSERT INTO batch_plan_nodes(
+            plan_id,sample_id,ordinal,node_id,module_id,plugin_version
+        ) VALUES('legacy.plan','S1',0,'qc','org.test.module','1.0.0');
+        UPDATE batch_plans SET sealed=1 WHERE plan_id='legacy.plan';
+
+        INSERT INTO jobs(
+            id,analysis_id,pipeline_id,pipeline_version,status,priority,progress,
+            active_step_id,created_at_utc,updated_at_utc,started_at_utc,
+            finished_at_utc,revision,attempt_number
+        ) VALUES(
+            'legacy-job','legacy.plan','org.biocore.batch.workflow','1.0.0',
+            'completed','normal',1.0,NULL,'t','t','t','t',1,1
+        );
+        INSERT INTO batch_executions(
+            plan_id,maximum_concurrent_jobs,cancellation_requested,
+            submitted_at_utc,updated_at_utc,sealed
+        ) VALUES('legacy.plan',1,0,'t','t',0);
+        INSERT INTO batch_execution_jobs(plan_id,sample_id,ordinal,job_id)
+        VALUES('legacy.plan','S1',0,'legacy-job');
+        UPDATE batch_executions SET sealed=1 WHERE plan_id='legacy.plan';
+    )sql");
+}
+
 void rollback_contract() {
     SqliteConnection connection{":memory:"};
-    load_v13(connection);
+    load_v14(connection);
+    check(ProjectMigrationRunner{connection}.current_version() == 14,
+          "fixture is not v14");
     connection.execute(
-        "CREATE TRIGGER reject_v14 BEFORE INSERT ON schema_migrations "
-        "WHEN NEW.version=14 BEGIN SELECT RAISE(ABORT,'injected v14 failure'); END;"
+        "CREATE TRIGGER reject_v15 BEFORE INSERT ON schema_migrations "
+        "WHEN NEW.version=15 BEGIN SELECT RAISE(ABORT,'injected v15 failure'); END;"
     );
     rejects<SqliteError>([&] {
         ProjectMigrationRunner{connection}.apply_pending();
     });
-    check(ProjectMigrationRunner{connection}.current_version() == 13,
-          "failed v14 migration advanced version");
+    check(ProjectMigrationRunner{connection}.current_version() == 14,
+          "failed v15 migration advanced version");
     check(scalar(
         connection,
         "SELECT COUNT(*) FROM sqlite_master "
-        "WHERE type='table' AND name='batch_executions';"
-    ) == 0, "failed v14 migration left execution table");
-    check(scalar(connection, "SELECT COUNT(*) FROM batch_plans;") == 1,
-          "failed v14 migration damaged approved plan");
+        "WHERE type='table' AND name='batch_execution_attempts';"
+    ) == 0, "failed v15 migration left attempt table");
+    check(scalar(connection, "SELECT COUNT(*) FROM batch_executions;") == 1,
+          "failed v15 migration damaged v14 execution state");
 
-    connection.execute("DROP TRIGGER reject_v14;");
+    connection.execute("DROP TRIGGER reject_v15;");
     ProjectMigrationRunner{connection}.apply_pending();
     ProjectDatabaseGuard{connection}.validate_current_schema();
+    check(scalar(connection, "SELECT COUNT(*) FROM batch_execution_attempts;") == 1,
+          "v15 migration did not backfill initial attempt lineage");
+    check(scalar(connection, "SELECT COUNT(*) FROM batch_execution_attempt_nodes;") == 1,
+          "v15 migration did not backfill initial attempt nodes");
 }
+
 
 }  // namespace
 

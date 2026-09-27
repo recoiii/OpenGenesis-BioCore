@@ -8,6 +8,7 @@
 #include <utility>
 
 #include "biocore/application/artifact_presentation_service.hpp"
+#include "biocore/application/batch_recovery_service.hpp"
 #include "biocore/application/job_scheduler.hpp"
 #include "biocore/application/job_retry_service.hpp"
 #include "biocore/application/job_service.hpp"
@@ -38,6 +39,7 @@
 #include "biocore/infrastructure/sqlite/project_migration_runner.hpp"
 #include "biocore/infrastructure/sqlite/sqlite_connection.hpp"
 #include "biocore/infrastructure/sqlite/sqlite_batch_execution_store.hpp"
+#include "biocore/infrastructure/sqlite/sqlite_batch_plan_store.hpp"
 #include "biocore/infrastructure/sqlite/sqlite_job_repository.hpp"
 #include "biocore/infrastructure/sqlite/sqlite_managed_file_repository.hpp"
 #include "biocore/infrastructure/sqlite/sqlite_prepared_job_store.hpp"
@@ -245,6 +247,8 @@ int run_local_server(
     infrastructure::sqlite::SqlitePreparedJobStore api_prepared_jobs{api_connection};
     infrastructure::sqlite::SqliteManagedFileRepository api_managed_files{api_connection};
     infrastructure::sqlite::SqliteWorkflowStateStore api_workflow_states{api_connection};
+    infrastructure::sqlite::SqliteBatchPlanStore api_batch_plans{api_connection};
+    infrastructure::sqlite::SqliteBatchExecutionStore api_batch_executions{api_connection};
     infrastructure::sqlite::SqliteJobRepository runtime_job_repository{runtime_connection};
     infrastructure::sqlite::SqlitePreparedJobStore runtime_prepared_jobs{runtime_connection};
     infrastructure::sqlite::SqliteManagedFileRepository runtime_managed_files{runtime_connection};
@@ -296,6 +300,12 @@ int run_local_server(
         throw std::runtime_error("No valid plugin modules are available to the local server");
     }
     infrastructure::JsonExecutionPlanStore execution_plans{root};
+    application::BatchRecoveryService batch_recovery{
+        api_batch_plans, api_batch_executions, plugins, api_managed_files,
+        api_input_storage, workflow_checkpoint_verifier, execution_plans,
+        api_ids, clock, api_jobs
+    };
+    const auto batch_recovery_inspections = batch_recovery.inspect_all();
     application::PipelinePreparationService preparation{execution_plans, plugins, api_managed_files};
     application::JobSubmissionService submissions{api_prepared_jobs, pipelines, preparation, execution_plans, api_ids, clock};
     application::JobRetryService retries{api_jobs, api_prepared_jobs, clock};
@@ -327,6 +337,17 @@ int run_local_server(
                     << workflow_recovery_result.recovered.size()
                     << " persisted workflow(s) reconciled/planned, "
                     << workflow_recovery_result.issues.size() << " issue(s).\n";
+    std::size_t batch_attention = 0U;
+    for (const auto& inspection : batch_recovery_inspections) {
+        for (const auto& sample : inspection.samples) {
+            if (sample.action != application::BatchRecoveryAction::none) {
+                ++batch_attention;
+            }
+        }
+    }
+    standard_output << "OpenGenesis-BioCore batch recovery: "
+                    << batch_recovery_inspections.size() << " batch(es) reconciled, "
+                    << batch_attention << " sample(s) require explicit recovery action.\n";
     standard_output << "OpenGenesis-BioCore pipelines: " << pipeline_report.loaded_pipelines
                     << ", plugin modules: " << plugin_report.loaded_modules
                     << ", workflow templates: "

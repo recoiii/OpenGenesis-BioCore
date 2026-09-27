@@ -20,7 +20,7 @@ struct ExpectedMigration final {
     std::string_view name;
 };
 
-constexpr std::array<ExpectedMigration, 14> expected_migrations{{
+constexpr std::array<ExpectedMigration, 15> expected_migrations{{
     {1, "create_project_core_tables"},
     {2, "extend_jobs_for_repository"},
     {3, "register_generated_output_artifacts"},
@@ -35,6 +35,7 @@ constexpr std::array<ExpectedMigration, 14> expected_migrations{{
     {12, "bind_samples_to_inputs_and_references"},
     {13, "persist_immutable_batch_plans"},
     {14, "submit_batch_plans_through_scheduler"},
+    {15, "add_batch_recovery_attempt_lineage"},
 }};
 
 struct RequiredSchemaObject final {
@@ -42,7 +43,7 @@ struct RequiredSchemaObject final {
     std::string_view name;
 };
 
-constexpr std::array<RequiredSchemaObject, 59> required_current_objects{{
+constexpr std::array<RequiredSchemaObject, 67> required_current_objects{{
     {"table", "schema_migrations"},
     {"table", "project_metadata"},
     {"table", "project_samples"},
@@ -55,6 +56,14 @@ constexpr std::array<RequiredSchemaObject, 59> required_current_objects{{
     {"table", "batch_plan_outputs"},
     {"table", "batch_executions"},
     {"table", "batch_execution_jobs"},
+    {"table", "batch_execution_attempts"},
+    {"table", "batch_execution_attempt_nodes"},
+    {"trigger", "batch_execution_attempts_validate_insert"},
+    {"trigger", "batch_execution_attempts_immutable_update"},
+    {"trigger", "batch_execution_attempts_immutable_delete"},
+    {"trigger", "batch_execution_attempt_nodes_validate_insert"},
+    {"trigger", "batch_execution_attempt_nodes_immutable_update"},
+    {"trigger", "batch_execution_attempt_nodes_immutable_delete"},
     {"trigger", "batch_executions_require_sealed_plan"},
     {"trigger", "batch_executions_validate_update"},
     {"trigger", "batch_executions_immutable_delete"},

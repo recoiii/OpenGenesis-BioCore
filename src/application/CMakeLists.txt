@@ -6,6 +6,7 @@ target_sources(
     PRIVATE
         source/artifact_presentation_service.cpp
         source/batch_execution.cpp
+        source/batch_recovery_service.cpp
         source/batch_execution_service.cpp
         source/batch_plan.cpp
         source/batch_planning_service.cpp
@@ -51,6 +52,8 @@ target_sources(
         FILES
             include/biocore/application/artifact_presentation_service.hpp
             include/biocore/application/batch_execution.hpp
+            include/biocore/application/batch_execution_materializer.hpp
+            include/biocore/application/batch_recovery_service.hpp
             include/biocore/application/batch_execution_service.hpp
             include/biocore/application/batch_plan.hpp
             include/biocore/application/batch_planning_service.hpp

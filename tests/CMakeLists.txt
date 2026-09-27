@@ -979,3 +979,13 @@ target_link_libraries(
 foreach(mode submit quota outputs partial-failure cancel persistence migration rollback)
     add_test(NAME integration.batch_execution_${mode} COMMAND biocore-batch-execution-tests ${mode})
 endforeach()
+
+add_executable(biocore-batch-recovery-tests batch_recovery_tests.cpp)
+target_link_libraries(
+    biocore-batch-recovery-tests
+    PRIVATE BioCore::application BioCore::infrastructure SQLite::SQLite3
+            BioCore::project_options BioCore::project_warnings BioCore::sanitizers
+)
+foreach(mode restart resume checkpoint-complete retry changed-input checkpoint-integrity cancel-latest)
+    add_test(NAME integration.batch_recovery_${mode} COMMAND biocore-batch-recovery-tests ${mode})
+endforeach()

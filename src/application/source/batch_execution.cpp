@@ -15,4 +15,22 @@ std::string_view to_string(const BatchExecutionState state) noexcept {
     return "attention";
 }
 
+std::string_view to_string(const BatchAttemptMode mode) noexcept {
+    switch (mode) {
+        case BatchAttemptMode::initial: return "initial";
+        case BatchAttemptMode::resume: return "resume";
+        case BatchAttemptMode::retry: return "retry";
+    }
+    return "initial";
+}
+
+std::optional<BatchAttemptMode> batch_attempt_mode_from_string(
+    const std::string_view value
+) noexcept {
+    if (value == "initial") return BatchAttemptMode::initial;
+    if (value == "resume") return BatchAttemptMode::resume;
+    if (value == "retry") return BatchAttemptMode::retry;
+    return std::nullopt;
+}
+
 }  // namespace biocore::application

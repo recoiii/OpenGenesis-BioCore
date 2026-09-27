@@ -72,7 +72,7 @@ namespace fs = std::filesystem;
     ProjectMigrationRunner initial{connection};
     initial.apply_pending();
     if (initial.current_version() != latest_project_schema_version ||
-        latest_project_schema_version != 14) {
+        latest_project_schema_version != 15) {
         return false;
     }
 
@@ -86,6 +86,14 @@ namespace fs = std::filesystem;
 
         DROP TRIGGER IF EXISTS workflow_states_prevent_branch_schema_clear;
         DROP TRIGGER IF EXISTS workflow_branch_decisions_require_snapshot_insert;
+        DROP TRIGGER IF EXISTS batch_execution_attempt_nodes_immutable_delete;
+        DROP TRIGGER IF EXISTS batch_execution_attempt_nodes_immutable_update;
+        DROP TRIGGER IF EXISTS batch_execution_attempt_nodes_validate_insert;
+        DROP TRIGGER IF EXISTS batch_execution_attempts_immutable_delete;
+        DROP TRIGGER IF EXISTS batch_execution_attempts_immutable_update;
+        DROP TRIGGER IF EXISTS batch_execution_attempts_validate_insert;
+        DROP TABLE batch_execution_attempt_nodes;
+        DROP TABLE batch_execution_attempts;
         DROP TABLE workflow_branch_decisions;
         DROP TABLE workflow_checkpoint_artifacts;
         DROP TABLE workflow_node_checkpoints;

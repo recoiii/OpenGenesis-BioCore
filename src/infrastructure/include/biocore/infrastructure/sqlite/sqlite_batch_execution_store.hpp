@@ -20,6 +20,16 @@ public:
         std::string_view plan_id
     ) override;
 
+    [[nodiscard]] std::vector<application::BatchExecutionRecord> list() override;
+
+    [[nodiscard]] std::vector<application::BatchExecutionAttemptRecord> list_attempts(
+        std::string_view plan_id
+    ) override;
+
+    application::AddBatchAttemptResult add_attempt(
+        const application::BatchPreparedAttempt& attempt
+    ) override;
+
     bool request_cancellation(
         std::string_view plan_id,
         std::string_view updated_at_utc

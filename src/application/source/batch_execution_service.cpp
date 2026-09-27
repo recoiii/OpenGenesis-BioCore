@@ -11,6 +11,7 @@
 #include <utility>
 #include <vector>
 
+#include "biocore/application/batch_execution_materializer.hpp"
 #include "biocore/application/execution_plan.hpp"
 #include "biocore/application/i_batch_execution_store.hpp"
 #include "biocore/application/i_batch_plan_store.hpp"
@@ -83,7 +84,7 @@ constexpr std::string_view batch_pipeline_version = "1.0.0";
            file.relative_project_path().has_value();
 }
 
-[[nodiscard]] ExecutionPlan materialize_execution_plan(
+[[nodiscard]] ExecutionPlan materialize_execution_plan_impl(
     const ApprovedBatchSamplePlan& sample,
     const std::string_view job_id,
     const std::int64_t job_revision,
@@ -308,7 +309,133 @@ void discard_all(
            status == domain::JobStatus::paused;
 }
 
+
+[[nodiscard]] std::map<std::string, BatchExecutionAttemptRecord, std::less<>> latest_attempts(
+    const std::vector<BatchExecutionAttemptRecord>& attempts
+) {
+    std::map<std::string, BatchExecutionAttemptRecord, std::less<>> latest;
+    for (const auto& attempt : attempts) {
+        auto found = latest.find(attempt.sample_id);
+        if (found == latest.end() ||
+            found->second.attempt_number < attempt.attempt_number) {
+            latest[attempt.sample_id] = attempt;
+        }
+    }
+    return latest;
+}
+
 }  // namespace
+
+ExecutionPlan materialize_batch_execution_plan(
+    const ApprovedBatchSamplePlan& sample,
+    const std::string_view job_id,
+    const std::int64_t job_revision,
+    const IPluginRegistry& plugins,
+    IManagedFileRepository& managed_files,
+    const IInputFileStorage& input_storage
+) {
+    return materialize_execution_plan_impl(
+        sample, job_id, job_revision, plugins, managed_files, input_storage
+    );
+}
+
+ExecutionPlan materialize_batch_resume_execution_plan(
+    const ApprovedBatchSamplePlan& sample,
+    const std::string_view job_id,
+    const std::int64_t job_revision,
+    const std::vector<std::string>& execution_node_ids,
+    const BatchCheckpointOutputPaths& reusable_outputs,
+    const IPluginRegistry& plugins,
+    IManagedFileRepository& managed_files,
+    const IInputFileStorage& input_storage
+) {
+    if (execution_node_ids.empty()) {
+        throw std::invalid_argument{"Resume execution requires at least one node"};
+    }
+
+    const ExecutionPlan full = materialize_execution_plan_impl(
+        sample, job_id, job_revision, plugins, managed_files, input_storage
+    );
+    const std::set<std::string, std::less<>> retained{
+        execution_node_ids.begin(), execution_node_ids.end()
+    };
+    if (retained.size() != execution_node_ids.size()) {
+        throw std::invalid_argument{"Resume execution node list contains duplicates"};
+    }
+
+    std::map<std::string, std::size_t, std::less<>> requested_order;
+    for (std::size_t index = 0U; index < execution_node_ids.size(); ++index) {
+        requested_order.emplace(execution_node_ids[index], index);
+    }
+
+    std::vector<ExecutionPlanStep> steps;
+    steps.reserve(execution_node_ids.size());
+    for (const auto& original : full.steps()) {
+        if (!retained.contains(original.id)) continue;
+        ExecutionPlanStep step = original;
+        step.depends_on.erase(
+            std::remove_if(
+                step.depends_on.begin(), step.depends_on.end(),
+                [&retained](const std::string& dependency) {
+                    return !retained.contains(dependency);
+                }
+            ),
+            step.depends_on.end()
+        );
+        const auto frozen_node = std::ranges::find_if(
+            sample.nodes, [&step](const auto& node) { return node.node_id == step.id; }
+        );
+        if (frozen_node == sample.nodes.end()) {
+            throw std::logic_error{"Materialized resume step is absent from frozen plan"};
+        }
+        for (auto& input : step.inputs) {
+            if (input.source_kind != ExecutionInputSourceKind::step_output) continue;
+            const auto frozen_input = std::ranges::find_if(
+                frozen_node->inputs, [&input](const auto& value) {
+                    return value.port_name == input.port_name;
+                }
+            );
+            if (frozen_input == frozen_node->inputs.end() ||
+                frozen_input->source_kind != BatchPlanInputSourceKind::node_output ||
+                frozen_input->source_id.empty() || frozen_input->source_port.empty()) {
+                throw std::logic_error{"Frozen resume dependency identity is invalid"};
+            }
+            if (retained.contains(frozen_input->source_id)) continue;
+            const auto reused = reusable_outputs.find(
+                {frozen_input->source_id, frozen_input->source_port}
+            );
+            if (reused == reusable_outputs.end()) {
+                throw std::runtime_error{
+                    "Resume execution is missing a verified reusable dependency output"
+                };
+            }
+            input.relative_project_path = reused->second;
+        }
+        steps.push_back(std::move(step));
+    }
+
+    if (steps.size() != execution_node_ids.size()) {
+        throw std::invalid_argument{"Resume execution references an unknown frozen node"};
+    }
+    std::sort(
+        steps.begin(), steps.end(),
+        [&requested_order](const auto& left, const auto& right) {
+            return requested_order.at(left.id) < requested_order.at(right.id);
+        }
+    );
+
+    const double weight = 1.0 / static_cast<double>(steps.size());
+    for (auto& step : steps) step.normalized_weight = weight;
+
+    return ExecutionPlan{
+        ExecutionPlan::current_schema_version,
+        std::string{job_id},
+        job_revision,
+        std::string{full.pipeline_id()},
+        std::string{full.pipeline_version()},
+        std::move(steps),
+    };
+}
 
 BatchExecutionService::BatchExecutionService(
     IBatchPlanStore& plans,
@@ -404,7 +531,7 @@ BatchExecutionSnapshot BatchExecutionService::submit(
                 };
 
                 constexpr std::int64_t prepared_revision = 2;
-                const ExecutionPlan execution_plan = materialize_execution_plan(
+                const ExecutionPlan execution_plan = materialize_batch_execution_plan(
                     sample,
                     job_id,
                     prepared_revision,
@@ -514,10 +641,15 @@ BatchExecutionSnapshot BatchExecutionService::cancel(
         throw std::runtime_error{"Batch execution disappeared during cancellation"};
     }
 
+    const auto attempts = latest_attempts(executions_.list_attempts(plan_id));
     for (const BatchExecutionJobLink& link : execution->jobs) {
-        auto current = jobs_.find_by_id(link.job_id);
+        const auto latest = attempts.find(link.sample_id);
+        if (latest == attempts.end()) {
+            throw std::runtime_error{"Batch execution sample has no attempt lineage"};
+        }
+        auto current = jobs_.find_by_id(latest->second.job_id);
         if (!current.has_value()) {
-            throw std::runtime_error{"Batch execution references a missing job"};
+            throw std::runtime_error{"Batch execution references a missing latest-attempt job"};
         }
 
         const auto status = current->status();
@@ -534,14 +666,14 @@ BatchExecutionSnapshot BatchExecutionService::cancel(
 
         try {
             static_cast<void>(jobs_.transition(
-                link.job_id,
+                latest->second.job_id,
                 target,
                 current->progress(),
                 std::nullopt
             ));
         } catch (const JobServiceError& error) {
             if (error.code() != JobServiceErrorCode::concurrent_update) throw;
-            const auto raced = jobs_.find_by_id(link.job_id);
+            const auto raced = jobs_.find_by_id(latest->second.job_id);
             if (!raced.has_value() ||
                 (!domain::is_terminal(raced->status()) &&
                  raced->status() != domain::JobStatus::cancelling)) {
@@ -573,11 +705,16 @@ BatchExecutionSnapshot BatchExecutionService::snapshot(
         .samples = {},
     };
     result.samples.reserve(execution.jobs.size());
+    const auto attempts = latest_attempts(executions_.list_attempts(execution.plan_id));
 
     for (const BatchExecutionJobLink& link : execution.jobs) {
-        const auto job = jobs_.find_by_id(link.job_id);
+        const auto latest = attempts.find(link.sample_id);
+        if (latest == attempts.end()) {
+            throw std::runtime_error{"Batch execution sample has no attempt lineage"};
+        }
+        const auto job = jobs_.find_by_id(latest->second.job_id);
         if (!job.has_value()) {
-            throw std::runtime_error{"Batch execution references a missing job"};
+            throw std::runtime_error{"Batch execution references a missing latest-attempt job"};
         }
 
         switch (job->status()) {
@@ -600,10 +737,12 @@ BatchExecutionSnapshot BatchExecutionService::snapshot(
 
         result.samples.push_back(BatchExecutionSampleView{
             .sample_id = link.sample_id,
-            .job_id = link.job_id,
+            .job_id = latest->second.job_id,
             .status = job->status(),
             .progress = job->progress(),
-            .attempt_number = job->attempt_number(),
+            .attempt_number = latest->second.attempt_number,
+            .attempt_mode = latest->second.mode,
+            .parent_job_id = latest->second.parent_job_id,
         });
     }
 
