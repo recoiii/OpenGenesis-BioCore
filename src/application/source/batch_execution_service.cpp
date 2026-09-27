@@ -84,7 +84,6 @@ constexpr std::string_view batch_pipeline_version = "1.0.0";
 }
 
 [[nodiscard]] ExecutionPlan materialize_execution_plan(
-    const ApprovedBatchPlan& batch,
     const ApprovedBatchSamplePlan& sample,
     const std::string_view job_id,
     const std::int64_t job_revision,
@@ -406,7 +405,6 @@ BatchExecutionSnapshot BatchExecutionService::submit(
 
                 constexpr std::int64_t prepared_revision = 2;
                 const ExecutionPlan execution_plan = materialize_execution_plan(
-                    *plan,
                     sample,
                     job_id,
                     prepared_revision,
