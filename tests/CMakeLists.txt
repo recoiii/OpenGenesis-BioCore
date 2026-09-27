@@ -926,3 +926,14 @@ target_link_libraries(biocore-project-research-metadata-tests PRIVATE BioCore::i
 foreach(mode domain persistence conflict migration rollback)
     add_test(NAME integration.project_research_metadata_${mode} COMMAND biocore-project-research-metadata-tests ${mode})
 endforeach()
+
+add_executable(biocore-sample-registry-tests sample_registry_tests.cpp)
+target_compile_definitions(biocore-sample-registry-tests PRIVATE BIOCORE_SOURCE_ROOT="${PROJECT_SOURCE_DIR}")
+target_link_libraries(
+    biocore-sample-registry-tests
+    PRIVATE BioCore::application BioCore::infrastructure SQLite::SQLite3
+            BioCore::project_options BioCore::project_warnings BioCore::sanitizers
+)
+foreach(mode domain preview persistence import roundtrip migration rollback)
+    add_test(NAME integration.sample_registry_${mode} COMMAND biocore-sample-registry-tests ${mode})
+endforeach()

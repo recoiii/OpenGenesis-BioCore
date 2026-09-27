@@ -147,7 +147,7 @@ void migration_contract() {
         ProjectDatabaseGuard{c}.validate_before_migration();
         ProjectMigrationRunner migrations{c}; migrations.apply_pending(); migrations.apply_pending();
         ProjectDatabaseGuard{c}.validate_current_schema();
-        check(migrations.current_version()==10,"v10");
+        check(migrations.current_version()==latest_project_schema_version,"latest schema");
         check(scalar(c,"SELECT workflow_document_json FROM workflow_states;")==before,"workflow bytes changed");
         check(scalar(c,"SELECT COUNT(*) FROM jobs WHERE id='old-job' AND progress=0.25;")=="1","job lost");
         check(scalar(c,"SELECT COUNT(*) FROM managed_files WHERE id='old-file';")=="1","file lost");

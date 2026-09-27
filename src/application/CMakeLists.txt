@@ -27,6 +27,7 @@ target_sources(
         source/project_recovery_service.cpp
         source/project_service.cpp
         source/project_service_error.cpp
+        source/sample_registry_import.cpp
         source/project_workspace_error.cpp
         source/worker_event_ingestion_error.cpp
         source/worker_event_ingestion_session.cpp
@@ -67,6 +68,7 @@ target_sources(
             include/biocore/application/i_plugin_registry.hpp
             include/biocore/application/i_project_repository.hpp
             include/biocore/application/i_project_research_metadata_store.hpp
+            include/biocore/application/i_project_sample_store.hpp
             include/biocore/application/i_quarantine_retention_store.hpp
             include/biocore/application/i_project_workspace.hpp
             include/biocore/application/i_utc_clock.hpp
@@ -92,6 +94,7 @@ target_sources(
             include/biocore/application/project_service.hpp
             include/biocore/application/project_service_error.hpp
             include/biocore/application/project_workspace_error.hpp
+            include/biocore/application/sample_registry_import.hpp
             include/biocore/application/worker_launch_request.hpp
             include/biocore/application/worker_process.hpp
             include/biocore/application/worker_lifecycle_event.hpp
