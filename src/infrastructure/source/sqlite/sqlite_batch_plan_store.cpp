@@ -724,6 +724,7 @@ SqliteBatchPlanStore::find(const std::string_view plan_id) {
         .template_id = plan_statement.text(1),
         .template_version = plan_statement.text(2),
         .approved_at_utc = plan_statement.text(3),
+        .samples = {},
     };
 
     Statement samples{
