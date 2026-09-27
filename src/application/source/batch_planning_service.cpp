@@ -167,6 +167,9 @@ void add_issue(
             .node_id = std::string{node.node_id.value()},
             .module_id = node.module_id,
             .plugin_version = node.plugin_version,
+            .parameters = {},
+            .inputs = {},
+            .outputs = {},
         };
 
         snapshot.parameters.reserve(node.parameters.size());
@@ -275,6 +278,8 @@ BatchPlanPreview BatchPlanningService::preview(const BatchPlanRequest& request) 
         .project_id = request.project_id,
         .template_id = request.template_id,
         .template_version = request.template_version,
+        .issues = {},
+        .samples = {},
     };
 
     std::vector<std::string> sample_ids = request.sample_ids;
@@ -332,6 +337,8 @@ BatchPlanPreview BatchPlanningService::preview(const BatchPlanRequest& request) 
         BatchSamplePlanPreview sample{
             .sample_id = sample_ids[ordinal],
             .workflow_id = workflow_id_for(request.plan_id, ordinal),
+            .issues = {},
+            .nodes = {},
         };
 
         if (!known_samples.contains(sample.sample_id)) {
@@ -501,6 +508,7 @@ ApprovedBatchPlan BatchPlanningService::approve(
         .template_id = preview.template_id,
         .template_version = preview.template_version,
         .approved_at_utc = std::string{approved_at_utc},
+        .samples = {},
     };
     approved.samples.reserve(preview.samples.size());
 
