@@ -653,7 +653,7 @@ void migration_contract() {
     migrations.apply_pending();
     ProjectDatabaseGuard{connection}.validate_current_schema();
     check(
-        migrations.current_version() == 12 &&
+        migrations.current_version() == latest_project_schema_version &&
         scalar_int64(connection, "SELECT COUNT(*) FROM project_samples;") == 1 &&
         scalar_int64(connection, "SELECT COUNT(*) FROM managed_files;") == 2 &&
         scalar_int64(connection, "SELECT COUNT(*) FROM project_sample_bindings;") == 0,

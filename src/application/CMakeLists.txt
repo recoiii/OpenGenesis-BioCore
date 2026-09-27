@@ -5,6 +5,8 @@ target_sources(
     biocore-application
     PRIVATE
         source/artifact_presentation_service.cpp
+        source/batch_plan.cpp
+        source/batch_planning_service.cpp
         source/artifact_presentation_service_error.cpp
         source/variant_export.cpp
         source/build_info.cpp
@@ -46,6 +48,8 @@ target_sources(
         BASE_DIRS include
         FILES
             include/biocore/application/artifact_presentation_service.hpp
+            include/biocore/application/batch_plan.hpp
+            include/biocore/application/batch_planning_service.hpp
             include/biocore/application/artifact_presentation_service_error.hpp
             include/biocore/application/variant_export.hpp
             include/biocore/application/build_info.hpp
@@ -53,6 +57,7 @@ target_sources(
             include/biocore/application/generated_output_artifact.hpp
             include/biocore/application/health_snapshot.hpp
             include/biocore/application/i_artifact_content_access.hpp
+            include/biocore/application/i_batch_plan_store.hpp
             include/biocore/application/i_execution_plan_store.hpp
             include/biocore/application/i_id_generator.hpp
             include/biocore/application/i_input_file_storage.hpp

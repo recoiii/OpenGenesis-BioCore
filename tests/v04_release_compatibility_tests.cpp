@@ -72,7 +72,7 @@ namespace fs = std::filesystem;
     ProjectMigrationRunner initial{connection};
     initial.apply_pending();
     if (initial.current_version() != latest_project_schema_version ||
-        latest_project_schema_version != 12) {
+        latest_project_schema_version != 13) {
         return false;
     }
 
