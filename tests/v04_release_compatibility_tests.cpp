@@ -90,6 +90,7 @@ namespace fs = std::filesystem;
         DROP TABLE workflow_checkpoint_artifacts;
         DROP TABLE workflow_node_checkpoints;
         DROP TABLE workflow_states;
+        DROP TABLE project_samples;
         DROP TRIGGER project_research_metadata_initialize;
         DROP TRIGGER project_research_metadata_revision;
         DROP TRIGGER project_metadata_identity_immutable;
