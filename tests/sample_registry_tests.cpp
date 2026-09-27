@@ -143,6 +143,18 @@ void persistence_contract() {
           "duplicate batch accepted");
     const auto rows = store.list("p-001");
     check(rows && rows->size() == 2U, "duplicate batch partially wrote");
+
+    connection.execute(
+        "CREATE TRIGGER reject_sample_004 BEFORE INSERT ON project_samples "
+        "WHEN NEW.sample_id='004' BEGIN SELECT RAISE(ABORT,'injected sample failure'); END;");
+    const std::vector<domain::ProjectSample> failing{
+        {"p-001", "003", "Three", ""},
+        {"p-001", "004", "Four", ""},
+    };
+    rejects<SqliteError>([&] { (void)store.add_batch("p-001", failing); });
+    check(store.list("p-001")->size() == 2U, "SQLite failure partially wrote batch");
+    connection.execute("DROP TRIGGER reject_sample_004;");
+
     check(!store.list("wrong").has_value(), "wrong project list accepted");
 }
 
@@ -169,6 +181,18 @@ void import_contract() {
         application::SampleTableFormat::csv);
     check(!duplicate.valid() && duplicate.issues().front().code == "sample_already_exists",
           "existing duplicate not previewed");
+
+    const auto stale = service.preview(
+        "p-001", "sample_id,display_name,group\n009,Nine,case\n",
+        application::SampleTableFormat::csv);
+    check(stale.valid(), "stale setup preview failed");
+    const std::vector<domain::ProjectSample> concurrent{
+        {"p-001", "009", "Concurrent", "control"},
+    };
+    check(store.add_batch("p-001", concurrent) == application::SampleBatchAddResult::added,
+          "stale setup insert failed");
+    rejects<std::runtime_error>([&] { service.commit(stale); });
+    check(store.list("p-001")->size() == 3U, "stale preview partially wrote");
 }
 
 void roundtrip_contract() {
@@ -196,6 +220,19 @@ void roundtrip_contract() {
     target_service.commit(preview);
     check(target_store.list("p-001") == source_store.list("p-001"),
           "CSV round-trip changed registry values");
+
+    const std::string tsv =
+        source_service.export_table("p-001", application::SampleTableFormat::tsv);
+    SqliteConnection tsv_target{":memory:"};
+    initialize(tsv_target);
+    SqliteProjectSampleStore tsv_store{tsv_target};
+    application::SampleRegistryImportService tsv_service{tsv_store};
+    const auto tsv_preview =
+        tsv_service.preview("p-001", tsv, application::SampleTableFormat::tsv);
+    check(tsv_preview.valid(), "TSV round-trip preview failed");
+    tsv_service.commit(tsv_preview);
+    check(tsv_store.list("p-001") == source_store.list("p-001"),
+          "TSV round-trip changed registry values");
 }
 
 void migration_contract() {
