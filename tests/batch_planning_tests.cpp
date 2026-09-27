@@ -679,12 +679,12 @@ void migration_contract() {
     ProjectDatabaseGuard{connection}.validate_current_schema();
 
     check(
-        migrations.current_version() == 13 &&
+        migrations.current_version() == latest_project_schema_version &&
         scalar(connection, "SELECT COUNT(*) FROM project_samples;") == 1 &&
         scalar(connection, "SELECT COUNT(*) FROM project_sample_bindings;") == 1 &&
         scalar(connection, "SELECT COUNT(*) FROM managed_files;") == 1 &&
         scalar(connection, "SELECT COUNT(*) FROM batch_plans;") == 0,
-        "v12 to v13 migration did not preserve legacy project data"
+        "v12 migration chain did not preserve legacy project data"
     );
 }
 
