@@ -228,3 +228,233 @@ void add_artifact_issue(
         result += part;
     }
     return result.empty() ? "none" : result;
+}
+
+struct ReferenceSignature final {
+    std::string value;
+    bool complete{true};
+};
+
+[[nodiscard]] ReferenceSignature reference_signature(
+    const ApprovedBatchSamplePlan& sample,
+    const BatchPlanNodeSnapshot& node
+) {
+    std::vector<std::string> parts;
+    for (const auto& plan_node : sample.nodes) {
+        for (const auto& input : plan_node.inputs) {
+            if (!input.managed_file.has_value() ||
+                input.managed_file->role != BatchInputFileRole::reference) {
+                continue;
+            }
+            const auto& file = *input.managed_file;
+            parts.push_back(
+                file.file_type + ":" + std::to_string(file.size_bytes) + ":" + file.sha256
+            );
+        }
+    }
+    std::ranges::sort(parts);
+    parts.erase(std::unique(parts.begin(), parts.end()), parts.end());
+    if (parts.empty()) {
+        if (reference_sensitive_qc(node.module_id)) {
+            return {"unverified", false};
+        }
+        return {"not_applicable", true};
+    }
+    std::string result;
+    for (const auto& part : parts) {
+        if (!result.empty()) result.push_back('|');
+        result += part;
+    }
+    return {std::move(result), true};
+}
+
+[[nodiscard]] bool looks_integer(const std::string_view value) noexcept {
+    if (value.empty()) return false;
+    std::size_t index = value.front() == '-' ? 1U : 0U;
+    if (index == value.size()) return false;
+    for (; index < value.size(); ++index) {
+        if (value[index] < '0' || value[index] > '9') return false;
+    }
+    return true;
+}
+
+[[nodiscard]] bool looks_number(const std::string_view value) noexcept {
+    if (value.empty()) return false;
+    bool digit = false;
+    bool decimal = false;
+    bool exponent = false;
+    for (std::size_t index = 0U; index < value.size(); ++index) {
+        const char c = value[index];
+        if (c >= '0' && c <= '9') {
+            digit = true;
+            continue;
+        }
+        if ((c == '+' || c == '-') &&
+            (index == 0U || (index > 0U && (value[index - 1U] == 'e' || value[index - 1U] == 'E')))) {
+            continue;
+        }
+        if (c == '.' && !decimal && !exponent) {
+            decimal = true;
+            continue;
+        }
+        if ((c == 'e' || c == 'E') && digit && !exponent) {
+            exponent = true;
+            digit = false;
+            continue;
+        }
+        return false;
+    }
+    return digit && (decimal || exponent);
+}
+
+[[nodiscard]] BatchQcMetric make_metric(std::string key, std::string value) {
+    if (value == "null" || value.empty()) {
+        return {std::move(key), BatchQcMetricValueKind::null_value, std::nullopt};
+    }
+    if (value == "true" || value == "false") {
+        return {std::move(key), BatchQcMetricValueKind::boolean, std::move(value)};
+    }
+    if (looks_integer(value)) {
+        return {std::move(key), BatchQcMetricValueKind::integer, std::move(value)};
+    }
+    if (looks_number(value)) {
+        return {std::move(key), BatchQcMetricValueKind::number, std::move(value)};
+    }
+    return {std::move(key), BatchQcMetricValueKind::string, std::move(value)};
+}
+
+[[nodiscard]] std::vector<BatchQcMetric> parse_metric_tsv(
+    const std::string_view text,
+    const BatchPlanNodeSnapshot& node
+) {
+    if (text.size() > BatchResultsService::maximum_qc_summary_bytes ||
+        text.find('\0') != std::string_view::npos) {
+        throw std::invalid_argument{"QC metric table is invalid"};
+    }
+    std::set<std::string, std::less<>> option_names;
+    for (const auto& parameter : node.parameters) {
+        option_names.emplace(normalized_parameter_name(parameter.name));
+    }
+
+    std::istringstream input{std::string{text}};
+    std::string line;
+    if (!std::getline(input, line) || line != "metric\tvalue") {
+        throw std::invalid_argument{"QC metric table header is invalid"};
+    }
+    std::set<std::string, std::less<>> seen;
+    std::vector<BatchQcMetric> metrics;
+    while (std::getline(input, line)) {
+        if (!line.empty() && line.back() == '\r') line.pop_back();
+        if (line.empty()) continue;
+        const auto tab = line.find('\t');
+        if (tab == std::string::npos || tab == 0U || tab > 200U ||
+            line.size() - tab - 1U > 4096U) {
+            throw std::invalid_argument{"QC metric table row is invalid"};
+        }
+        std::string key = line.substr(0U, tab);
+        if (!seen.emplace(key).second) {
+            throw std::invalid_argument{"QC metric table contains a duplicate metric"};
+        }
+        if (option_names.contains(key)) continue;
+        metrics.push_back(make_metric(std::move(key), line.substr(tab + 1U)));
+        if (metrics.size() > 4096U) {
+            throw std::length_error{"QC metric table contains too many metrics"};
+        }
+    }
+    if (metrics.empty()) {
+        throw std::invalid_argument{"QC metric table contains no metrics"};
+    }
+    std::ranges::sort(metrics, [](const auto& left, const auto& right) {
+        return left.key < right.key;
+    });
+    return metrics;
+}
+
+void skip_ws(const std::string_view text, std::size_t& offset) {
+    while (offset < text.size() &&
+           std::isspace(static_cast<unsigned char>(text[offset])) != 0) {
+        ++offset;
+    }
+}
+
+[[nodiscard]] std::string parse_json_string(const std::string_view text, std::size_t& offset) {
+    skip_ws(text, offset);
+    if (offset >= text.size() || text[offset] != '"') {
+        throw std::invalid_argument{"QC JSON string is invalid"};
+    }
+    ++offset;
+    std::string value;
+    while (offset < text.size()) {
+        const char c = text[offset++];
+        if (c == '"') return value;
+        if (c == '\\') {
+            if (offset >= text.size()) throw std::invalid_argument{"QC JSON escape is invalid"};
+            const char escaped = text[offset++];
+            switch (escaped) {
+                case '"': case '\\': case '/': value.push_back(escaped); break;
+                case 'b': value.push_back('\b'); break;
+                case 'f': value.push_back('\f'); break;
+                case 'n': value.push_back('\n'); break;
+                case 'r': value.push_back('\r'); break;
+                case 't': value.push_back('\t'); break;
+                default: throw std::invalid_argument{"QC JSON escape is unsupported"};
+            }
+        } else {
+            if (static_cast<unsigned char>(c) < 0x20U) {
+                throw std::invalid_argument{"QC JSON string contains a control character"};
+            }
+            value.push_back(c);
+        }
+        if (value.size() > 4096U) throw std::length_error{"QC JSON string is too large"};
+    }
+    throw std::invalid_argument{"QC JSON string is unterminated"};
+}
+
+[[nodiscard]] std::string parse_json_scalar(const std::string_view text, std::size_t& offset) {
+    skip_ws(text, offset);
+    if (offset >= text.size()) throw std::invalid_argument{"QC JSON scalar is missing"};
+    if (text[offset] == '"') return parse_json_string(text, offset);
+    const auto begin = offset;
+    while (offset < text.size() && text[offset] != ',' && text[offset] != '}') ++offset;
+    auto end = offset;
+    while (end > begin && std::isspace(static_cast<unsigned char>(text[end - 1U])) != 0) --end;
+    if (end == begin) throw std::invalid_argument{"QC JSON scalar is empty"};
+    return std::string{text.substr(begin, end - begin)};
+}
+
+[[nodiscard]] std::uint32_t parse_schema_version(const std::string_view text) {
+    const auto key = text.find("\"schemaVersion\"");
+    if (key == std::string_view::npos) {
+        throw std::invalid_argument{"VCF QC summary has no schemaVersion"};
+    }
+    auto offset = text.find(':', key);
+    if (offset == std::string_view::npos) throw std::invalid_argument{"VCF QC schemaVersion is invalid"};
+    ++offset;
+    skip_ws(text, offset);
+    const auto begin = offset;
+    while (offset < text.size() && text[offset] >= '0' && text[offset] <= '9') ++offset;
+    if (begin == offset) throw std::invalid_argument{"VCF QC schemaVersion is invalid"};
+    std::uint32_t version = 0U;
+    const auto parsed = std::from_chars(text.data() + begin, text.data() + offset, version);
+    if (parsed.ec != std::errc{} || version == 0U) {
+        throw std::invalid_argument{"VCF QC schemaVersion is invalid"};
+    }
+    return version;
+}
+
+[[nodiscard]] std::vector<BatchQcMetric> parse_vcf_qc_metrics(const std::string_view text) {
+    if (text.size() > BatchResultsService::maximum_qc_summary_bytes ||
+        text.find('\0') != std::string_view::npos ||
+        text.find("\"module\":\"org.biocore.vcfqc.filter\"") == std::string_view::npos) {
+        throw std::invalid_argument{"VCF QC summary identity is invalid"};
+    }
+    const auto key = text.find("\"metrics\"");
+    if (key == std::string_view::npos) throw std::invalid_argument{"VCF QC metrics object is missing"};
+    auto offset = text.find('{', key);
+    if (offset == std::string_view::npos) throw std::invalid_argument{"VCF QC metrics object is invalid"};
+    ++offset;
+    std::set<std::string, std::less<>> seen;
+    std::vector<BatchQcMetric> metrics;
+    for (;;) {
+        skip_ws(text, offset);
+        if (offset >= text.size()) throw std::invalid_argument{"VCF QC metrics object is unterminated"};
