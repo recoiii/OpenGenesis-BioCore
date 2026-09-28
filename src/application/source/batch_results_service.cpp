@@ -458,3 +458,233 @@ void skip_ws(const std::string_view text, std::size_t& offset) {
     for (;;) {
         skip_ws(text, offset);
         if (offset >= text.size()) throw std::invalid_argument{"VCF QC metrics object is unterminated"};
+        if (text[offset] == '}') {
+            ++offset;
+            break;
+        }
+        std::string metric_key = parse_json_string(text, offset);
+        skip_ws(text, offset);
+        if (offset >= text.size() || text[offset] != ':') {
+            throw std::invalid_argument{"VCF QC metric separator is invalid"};
+        }
+        ++offset;
+        std::string value = parse_json_scalar(text, offset);
+        if (!seen.emplace(metric_key).second) {
+            throw std::invalid_argument{"VCF QC summary contains a duplicate metric"};
+        }
+        metrics.push_back(make_metric(std::move(metric_key), std::move(value)));
+        if (metrics.size() > 4096U) throw std::length_error{"VCF QC summary contains too many metrics"};
+        skip_ws(text, offset);
+        if (offset >= text.size()) throw std::invalid_argument{"VCF QC metrics object is unterminated"};
+        if (text[offset] == ',') {
+            ++offset;
+            continue;
+        }
+        if (text[offset] == '}') {
+            ++offset;
+            break;
+        }
+        throw std::invalid_argument{"VCF QC metrics object delimiter is invalid"};
+    }
+    if (metrics.empty()) throw std::invalid_argument{"VCF QC summary contains no metrics"};
+    std::ranges::sort(metrics, [](const auto& left, const auto& right) {
+        return left.key < right.key;
+    });
+    return metrics;
+}
+
+[[nodiscard]] std::string read_status_text(const ResultArtifactReadStatus status) {
+    switch (status) {
+        case ResultArtifactReadStatus::verified: return "verified";
+        case ResultArtifactReadStatus::too_large: return "too_large";
+        case ResultArtifactReadStatus::missing: return "missing";
+        case ResultArtifactReadStatus::unsafe_path: return "unsafe_path";
+        case ResultArtifactReadStatus::not_regular: return "not_regular";
+        case ResultArtifactReadStatus::size_mismatch: return "size_mismatch";
+        case ResultArtifactReadStatus::checksum_unavailable: return "checksum_unavailable";
+        case ResultArtifactReadStatus::checksum_mismatch: return "checksum_mismatch";
+        case ResultArtifactReadStatus::io_error: return "io_error";
+    }
+    return "io_error";
+}
+
+[[nodiscard]] std::optional<GeneratedOutputArtifact> resolve_artifact(
+    IManagedFileRepository& managed_files,
+    const BatchResultArtifactLink& link
+) {
+    auto artifact = managed_files.find_generated_output(link.job_id, link.step_id, link.output_port);
+    if (!artifact.has_value() || artifact->file.id() != link.managed_file_id) return std::nullopt;
+    return artifact;
+}
+
+[[nodiscard]] std::vector<BatchQcMetric> qc_metrics(
+    IResultArtifactReader& reader,
+    IManagedFileRepository& managed_files,
+    const BatchResultArtifactLink& link,
+    const BatchPlanNodeSnapshot& node,
+    std::uint32_t& schema_version
+) {
+    const auto artifact = resolve_artifact(managed_files, link);
+    if (!artifact.has_value()) throw std::runtime_error{"QC artifact disappeared from persistence"};
+    const auto read = reader.read_verified_text(*artifact, BatchResultsService::maximum_qc_summary_bytes);
+    if (read.status != ResultArtifactReadStatus::verified || !read.text.has_value()) {
+        throw std::runtime_error{"QC artifact content is not verified: " + read_status_text(read.status)};
+    }
+    if (node.module_id == "org.biocore.vcfqc.filter") {
+        schema_version = parse_schema_version(*read.text);
+        if (schema_version != 1U) throw std::runtime_error{"Unsupported VCF QC metric schema version"};
+        return parse_vcf_qc_metrics(*read.text);
+    }
+    schema_version = 1U;
+    return parse_metric_tsv(*read.text, node);
+}
+
+[[nodiscard]] std::vector<std::pair<std::string, BatchQcMetricValueKind>> metric_shape(
+    const BatchQcSummary& summary
+) {
+    std::vector<std::pair<std::string, BatchQcMetricValueKind>> shape;
+    shape.reserve(summary.metrics.size());
+    for (const auto& metric : summary.metrics) shape.emplace_back(metric.key, metric.kind);
+    return shape;
+}
+
+[[nodiscard]] std::set<ArtifactKey> consumed_outputs(const ApprovedBatchSamplePlan& sample) {
+    std::set<ArtifactKey> consumed;
+    for (const auto& node : sample.nodes) {
+        for (const auto& input : node.inputs) {
+            if (input.source_kind == BatchPlanInputSourceKind::node_output) {
+                consumed.emplace(input.source_id, input.source_port);
+            }
+        }
+    }
+    return consumed;
+}
+
+[[nodiscard]] std::vector<ArtifactKey> terminal_vcf_outputs(
+    const ApprovedBatchSamplePlan& sample
+) {
+    const auto consumed = consumed_outputs(sample);
+    std::vector<ArtifactKey> outputs;
+    for (const auto& node : sample.nodes) {
+        for (const auto& output : node.outputs) {
+            const ArtifactKey key{node.node_id, output.port_name};
+            if (output.artifact_type == "vcf" && !consumed.contains(key)) outputs.push_back(key);
+        }
+    }
+    return outputs;
+}
+
+[[nodiscard]] std::string terminal_contract_signature(
+    const ApprovedBatchSamplePlan& sample,
+    const BatchPlanNodeSnapshot& node
+) {
+    const auto reference = reference_signature(sample, node);
+    return node.module_id + "|" + node.plugin_version + "|" + parameter_signature(node) +
+           "|reference=" + reference.value;
+}
+
+[[nodiscard]] const BatchPlanNodeSnapshot& require_node(
+    const ApprovedBatchSamplePlan& sample,
+    const std::string& node_id
+) {
+    const auto* node = find_node(sample, node_id);
+    if (node == nullptr) throw std::logic_error{"Frozen batch terminal node disappeared"};
+    return *node;
+}
+
+}  // namespace
+
+BatchResultsService::BatchResultsService(
+    IBatchPlanStore& plans,
+    IBatchExecutionStore& executions,
+    IJobRepository& jobs,
+    IManagedFileRepository& managed_files,
+    IResultArtifactReader& artifact_reader
+) noexcept
+    : plans_{plans}, executions_{executions}, jobs_{jobs}, managed_files_{managed_files},
+      artifact_reader_{artifact_reader} {}
+
+BatchResultsOverview BatchResultsService::overview(const std::string_view plan_id) {
+    require_plan_id(plan_id);
+    const auto plan = plans_.find(plan_id);
+    if (!plan.has_value()) throw std::invalid_argument{"Batch results plan was not found"};
+
+    BatchResultsOverview result{
+        .plan_id = plan->plan_id,
+        .project_id = plan->project_id,
+        .template_id = plan->template_id,
+        .template_version = plan->template_version,
+        .samples = {},
+        .qc_comparisons = {},
+        .issues = {},
+    };
+
+    const auto execution = executions_.find(plan_id);
+    auto attempts_by_sample = execution.has_value()
+        ? index_attempts(executions_.list_attempts(plan_id))
+        : std::map<std::string, std::vector<BatchExecutionAttemptRecord>, std::less<>>{};
+
+    std::map<std::pair<std::string, std::string>, std::vector<const BatchQcSummary*>> summaries_by_node;
+    std::map<std::pair<std::string, std::string>, std::vector<std::string>> expected_by_node;
+
+    for (const auto& sample : plan->samples) {
+        BatchSampleResults sample_result{
+            .sample_id = sample.sample_id,
+            .disposition = sample.disposition,
+            .state = sample.disposition == BatchPlanSampleDisposition::excluded
+                ? BatchResultSampleState::excluded
+                : BatchResultSampleState::not_submitted,
+            .latest_job_id = std::nullopt,
+            .latest_job_status = std::nullopt,
+            .latest_attempt_number = 0,
+            .latest_attempt_mode = std::nullopt,
+            .artifacts = {},
+            .qc_summaries = {},
+        };
+
+        for (const auto& node : sample.nodes) {
+            if (sample.disposition == BatchPlanSampleDisposition::included && qc_module(node.module_id)) {
+                expected_by_node[{node.node_id, node.module_id}].push_back(sample.sample_id);
+            }
+        }
+
+        if (sample.disposition == BatchPlanSampleDisposition::excluded) {
+            result.samples.push_back(std::move(sample_result));
+            continue;
+        }
+
+        const auto attempts_it = attempts_by_sample.find(sample.sample_id);
+        if (attempts_it == attempts_by_sample.end() || attempts_it->second.empty()) {
+            add_artifact_issue(
+                result.issues, sample.sample_id, "sample_not_submitted",
+                "Included sample has no persisted batch attempt"
+            );
+            result.samples.push_back(std::move(sample_result));
+            continue;
+        }
+
+        const auto& attempts = attempts_it->second;
+        const auto& latest = attempts.back();
+        const auto latest_job = jobs_.find_by_id(latest.job_id);
+        if (!latest_job.has_value()) {
+            throw std::runtime_error{"Batch result latest attempt references a missing Job"};
+        }
+        sample_result.state = BatchResultSampleState::submitted;
+        sample_result.latest_job_id = latest.job_id;
+        sample_result.latest_job_status = latest_job->status();
+        sample_result.latest_attempt_number = latest.attempt_number;
+        sample_result.latest_attempt_mode = latest.mode;
+
+        auto selected = collect_current_artifacts(sample, attempts, managed_files_, result.issues);
+        for (const auto& [key, link] : selected) {
+            static_cast<void>(key);
+            sample_result.artifacts.push_back(link);
+        }
+        std::ranges::sort(sample_result.artifacts, [](const auto& left, const auto& right) {
+            return std::tie(left.step_id, left.output_port, left.job_id) <
+                   std::tie(right.step_id, right.output_port, right.job_id);
+        });
+
+        for (const auto& node : sample.nodes) {
+            if (!qc_module(node.module_id)) continue;
+            const ArtifactKey key{node.node_id, qc_port(node.module_id)};
