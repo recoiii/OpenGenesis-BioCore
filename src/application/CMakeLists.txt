@@ -7,6 +7,8 @@ target_sources(
         source/artifact_presentation_service.cpp
         source/batch_execution.cpp
         source/batch_recovery_service.cpp
+        source/batch_results.cpp
+        source/batch_results_service.cpp
         source/batch_execution_service.cpp
         source/batch_plan.cpp
         source/batch_planning_service.cpp
@@ -54,6 +56,8 @@ target_sources(
             include/biocore/application/batch_execution.hpp
             include/biocore/application/batch_execution_materializer.hpp
             include/biocore/application/batch_recovery_service.hpp
+            include/biocore/application/batch_results.hpp
+            include/biocore/application/batch_results_service.hpp
             include/biocore/application/batch_execution_service.hpp
             include/biocore/application/batch_plan.hpp
             include/biocore/application/batch_planning_service.hpp
@@ -77,6 +81,7 @@ target_sources(
             include/biocore/application/i_prepared_job_store.hpp
             include/biocore/application/i_managed_file_repository.hpp
             include/biocore/application/i_output_artifact_inspector.hpp
+            include/biocore/application/i_result_artifact_reader.hpp
             include/biocore/application/i_partial_output_cleaner.hpp
             include/biocore/application/i_path_canonicalizer.hpp
             include/biocore/application/i_plugin_process_runner.hpp
