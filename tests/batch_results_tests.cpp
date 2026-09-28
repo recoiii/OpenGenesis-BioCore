@@ -30,6 +30,10 @@ public:
     std::optional<application::ApprovedBatchPlan> find(std::string_view id) override {
         return plan.has_value() && plan->plan_id == id ? plan : std::nullopt;
     }
+    std::vector<application::ApprovedBatchPlan> list() override {
+        return plan.has_value() ? std::vector<application::ApprovedBatchPlan>{*plan}
+                                : std::vector<application::ApprovedBatchPlan>{};
+    }
     std::optional<application::ApprovedBatchPlan> plan;
 };
 

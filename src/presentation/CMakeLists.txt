@@ -11,6 +11,7 @@ target_sources(
         source/frontend_asset_store.cpp
         source/health_json.cpp
         source/local_api.cpp
+        source/project_workspace_json.cpp
         source/local_browser_session.cpp
         source/worker_lifecycle_event_broadcast.cpp
     PUBLIC
@@ -23,6 +24,7 @@ target_sources(
             include/biocore/presentation/frontend_asset_store.hpp
             include/biocore/presentation/health_json.hpp
             include/biocore/presentation/local_api.hpp
+            include/biocore/presentation/project_workspace_json.hpp
             include/biocore/presentation/local_web_server.hpp
             include/biocore/presentation/local_browser_session.hpp
             include/biocore/presentation/worker_lifecycle_event_broadcast.hpp

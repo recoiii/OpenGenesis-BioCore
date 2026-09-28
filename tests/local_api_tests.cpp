@@ -142,6 +142,10 @@ public:
     std::optional<biocore::application::ApprovedBatchPlan> find(std::string_view id) override {
         return plan.has_value() && plan->plan_id == id ? plan : std::nullopt;
     }
+    std::vector<biocore::application::ApprovedBatchPlan> list() override {
+        return plan.has_value() ? std::vector<biocore::application::ApprovedBatchPlan>{*plan}
+                                : std::vector<biocore::application::ApprovedBatchPlan>{};
+    }
     std::optional<biocore::application::ApprovedBatchPlan> plan;
 };
 

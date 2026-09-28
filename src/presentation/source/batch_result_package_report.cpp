@@ -259,10 +259,16 @@ std::string render_batch_result_package_html(
         sample_rows += "<tr><td>" + escape_html(sample.sample_id) + "</td><td>" +
                        escape_html(application::to_string(sample.disposition)) + "</td><td>" +
                        escape_html(application::to_string(sample.state)) + "</td><td>" +
+                       (sample.latest_job_id.has_value() ? escape_html(*sample.latest_job_id) : "—") +
+                       "</td><td>" +
                        (sample.latest_job_status.has_value()
                             ? escape_html(domain::to_string(*sample.latest_job_status))
                             : "—") +
                        "</td><td>" + std::to_string(sample.latest_attempt_number) +
+                       "</td><td>" +
+                       (sample.latest_attempt_mode.has_value()
+                            ? escape_html(application::to_string(*sample.latest_attempt_mode))
+                            : "—") +
                        "</td><td>" + std::to_string(sample.artifacts.size()) + "</td></tr>";
 
         for (const auto& artifact : sample.artifacts) {
@@ -337,7 +343,7 @@ std::string render_batch_result_package_html(
            "</dd><dt>Verified artifacts</dt><dd>" +
            std::to_string(package.verified_artifacts.size()) +
            "</dd></dl><h2>Samples</h2><table><thead><tr><th>Sample</th><th>Disposition</th>"
-           "<th>Result state</th><th>Latest job status</th><th>Attempt</th><th>Artifacts</th>"
+           "<th>Result state</th><th>Latest job</th><th>Latest job status</th><th>Attempt</th><th>Attempt mode</th><th>Artifacts</th>"
            "</tr></thead><tbody>" + sample_rows +
            "</tbody></table><h2>Verified current artifacts</h2><table><thead><tr>"
            "<th>Sample</th><th>Step</th><th>Port</th><th>Type</th><th>Relative project path</th>"

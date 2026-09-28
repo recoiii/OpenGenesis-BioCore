@@ -36,7 +36,7 @@
 
   <main>
     <section class="hero hero-compact" aria-labelledby="hero-title">
-      <div class="eyebrow">OPENGENESIS · CORE 0.2 DEV</div>
+      <div class="eyebrow">OPENGENESIS · BIOCORE 0.5 DEV</div>
       <h1 id="hero-title">Local workflows.<br><span>Live execution telemetry.</span></h1>
       <p class="hero-copy">
         Launch exact pipeline versions, follow native worker progress in real time,
@@ -48,7 +48,11 @@
     <section class="workspace-shell" aria-label="OpenGenesis-BioCore workflow dashboard">
       <aside class="sidebar">
         <nav aria-label="Workspace sections">
-          <button class="nav-item active" type="button" data-view="dashboard" aria-current="page">
+          <button class="nav-item active" type="button" data-view="project-workspace" aria-current="page">
+            <span class="nav-icon" aria-hidden="true">▧</span>
+            Project workspace
+          </button>
+          <button class="nav-item" type="button" data-view="dashboard">
             <span class="nav-icon" aria-hidden="true">◫</span>
             Dashboard
           </button>
@@ -152,6 +156,131 @@
               <p>Failed or interrupted jobs.</p>
             </article>
           </div>
+
+          <article class="panel project-workspace-panel" id="project-workspace-panel" aria-labelledby="project-workspace-title">
+            <div class="panel-heading project-workspace-heading">
+              <div>
+                <div class="kicker">Project &amp; Sample Workspace</div>
+                <h3 id="project-workspace-title">Research project workspace</h3>
+                <p class="panel-copy" id="project-workspace-summary">Loading project context…</p>
+              </div>
+              <div class="panel-actions">
+                <button class="button button-quiet button-small" id="project-workspace-refresh" type="button">Refresh</button>
+                <button class="button button-quiet button-small" id="project-workspace-open-builder" type="button">Workflow builder</button>
+                <button class="button button-quiet button-small" id="project-workspace-open-execution" type="button">Execution workspace</button>
+              </div>
+            </div>
+
+            <div class="workspace-project-strip">
+              <div><span>Project</span><strong id="workspace-project-name">—</strong></div>
+              <div><span>Project ID</span><strong id="workspace-project-id">—</strong></div>
+              <div><span>Organism</span><strong id="workspace-project-organism">—</strong></div>
+              <div><span>Root</span><strong id="workspace-project-root">—</strong></div>
+            </div>
+
+            <details class="workspace-guide" open>
+              <summary>End-to-end project guide</summary>
+                  <p class="workspace-guide-note"><strong>Step 0:</strong> Create/open the project with the existing <code>biocore init</code> / <code>biocore serve</code> bootstrap. This server is intentionally bound to one validated project root; hot project switching is not performed here.</p>
+              <ol>
+                <li><strong>Create/open project.</strong> This local server is bound to one initialized project root. Project identity is shown above.</li>
+                <li><strong>Import samples.</strong> Preview CSV/TSV first; commit only a valid table.</li>
+                <li><strong>Bind inputs.</strong> Link each sample to managed primary/secondary/reference files. Broken links remain visible.</li>
+                <li><strong>Preview &amp; approve batch.</strong> Freeze one exact workflow template across selected samples; explicitly exclude invalid samples.</li>
+                <li><strong>Execute.</strong> Submit the approved plan through the existing scheduler and batch quota.</li>
+                <li><strong>Recover.</strong> Interrupted samples expose explicit resume/retry actions; successful work is not rerun automatically.</li>
+                <li><strong>Review &amp; export.</strong> Inspect QC/results, then open the integrity-verified JSON manifest or HTML report.</li>
+              </ol>
+              <p class="workspace-guide-note">To create a different project, initialize its root with the BioCore project-init command and start a local server for that root. Runtime project switching is intentionally not implicit.</p>
+            </details>
+
+            <div class="workspace-overview-grid">
+              <div class="workspace-overview-card"><span>Samples</span><strong id="workspace-sample-count">0</strong><small id="workspace-binding-count">0 bound</small></div>
+              <div class="workspace-overview-card"><span>Input files</span><strong id="workspace-file-count">0</strong><small id="workspace-orphan-count">0 orphaned</small></div>
+              <div class="workspace-overview-card"><span>Approved batches</span><strong id="workspace-batch-count">0</strong><small id="workspace-recovery-count">0 need recovery</small></div>
+            </div>
+
+            <div class="project-workspace-grid">
+              <section class="workspace-stage-card" aria-labelledby="workspace-import-title">
+                <div class="workspace-stage-heading">
+                  <div><span class="workspace-step">Step 2</span><h4 id="workspace-import-title">Sample registry</h4></div>
+                  <span class="badge badge-muted">Preview → commit</span>
+                </div>
+                <p>Paste a bounded sample table. Required column semantics remain owned by the existing sample-registry parser.</p>
+                <div class="workspace-inline-fields">
+                  <label><span>Format</span><select id="workspace-sample-format"><option value="csv">CSV</option><option value="tsv">TSV</option></select></label>
+                </div>
+                <textarea id="workspace-sample-table" rows="6" spellcheck="false" placeholder="sample_id,display_name,group&#10;S01,Control 01,control"></textarea>
+                <div class="workspace-actions">
+                  <button class="button button-quiet button-small" id="workspace-sample-preview" type="button">Preview import</button>
+                  <button class="button button-primary button-small" id="workspace-sample-commit" type="button" disabled>Commit samples</button>
+                </div>
+                <p class="form-message" id="workspace-sample-message" role="status" aria-live="polite"></p>
+                <div class="workspace-preview-list" id="workspace-sample-preview-list"></div>
+              </section>
+
+              <section class="workspace-stage-card" aria-labelledby="workspace-binding-title">
+                <div class="workspace-stage-heading">
+                  <div><span class="workspace-step">Step 3</span><h4 id="workspace-binding-title">Sample input binding</h4></div>
+                  <span class="badge badge-muted">Integrity checked on commit</span>
+                </div>
+                <div class="workspace-form-grid">
+                  <label><span>Sample</span><select id="workspace-binding-sample"><option value="">Select sample</option></select></label>
+                  <label><span>Layout</span><select id="workspace-binding-layout"><option value="single_fastq">Single FASTQ</option><option value="paired_fastq">Paired FASTQ</option><option value="alignment">Alignment</option><option value="variants">Variants</option></select></label>
+                  <label><span>Primary file</span><select id="workspace-binding-primary"><option value="">Select file</option></select></label>
+                  <label><span>Secondary file</span><select id="workspace-binding-secondary"><option value="">None</option></select></label>
+                  <label><span>Reference file</span><select id="workspace-binding-reference"><option value="">None</option></select></label>
+                </div>
+                <div class="workspace-actions">
+                  <button class="button button-quiet button-small" id="workspace-binding-preview" type="button">Preview binding</button>
+                  <button class="button button-primary button-small" id="workspace-binding-commit" type="button" disabled>Save binding</button>
+                </div>
+                <p class="form-message" id="workspace-binding-message" role="status" aria-live="polite"></p>
+                <div class="workspace-link-issues" id="workspace-link-issues"></div>
+              </section>
+            </div>
+
+            <section class="workspace-stage-card workspace-batch-builder" aria-labelledby="workspace-batch-title">
+              <div class="workspace-stage-heading">
+                <div><span class="workspace-step">Steps 4–5</span><h4 id="workspace-batch-title">Batch preview, approval &amp; execution</h4></div>
+                <span class="badge">Frozen workflow template</span>
+              </div>
+              <div class="workspace-form-grid workspace-batch-grid">
+                <label><span>Plan ID</span><input id="workspace-plan-id" value="batch-001" autocomplete="off" spellcheck="false"></label>
+                <label><span>Workflow template</span><select id="workspace-template"><option value="">Select exact template</option></select></label>
+                <label><span>Max concurrent jobs</span><input id="workspace-concurrency" type="number" min="1" max="64" value="2"></label>
+                <label><span>Priority</span><select id="workspace-batch-priority"><option value="normal">Normal</option><option value="high">High</option><option value="low">Low</option></select></label>
+              </div>
+              <div class="workspace-batch-inputs">
+                <div>
+                  <span class="workspace-field-label">Samples</span>
+                  <div class="workspace-check-list" id="workspace-batch-samples"><span class="muted">Import samples first.</span></div>
+                </div>
+                <label><span>Input assignments — one per line: <code>node | input | primary|secondary|reference</code></span><textarea id="workspace-input-assignments" rows="4" placeholder="trim | source | primary"></textarea></label>
+                <label><span>Parameter overrides — one per line: <code>node | parameter | value</code></span><textarea id="workspace-parameter-overrides" rows="4" placeholder="trim | minimum-length | 20"></textarea></label>
+              </div>
+              <div class="workspace-actions">
+                <button class="button button-quiet button-small" id="workspace-batch-preview" type="button">Preview batch</button>
+                <button class="button button-primary button-small" id="workspace-batch-approve" type="button" disabled>Approve preview</button>
+                <button class="button button-primary button-small" id="workspace-batch-submit" type="button" disabled>Submit approved batch</button>
+              </div>
+              <p class="form-message" id="workspace-batch-message" role="status" aria-live="polite"></p>
+              <div class="workspace-batch-preview" id="workspace-batch-preview-output"></div>
+            </section>
+
+            <section class="workspace-stage-card workspace-batch-monitor" aria-labelledby="workspace-monitor-title">
+              <div class="workspace-stage-heading">
+                <div><span class="workspace-step">Steps 6–7</span><h4 id="workspace-monitor-title">Batch recovery, results &amp; reports</h4></div>
+                <button class="button button-quiet button-small" id="workspace-batch-refresh" type="button">Refresh batches</button>
+              </div>
+              <div class="workspace-monitor-layout">
+                <div class="workspace-batch-list" id="workspace-batch-list"><span class="muted">No approved batches.</span></div>
+                <div class="workspace-batch-detail" id="workspace-batch-detail">
+                  <p class="muted">Select a batch to inspect execution, recovery and results.</p>
+                </div>
+              </div>
+              <p class="form-message" id="workspace-monitor-message" role="status" aria-live="polite"></p>
+            </section>
+          </article>
 
           <div class="dashboard-grid">
             <article class="panel jobs-panel">
@@ -805,7 +934,7 @@
   </main>
 
   <footer>
-    <span>OpenGenesis-BioCore Core 0.1</span>
+    <span>OpenGenesis-BioCore v0.5 development workspace</span>
     <span>Localhost only · Live logs are ephemeral · Artifacts remain project-local</span>
   </footer>
 

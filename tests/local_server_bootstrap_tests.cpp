@@ -34,6 +34,22 @@ void require(const bool condition, const std::string_view message) {
     }
 }
 
+[[nodiscard]] std::string response_header(
+    const biocore::presentation::LocalHttpResponse& response,
+    const std::string_view name
+) {
+    const auto found = std::ranges::find_if(
+        response.headers,
+        [name](const auto& header) { return header.first == name; }
+    );
+    return found == response.headers.end() ? std::string{} : found->second;
+}
+
+[[nodiscard]] std::string path_tail(const std::string_view value) {
+    const auto slash = value.find_last_of('/');
+    return std::string{slash == std::string_view::npos ? value : value.substr(slash + 1U)};
+}
+
 class FakeServer final : public biocore::presentation::ILocalWebServer {
 public:
     bool available() const noexcept override { return true; }
@@ -83,6 +99,306 @@ public:
                 "composition root must issue browser session cookie");
         require(cookie->second.find(std::string{api.bootstrap_token()}) == std::string::npos,
                 "composition root must not reuse bearer as browser-session secret");
+
+        constexpr std::string_view cookie_prefix = "biocore_session=";
+        const auto token_begin = cookie->second.find(cookie_prefix);
+        require(token_begin != std::string::npos, "composition root session cookie name");
+        const auto token_value_begin = token_begin + cookie_prefix.size();
+        const auto token_end = cookie->second.find(';', token_value_begin);
+        const std::string browser_token = cookie->second.substr(
+            token_value_begin, token_end == std::string::npos ? std::string::npos
+                                                             : token_end - token_value_begin
+        );
+        require(!browser_token.empty(), "composition root browser session token extraction");
+
+        const auto workspace_initial = api.handle({
+            .method = biocore::presentation::HttpMethod::get,
+            .target = "/api/v1/project-workspace",
+            .authorization = {},
+            .browser_session = browser_token,
+            .origin = {},
+            .body = {},
+        });
+        require(workspace_initial.status == 200 &&
+                    workspace_initial.body.find("\"id\":\"workspace-project\"") != std::string::npos,
+                "project workspace snapshot must expose current project");
+
+        const std::string sample_csv =
+            "sample_id,display_name,group\nS1,Workspace Sample,case\n";
+        const auto sample_preview = api.handle({
+            .method = biocore::presentation::HttpMethod::post,
+            .target = "/api/v1/project-workspace/samples/import/csv/preview",
+            .authorization = {},
+            .browser_session = browser_token,
+            .origin = browser_origin,
+            .content_type = "text/csv",
+            .body = sample_csv,
+        });
+        require(sample_preview.status == 200 &&
+                    sample_preview.body.find("\"valid\":true") != std::string::npos &&
+                    sample_preview.body.find("\"sampleId\":\"S1\"") != std::string::npos,
+                "project workspace sample import preview");
+        const auto sample_commit = api.handle({
+            .method = biocore::presentation::HttpMethod::post,
+            .target = "/api/v1/project-workspace/samples/import/csv/commit",
+            .authorization = {},
+            .browser_session = browser_token,
+            .origin = browser_origin,
+            .content_type = "text/csv",
+            .body = sample_csv,
+        });
+        require(sample_commit.status == 201 &&
+                    sample_commit.body.find("\"valid\":true") != std::string::npos,
+                "project workspace sample import commit");
+
+        const std::string fastq =
+            "@read-1\nACGTACGTACGTACGTACGTACGT\n+\nIIIIIIIIIIIIIIIIIIIIIIII\n";
+        const auto upload_start = api.handle({
+            .method = biocore::presentation::HttpMethod::post,
+            .target = "/api/v1/files/uploads",
+            .authorization = {},
+            .browser_session = browser_token,
+            .origin = browser_origin,
+            .content_type = "application/json",
+            .body = std::string{"{\"displayName\":\"S1.fastq\",\"fileType\":\"fastq\",\"sizeBytes\":"} +
+                    std::to_string(fastq.size()) + "}",
+        });
+        require(upload_start.status == 201, "project workspace FASTQ upload start");
+        const std::string upload_location = response_header(upload_start, "Location");
+        const std::string upload_id = path_tail(upload_location);
+        require(!upload_id.empty(), "project workspace upload id");
+        const auto upload_chunk = api.handle({
+            .method = biocore::presentation::HttpMethod::post,
+            .target = "/api/v1/files/uploads/" + upload_id + "/chunks",
+            .authorization = {},
+            .browser_session = browser_token,
+            .origin = browser_origin,
+            .content_type = "application/octet-stream",
+            .upload_offset = "0",
+            .body = fastq,
+        });
+        require(upload_chunk.status == 200, "project workspace FASTQ upload chunk");
+        const auto upload_complete = api.handle({
+            .method = biocore::presentation::HttpMethod::post,
+            .target = "/api/v1/files/uploads/" + upload_id + "/complete",
+            .authorization = {},
+            .browser_session = browser_token,
+            .origin = browser_origin,
+            .body = {},
+        });
+        require(upload_complete.status == 201, "project workspace FASTQ upload completion");
+        const std::string file_id = path_tail(response_header(upload_complete, "Location"));
+        require(!file_id.empty(), "project workspace uploaded managed file id");
+
+        const std::string orphan_fastq =
+            "@orphan\nACGTACGTACGTACGTACGTACGT\n+\nIIIIIIIIIIIIIIIIIIIIIIII\n";
+        const auto orphan_start = api.handle({
+            .method = biocore::presentation::HttpMethod::post,
+            .target = "/api/v1/files/uploads",
+            .authorization = {},
+            .browser_session = browser_token,
+            .origin = browser_origin,
+            .content_type = "application/json",
+            .body = std::string{"{\"displayName\":\"orphan.fastq\",\"fileType\":\"fastq\",\"sizeBytes\":"} +
+                    std::to_string(orphan_fastq.size()) + "}",
+        });
+        require(orphan_start.status == 201, "project workspace orphan upload start");
+        const std::string orphan_id = path_tail(response_header(orphan_start, "Location"));
+        const auto orphan_chunk = api.handle({
+            .method = biocore::presentation::HttpMethod::post,
+            .target = "/api/v1/files/uploads/" + orphan_id + "/chunks",
+            .authorization = {},
+            .browser_session = browser_token,
+            .origin = browser_origin,
+            .content_type = "application/octet-stream",
+            .upload_offset = "0",
+            .body = orphan_fastq,
+        });
+        require(orphan_chunk.status == 200, "project workspace orphan upload chunk");
+        const auto orphan_complete = api.handle({
+            .method = biocore::presentation::HttpMethod::post,
+            .target = "/api/v1/files/uploads/" + orphan_id + "/complete",
+            .authorization = {},
+            .browser_session = browser_token,
+            .origin = browser_origin,
+            .body = {},
+        });
+        require(orphan_complete.status == 201, "project workspace orphan upload completion");
+
+        const std::string binding_body =
+            std::string{"{\"layout\":\"single_fastq\",\"primaryFileId\":\""} +
+            file_id + "\"}";
+        const auto binding_preview = api.handle({
+            .method = biocore::presentation::HttpMethod::post,
+            .target = "/api/v1/project-workspace/samples/S1/binding/preview",
+            .authorization = {},
+            .browser_session = browser_token,
+            .origin = browser_origin,
+            .content_type = "application/json",
+            .body = binding_body,
+        });
+        require(binding_preview.status == 200 &&
+                    binding_preview.body.find("\"valid\":true") != std::string::npos,
+                "project workspace binding preview");
+        const auto binding_commit = api.handle({
+            .method = biocore::presentation::HttpMethod::post,
+            .target = "/api/v1/project-workspace/samples/S1/binding/commit",
+            .authorization = {},
+            .browser_session = browser_token,
+            .origin = browser_origin,
+            .content_type = "application/json",
+            .body = binding_body,
+        });
+        require(binding_commit.status == 200 &&
+                    binding_commit.body.find("\"valid\":true") != std::string::npos,
+                "project workspace binding commit");
+
+        const auto workspace_bound = api.handle({
+            .method = biocore::presentation::HttpMethod::get,
+            .target = "/api/v1/project-workspace",
+            .authorization = {},
+            .browser_session = browser_token,
+            .origin = {},
+            .body = {},
+        });
+        require(workspace_bound.status == 200 &&
+                    workspace_bound.body.find("\"sampleId\":\"S1\"") != std::string::npos &&
+                    workspace_bound.body.find("\"bindingComplete\":true") != std::string::npos &&
+                    workspace_bound.body.find("\"displayName\":\"orphan.fastq\"") != std::string::npos &&
+                    workspace_bound.body.find("\"orphaned\":true") != std::string::npos,
+                "project workspace must reconcile committed bindings and orphan files");
+
+        const std::string batch_preview_body =
+            R"({"planId":"workspace-batch","templateId":"org.biocore.template.workspace-e2e","templateVersion":"1.0.0","sampleIds":["S1"],"inputAssignments":[{"nodeId":"stats","inputPort":"source","role":"primary"}]})";
+        const auto batch_preview = api.handle({
+            .method = biocore::presentation::HttpMethod::post,
+            .target = "/api/v1/project-workspace/batches/preview",
+            .authorization = {},
+            .browser_session = browser_token,
+            .origin = browser_origin,
+            .content_type = "application/json",
+            .body = batch_preview_body,
+        });
+        require(batch_preview.status == 200 &&
+                    batch_preview.body.find("\"globallyValid\":true") != std::string::npos &&
+                    batch_preview.body.find("\"sampleId\":\"S1\"") != std::string::npos &&
+                    batch_preview.body.find("\"valid\":true") != std::string::npos,
+                "project workspace batch preview");
+
+        const auto batch_approve = api.handle({
+            .method = biocore::presentation::HttpMethod::post,
+            .target = "/api/v1/project-workspace/batches/workspace-batch/approve",
+            .authorization = {},
+            .browser_session = browser_token,
+            .origin = browser_origin,
+            .content_type = "application/json",
+            .body = R"({"excludedSampleIds":[]})",
+        });
+        require(batch_approve.status == 201 &&
+                    batch_approve.body.find("\"planId\":\"workspace-batch\"") != std::string::npos,
+                "project workspace batch approval");
+
+        const auto batch_submit = api.handle({
+            .method = biocore::presentation::HttpMethod::post,
+            .target = "/api/v1/project-workspace/batches/workspace-batch/submit",
+            .authorization = {},
+            .browser_session = browser_token,
+            .origin = browser_origin,
+            .content_type = "application/json",
+            .body = R"({"maximumConcurrentJobs":1,"priority":"normal"})",
+        });
+        require(batch_submit.status == 202 &&
+                    batch_submit.body.find("\"planId\":\"workspace-batch\"") != std::string::npos,
+                "project workspace batch submission");
+
+        bool batch_completed = false;
+        std::string last_batch_state_body;
+        for (int attempt = 0; attempt < 900; ++attempt) {
+            const auto batch_state = api.handle({
+                .method = biocore::presentation::HttpMethod::get,
+                .target = "/api/v1/project-workspace/batches/workspace-batch",
+                .authorization = {},
+                .browser_session = browser_token,
+                .origin = {},
+                .body = {},
+            });
+            last_batch_state_body = batch_state.body;
+            if (batch_state.status == 200 &&
+                batch_state.body.find("\"state\":\"completed\"") != std::string::npos &&
+                batch_state.body.find("\"completedCount\":1") != std::string::npos) {
+                batch_completed = true;
+                break;
+            }
+            std::this_thread::sleep_for(std::chrono::milliseconds{10});
+        }
+        if (!batch_completed) {
+            std::cerr << "Workspace batch final state: " << last_batch_state_body << '\n';
+        }
+        require(batch_completed, "project workspace batch must complete through real scheduler/runtime");
+
+        const auto batch_results = api.handle({
+            .method = biocore::presentation::HttpMethod::get,
+            .target = "/api/v1/project-workspace/batches/workspace-batch/results",
+            .authorization = {},
+            .browser_session = browser_token,
+            .origin = {},
+            .body = {},
+        });
+        require(batch_results.status == 200 &&
+                    batch_results.body.find("\"planId\":\"workspace-batch\"") != std::string::npos &&
+                    batch_results.body.find("\"sampleId\":\"S1\"") != std::string::npos,
+                "project workspace batch results");
+
+        const auto batch_manifest = api.handle({
+            .method = biocore::presentation::HttpMethod::get,
+            .target = "/api/v1/batches/workspace-batch/export-manifest.json",
+            .authorization = {},
+            .browser_session = browser_token,
+            .origin = {},
+            .body = {},
+        });
+        require(batch_manifest.status == 200 &&
+                    batch_manifest.body.find("\"id\":\"workspace-batch\"") != std::string::npos &&
+                    batch_manifest.body.find("/project/") == std::string::npos,
+                "project workspace export manifest bridge");
+        const auto batch_report = api.handle({
+            .method = biocore::presentation::HttpMethod::get,
+            .target = "/api/v1/batches/workspace-batch/report.html",
+            .authorization = {},
+            .browser_session = browser_token,
+            .origin = {},
+            .body = {},
+        });
+        require(batch_report.status == 200 &&
+                    batch_report.content_type == "text/html; charset=utf-8" &&
+                    batch_report.body.find("workspace-batch") != std::string::npos &&
+                    batch_report.body.find("/project/") == std::string::npos,
+                "project workspace HTML report bridge");
+
+        {
+            biocore::infrastructure::sqlite::SqliteConnection drift_connection{
+                project_root / ".biocore" / "project.sqlite"
+            };
+            drift_connection.execute("PRAGMA foreign_keys=OFF;");
+            drift_connection.execute(
+                "DELETE FROM managed_files WHERE id='" + file_id + "';"
+            );
+            drift_connection.execute("PRAGMA foreign_keys=ON;");
+        }
+        const auto workspace_broken = api.handle({
+            .method = biocore::presentation::HttpMethod::get,
+            .target = "/api/v1/project-workspace",
+            .authorization = {},
+            .browser_session = browser_token,
+            .origin = {},
+            .body = {},
+        });
+        require(workspace_broken.status == 200 &&
+                    workspace_broken.body.find("\"sampleId\":\"S1\"") != std::string::npos &&
+                    workspace_broken.body.find("\"bindingComplete\":false") != std::string::npos &&
+                    workspace_broken.body.find("\"code\":\"missing_primary_file\"") != std::string::npos,
+                "project workspace must explain a broken managed-file binding after external drift");
+
         const auto response = api.handle({
             .method = biocore::presentation::HttpMethod::get,
             .target = "/api/v1/jobs/stale-job",
@@ -157,6 +473,7 @@ public:
                 "composition root must broadcast completed WorkerLifecycleEvent");
     }
     bool called{false};
+    std::filesystem::path project_root;
     biocore::presentation::LocalWebServerConfig seen_config{};
 };
 
@@ -270,6 +587,24 @@ int main(const int argc, const char* const argv[]) {
     std::filesystem::create_directories(root / ".biocore" / "runtime");
     std::filesystem::create_directories(root / "inputs");
     std::filesystem::create_directories(root / "outputs");
+    const auto runtime_pipeline_root = root / "pipeline-fixture";
+    std::filesystem::copy(
+        pipeline_root, runtime_pipeline_root,
+        std::filesystem::copy_options::recursive | std::filesystem::copy_options::overwrite_existing
+    );
+    {
+        std::ofstream template_file{
+            runtime_pipeline_root / "workspace-e2e.workflow-template.json", std::ios::binary
+        };
+        template_file << R"({
+  "schemaVersion": 1,
+  "id": "org.biocore.template.workspace-e2e",
+  "version": "1.0.0",
+  "name": "Workspace E2E FASTQ QC",
+  "description": "Single-node test workflow used by the project workspace composition-root contract.",
+  "workflowDocument": "{\"schemaVersion\":1,\"id\":\"org.biocore.template.workspace-e2e\",\"name\":\"Workspace E2E FASTQ QC\",\"description\":\"Run FASTQ QC for one project sample.\",\"nodes\":[{\"id\":\"stats\",\"label\":\"FASTQ QC\",\"moduleId\":\"org.biocore.fastqqc.stats\",\"pluginVersion\":\"0.1.0\",\"inputs\":[{\"name\":\"source\",\"artifactType\":\"fastq\",\"required\":true}],\"outputs\":[{\"name\":\"summary\",\"artifactType\":\"json\"},{\"name\":\"table\",\"artifactType\":\"tsv\"}],\"parameters\":{}}],\"edges\":[]}"
+})";
+    }
     const auto frontend_root = root / "frontend-fixture";
     std::filesystem::create_directories(frontend_root / "assets");
     {
@@ -284,6 +619,12 @@ int main(const int argc, const char* const argv[]) {
         biocore::infrastructure::sqlite::SqliteConnection connection{root / ".biocore" / "project.sqlite"};
         biocore::infrastructure::sqlite::ProjectMigrationRunner migrations{connection};
         migrations.apply_pending();
+        connection.execute(
+            "INSERT INTO project_metadata(singleton,project_id,name,root_path,created_at_utc,updated_at_utc) "
+            "VALUES(1,'workspace-project','Workspace Project','" +
+            root.generic_string() +
+            "','2026-09-28T07:00:00Z','2026-09-28T07:00:00Z');"
+        );
         biocore::infrastructure::sqlite::SqliteJobRepository jobs{connection};
         const biocore::domain::Job stale{
             "stale-job", std::nullopt, "pipe", "1.0", biocore::domain::JobStatus::running,
@@ -295,6 +636,7 @@ int main(const int argc, const char* const argv[]) {
     }
 
     FakeServer server;
+    server.project_root = root;
     std::ostringstream out;
     std::ostringstream err;
     const int result = biocore::bootstrap::run_local_server(
@@ -302,7 +644,7 @@ int main(const int argc, const char* const argv[]) {
             .project_root = root,
             .port = 9123U,
             .executable_path = {},
-            .pipeline_root = pipeline_root,
+            .pipeline_root = runtime_pipeline_root,
             .plugin_root = plugin_root,
             .worker_executable = worker,
             .frontend_root = frontend_root,

@@ -248,6 +248,103 @@ void execution_scope_contract() {
     );
 }
 
+
+void project_workspace_surface_contract() {
+    const std::string html = read_text(frontend_root() / "index.html");
+    const std::string css = read_text(frontend_root() / "assets" / "app.css");
+    require(
+        html.find("data-view=\"project-workspace\"") != std::string::npos &&
+        html.find("id=\"project-workspace-panel\"") != std::string::npos,
+        "project workspace navigation and panel must be present"
+    );
+    for (const std::string_view id : {
+             "workspace-sample-preview", "workspace-sample-commit",
+             "workspace-binding-preview", "workspace-binding-commit",
+             "workspace-batch-preview", "workspace-batch-approve",
+             "workspace-batch-submit", "workspace-batch-list"}) {
+        require(html.find(std::string{"id=\""} + std::string{id} + "\"") != std::string::npos,
+                "project workspace end-to-end control is missing");
+    }
+    require(
+        html.find("End-to-end project guide") != std::string::npos &&
+        html.find("biocore init") != std::string::npos &&
+        html.find("one validated project root") != std::string::npos &&
+        html.find("project-workspace-open-builder") != std::string::npos &&
+        html.find("project-workspace-open-execution") != std::string::npos,
+        "workspace guide and existing builder/execution links must be present"
+    );
+    require(
+        css.find(".project-workspace-grid") != std::string::npos &&
+        css.find(".workspace-monitor-layout") != std::string::npos,
+        "project workspace responsive layout contract must be present"
+    );
+}
+
+void project_workspace_safe_rendering_contract() {
+    const std::string js = read_text(frontend_root() / "assets" / "app.js");
+    const auto begin = js.find("const setWorkspaceMessage");
+    const auto end = js.find("const probeSession", begin);
+    require(begin != std::string::npos && end != std::string::npos && end > begin,
+            "project workspace implementation region must be identifiable");
+    const std::string workspace = js.substr(begin, end - begin);
+    require(
+        workspace.find(".textContent") != std::string::npos,
+        "workspace must render persisted/user data through textContent"
+    );
+    require(
+        workspace.find(".innerHTML") == std::string::npos &&
+        workspace.find("insertAdjacentHTML") == std::string::npos,
+        "workspace must not inject persisted/user data as HTML"
+    );
+}
+
+void project_workspace_api_contract() {
+    const std::string js = read_text(frontend_root() / "assets" / "app.js");
+    for (const std::string_view route : {
+             "/api/v1/project-workspace",
+             "/samples/import/${format}/preview",
+             "/binding/preview",
+             "/batches/preview",
+             "/approve",
+             "/submit",
+             "/recovery",
+             "/results",
+             "/${action}",
+             "/api/v1/batches/${encodeURIComponent(batch.planId)}/export-manifest.json",
+             "/api/v1/batches/${encodeURIComponent(batch.planId)}/report.html"}) {
+        require(js.find(route) != std::string::npos,
+                "project workspace must wire the complete current-project API flow");
+    }
+    require(
+        js.find("[\"resume\", \"retry\"]") != std::string::npos,
+        "project workspace must expose explicit resume/retry actions"
+    );
+    require(
+        js.find("project-workspace-open-builder") != std::string::npos &&
+        js.find("project-workspace-open-execution") != std::string::npos,
+        "workspace must bridge to existing builder and execution workspace"
+    );
+}
+
+void project_workspace_scope_contract() {
+    const std::string js = read_text(frontend_root() / "assets" / "app.js");
+    const auto begin = js.find("const setWorkspaceMessage");
+    const auto end = js.find("const probeSession", begin);
+    require(begin != std::string::npos && end != std::string::npos && end > begin,
+            "project workspace scope region must be identifiable");
+    const std::string workspace = js.substr(begin, end - begin);
+    require(
+        workspace.find("new WebSocket") == std::string::npos &&
+        workspace.find("worker.lifecycle") == std::string::npos,
+        "Iteration 087 workspace must reuse existing execution/runtime rather than adding telemetry/scheduler ownership"
+    );
+    require(
+        workspace.find("/api/v1/project-workspace") != std::string::npos &&
+        workspace.find("/api/v1/batches/") != std::string::npos,
+        "Iteration 087 workspace must compose existing project/batch/report APIs"
+    );
+}
+
 }  // namespace
 
 int main(const int argc, char** argv) {
@@ -262,6 +359,10 @@ int main(const int argc, char** argv) {
     else if (mode == "execution-safe-rendering") execution_safe_rendering_contract();
     else if (mode == "execution-api") execution_api_contract();
     else if (mode == "execution-scope") execution_scope_contract();
+    else if (mode == "project-workspace-surface") project_workspace_surface_contract();
+    else if (mode == "project-workspace-safe-rendering") project_workspace_safe_rendering_contract();
+    else if (mode == "project-workspace-api") project_workspace_api_contract();
+    else if (mode == "project-workspace-scope") project_workspace_scope_contract();
     else return EXIT_FAILURE;
 
     std::cout << "Workflow builder frontend contract passed: " << mode << '\n';

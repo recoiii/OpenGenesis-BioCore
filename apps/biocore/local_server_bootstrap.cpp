@@ -11,6 +11,11 @@
 #include "biocore/application/batch_recovery_service.hpp"
 #include "biocore/application/batch_result_package_service.hpp"
 #include "biocore/application/batch_results_service.hpp"
+#include "biocore/application/batch_execution_service.hpp"
+#include "biocore/application/batch_planning_service.hpp"
+#include "biocore/application/project_workspace_integration_service.hpp"
+#include "biocore/application/sample_binding_service.hpp"
+#include "biocore/application/sample_registry_import.hpp"
 #include "biocore/application/job_scheduler.hpp"
 #include "biocore/application/job_retry_service.hpp"
 #include "biocore/application/job_service.hpp"
@@ -27,6 +32,7 @@
 #include "biocore/infrastructure/filesystem_artifact_content_access.hpp"
 #include "biocore/infrastructure/filesystem_input_file_storage.hpp"
 #include "biocore/infrastructure/filesystem_result_artifact_reader.hpp"
+#include "biocore/infrastructure/filesystem_reference_compatibility_inspector.hpp"
 #include "biocore/infrastructure/filesystem_output_artifact_inspector.hpp"
 #include "biocore/infrastructure/filesystem_partial_output_cleaner.hpp"
 #include "biocore/infrastructure/filesystem_pipeline_catalog.hpp"
@@ -43,6 +49,10 @@
 #include "biocore/infrastructure/sqlite/sqlite_connection.hpp"
 #include "biocore/infrastructure/sqlite/sqlite_batch_execution_store.hpp"
 #include "biocore/infrastructure/sqlite/sqlite_batch_plan_store.hpp"
+#include "biocore/infrastructure/sqlite/sqlite_current_project_store.hpp"
+#include "biocore/infrastructure/sqlite/sqlite_project_research_metadata_store.hpp"
+#include "biocore/infrastructure/sqlite/sqlite_project_sample_binding_store.hpp"
+#include "biocore/infrastructure/sqlite/sqlite_project_sample_store.hpp"
 #include "biocore/infrastructure/sqlite/sqlite_job_repository.hpp"
 #include "biocore/infrastructure/sqlite/sqlite_managed_file_repository.hpp"
 #include "biocore/infrastructure/sqlite/sqlite_prepared_job_store.hpp"
@@ -252,6 +262,10 @@ int run_local_server(
     infrastructure::sqlite::SqliteWorkflowStateStore api_workflow_states{api_connection};
     infrastructure::sqlite::SqliteBatchPlanStore api_batch_plans{api_connection};
     infrastructure::sqlite::SqliteBatchExecutionStore api_batch_executions{api_connection};
+    infrastructure::sqlite::SqliteCurrentProjectStore api_current_project{api_connection};
+    infrastructure::sqlite::SqliteProjectResearchMetadataStore api_project_research{api_connection};
+    infrastructure::sqlite::SqliteProjectSampleStore api_project_samples{api_connection};
+    infrastructure::sqlite::SqliteProjectSampleBindingStore api_sample_bindings{api_connection};
     infrastructure::sqlite::SqliteJobRepository runtime_job_repository{runtime_connection};
     infrastructure::sqlite::SqlitePreparedJobStore runtime_prepared_jobs{runtime_connection};
     infrastructure::sqlite::SqliteManagedFileRepository runtime_managed_files{runtime_connection};
@@ -317,6 +331,16 @@ int run_local_server(
     application::BatchResultPackageService batch_result_packages{
         batch_results, api_managed_files, content_access, clock
     };
+    application::SampleRegistryImportService sample_import{api_project_samples};
+    infrastructure::FilesystemReferenceCompatibilityInspector reference_compatibility;
+    application::SampleBindingService sample_binding{
+        api_project_samples, api_sample_bindings, api_managed_files, api_input_storage,
+        reference_compatibility
+    };
+    application::BatchPlanningService batch_planning{
+        api_project_samples, api_sample_bindings, api_managed_files, sample_binding,
+        workflow_templates, plugins, api_batch_plans
+    };
     application::PipelinePreparationService preparation{execution_plans, plugins, api_managed_files};
     application::JobSubmissionService submissions{api_prepared_jobs, pipelines, preparation, execution_plans, api_ids, clock};
     application::JobRetryService retries{api_jobs, api_prepared_jobs, clock};
@@ -325,6 +349,15 @@ int run_local_server(
     application::JobScheduler scheduler{
         runtime_jobs, runtime_prepared_jobs, supervisor,
         arguments.maximum_concurrent_jobs, &runtime_batch_executions
+    };
+    application::BatchExecutionService batch_execution{
+        api_batch_plans, api_batch_executions, plugins, api_managed_files,
+        api_input_storage, execution_plans, api_ids, clock, api_jobs, scheduler
+    };
+    application::ProjectWorkspaceIntegrationService project_workspace{
+        api_current_project, api_project_research, api_project_samples, api_sample_bindings,
+        api_managed_files, sample_import, sample_binding, batch_planning, api_batch_plans,
+        batch_execution, batch_recovery, batch_results, clock
     };
     infrastructure::FilesystemOutputArtifactInspector output_inspector{root};
     application::OutputArtifactService output_artifacts{runtime_managed_files, output_inspector, runtime_ids, clock};
@@ -340,7 +373,8 @@ int run_local_server(
     };
     presentation::LocalApiController api{
         api_jobs, submissions, managed_files, artifacts, clock, token, browser_session,
-        &retries, &workflow_templates, &workflow_workspace, &batch_result_packages
+        &retries, &workflow_templates, &workflow_workspace, &batch_result_packages,
+        &project_workspace
     };
     standard_output << "OpenGenesis-BioCore project recovery: " << recovery_result.recovered_jobs.size()
                     << " stale job(s) interrupted, " << recovery_result.issues.size() << " issue(s).\n";

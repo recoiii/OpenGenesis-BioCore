@@ -568,6 +568,10 @@ add_test(NAME presentation.workflow_execution.surface COMMAND biocore-workflow-b
 add_test(NAME presentation.workflow_execution.safe_rendering COMMAND biocore-workflow-builder-frontend-contract-tests execution-safe-rendering)
 add_test(NAME presentation.workflow_execution.api_contract COMMAND biocore-workflow-builder-frontend-contract-tests execution-api)
 add_test(NAME presentation.workflow_execution.scope COMMAND biocore-workflow-builder-frontend-contract-tests execution-scope)
+add_test(NAME presentation.project_workspace.surface COMMAND biocore-workflow-builder-frontend-contract-tests project-workspace-surface)
+add_test(NAME presentation.project_workspace.safe_rendering COMMAND biocore-workflow-builder-frontend-contract-tests project-workspace-safe-rendering)
+add_test(NAME presentation.project_workspace.api_contract COMMAND biocore-workflow-builder-frontend-contract-tests project-workspace-api)
+add_test(NAME presentation.project_workspace.scope COMMAND biocore-workflow-builder-frontend-contract-tests project-workspace-scope)
 
 add_executable(
     biocore-v04-release-compatibility-tests
@@ -1033,3 +1037,17 @@ target_link_libraries(
 foreach(mode json html)
     add_test(NAME presentation.batch_result_package_${mode} COMMAND biocore-batch-result-package-report-tests ${mode})
 endforeach()
+
+add_executable(
+    biocore-project-workspace-v05-e2e-tests
+    project_workspace_v05_e2e_tests.cpp
+)
+target_link_libraries(
+    biocore-project-workspace-v05-e2e-tests
+    PRIVATE BioCore::application BioCore::infrastructure BioCore::presentation SQLite::SQLite3
+            BioCore::project_options BioCore::project_warnings BioCore::sanitizers
+)
+add_test(
+    NAME integration.project_workspace_v05_e2e
+    COMMAND biocore-project-workspace-v05-e2e-tests
+)

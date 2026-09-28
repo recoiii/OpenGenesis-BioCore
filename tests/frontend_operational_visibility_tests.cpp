@@ -29,7 +29,7 @@ int main() {
     if (html.empty() || js.empty()) return EXIT_FAILURE;
 
     const bool html_contract =
-        has(html, "OPENGENESIS · CORE 0.2 DEV") &&
+        has(html, "OPENGENESIS · BIOCORE 0.5 DEV") &&
         !has(html, "PROJECT GENESIS · CORE 0.1") &&
         has(html, "id=\"detail-attempt\"") &&
         has(html, "id=\"detail-revision\"") &&

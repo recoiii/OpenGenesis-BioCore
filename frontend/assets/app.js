@@ -924,6 +924,17 @@
     detail: null
   };
 
+  const projectWorkspaceState = {
+    snapshot: null,
+    samplePreview: null,
+    bindingPreview: null,
+    batchPreview: null,
+    approvedPlanId: null,
+    selectedBatchId: null,
+    recovery: null,
+    results: null
+  };
+
   const state = {
     jobs: new Map(),
     logs: new Map(),
@@ -2317,6 +2328,7 @@
       appendOption(select, String(index), `${item.name} · ${item.id}@${item.version}`);
     });
     byId("builder-load-template").disabled = builderState.templates.length === 0;
+    syncWorkspaceTemplateSelect();
   };
 
   const loadSelectedWorkflowTemplate = async () => {
@@ -2738,6 +2750,499 @@
     }
   };
 
+  const setWorkspaceMessage = (id, message, kind = "") => {
+    const element = byId(id);
+    element.textContent = message;
+    element.className = `form-message ${kind}`.trim();
+  };
+
+  const workspaceRequest = async (target, options = {}) => {
+    const response = await fetch(target, {
+      method: options.method || "GET",
+      cache: "no-store",
+      credentials: "same-origin",
+      headers: {
+        "Accept": "application/json",
+        ...(options.contentType ? { "Content-Type": options.contentType } : {})
+      },
+      body: options.body
+    });
+    let payload = null;
+    try { payload = await response.json(); } catch (_) { payload = null; }
+    if (!response.ok) {
+      const message = payload && payload.error && typeof payload.error.message === "string"
+        ? payload.error.message
+        : `Project workspace request failed (${response.status}).`;
+      const error = new Error(message);
+      error.status = response.status;
+      throw error;
+    }
+    return payload;
+  };
+
+  const workspaceText = value => typeof value === "string" && value.length ? value : "—";
+
+  const workspaceOption = (select, value, label) => {
+    const option = document.createElement("option");
+    option.value = value;
+    option.textContent = label;
+    select.appendChild(option);
+  };
+
+  const syncWorkspaceTemplateSelect = () => {
+    const select = byId("workspace-template");
+    const previous = select.value;
+    select.replaceChildren();
+    workspaceOption(select, "", builderState.templates.length ? "Select exact template" : "No templates available");
+    for (const template of builderState.templates) {
+      workspaceOption(select, `${template.id}\t${template.version}`, `${template.name} · ${template.id}@${template.version}`);
+    }
+    if ([...select.options].some(option => option.value === previous)) select.value = previous;
+  };
+
+  const renderWorkspaceSamplePreview = () => {
+    const container = byId("workspace-sample-preview-list");
+    container.replaceChildren();
+    const preview = projectWorkspaceState.samplePreview;
+    if (!preview) return;
+    const samples = Array.isArray(preview.samples) ? preview.samples : [];
+    for (const sample of samples.slice(0, 100)) {
+      const row = document.createElement("div");
+      row.className = "workspace-preview-row";
+      const strong = document.createElement("strong");
+      strong.textContent = workspaceText(sample.sampleId);
+      const span = document.createElement("span");
+      span.textContent = `${workspaceText(sample.displayName)} · ${workspaceText(sample.group)}`;
+      row.append(strong, span);
+      container.appendChild(row);
+    }
+    const issues = Array.isArray(preview.issues) ? preview.issues : [];
+    for (const issue of issues.slice(0, 100)) {
+      const row = document.createElement("div");
+      row.className = "workspace-issue blocker";
+      row.textContent = `Line ${Number.isSafeInteger(issue.line) ? issue.line : "?"} · ${workspaceText(issue.code)} · ${workspaceText(issue.message)}`;
+      container.appendChild(row);
+    }
+    if (samples.length > 100 || issues.length > 100) {
+      const note = document.createElement("span");
+      note.className = "muted";
+      note.textContent = "Preview is truncated in the browser; the server retains the complete bounded preview.";
+      container.appendChild(note);
+    }
+  };
+
+  const renderWorkspaceLinkIssues = () => {
+    const container = byId("workspace-link-issues");
+    container.replaceChildren();
+    const preview = projectWorkspaceState.bindingPreview;
+    if (!preview) return;
+    const issues = Array.isArray(preview.issues) ? preview.issues : [];
+    if (!issues.length) {
+      const row = document.createElement("div");
+      row.className = "workspace-preview-row";
+      row.textContent = `Binding valid · reference status: ${workspaceText(preview.referenceStatus)}`;
+      container.appendChild(row);
+      return;
+    }
+    for (const issue of issues) {
+      const row = document.createElement("div");
+      row.className = `workspace-issue ${issue.severity === "warning" ? "warning" : "blocker"}`;
+      row.textContent = `${workspaceText(issue.code)} · ${workspaceText(issue.message)}`;
+      container.appendChild(row);
+    }
+  };
+
+  const setWorkspaceBindingFromSample = sampleId => {
+    const snapshot = projectWorkspaceState.snapshot;
+    const sample = snapshot && Array.isArray(snapshot.samples)
+      ? snapshot.samples.find(item => item.sampleId === sampleId)
+      : null;
+    const binding = sample && sample.binding && typeof sample.binding === "object" ? sample.binding : null;
+    const setIfPresent = (id, value) => {
+      const select = byId(id);
+      if ([...select.options].some(option => option.value === value)) select.value = value;
+    };
+    byId("workspace-binding-layout").value = binding && typeof binding.layout === "string"
+      ? binding.layout : "single_fastq";
+    setIfPresent("workspace-binding-primary", binding ? binding.primaryFileId : "");
+    setIfPresent("workspace-binding-secondary", binding && binding.secondaryFileId ? binding.secondaryFileId : "");
+    setIfPresent("workspace-binding-reference", binding && binding.referenceFileId ? binding.referenceFileId : "");
+    byId("workspace-binding-commit").disabled = true;
+    projectWorkspaceState.bindingPreview = null;
+    renderWorkspaceLinkIssues();
+  };
+
+  const renderProjectWorkspaceSnapshot = () => {
+    const snapshot = projectWorkspaceState.snapshot;
+    if (!snapshot || !snapshot.project) return;
+    const samples = Array.isArray(snapshot.samples) ? snapshot.samples : [];
+    const files = Array.isArray(snapshot.files) ? snapshot.files : [];
+    const batches = Array.isArray(snapshot.batches) ? snapshot.batches : [];
+    const boundCount = samples.filter(sample => sample.bindingComplete === true).length;
+    const orphanCount = files.filter(file => file.orphaned === true).length;
+    const recoveryCount = batches.reduce((sum, batch) => sum + (Number.isSafeInteger(batch.recoveryAttention) ? batch.recoveryAttention : 0), 0);
+
+    byId("workspace-project-name").textContent = workspaceText(snapshot.project.name);
+    byId("workspace-project-id").textContent = workspaceText(snapshot.project.id);
+    byId("workspace-project-organism").textContent = snapshot.research ? workspaceText(snapshot.research.organism) : "Not specified";
+    byId("workspace-project-root").textContent = workspaceText(snapshot.project.rootPath);
+    byId("project-workspace-summary").textContent = `${samples.length} sample${samples.length === 1 ? "" : "s"} · ${boundCount} bound · ${batches.length} approved batch${batches.length === 1 ? "" : "es"}`;
+    byId("workspace-sample-count").textContent = String(samples.length);
+    byId("workspace-binding-count").textContent = `${boundCount} bound`;
+    byId("workspace-file-count").textContent = String(files.length);
+    byId("workspace-orphan-count").textContent = `${orphanCount} orphaned`;
+    byId("workspace-batch-count").textContent = String(batches.length);
+    byId("workspace-recovery-count").textContent = `${recoveryCount} need recovery`;
+
+    const sampleSelect = byId("workspace-binding-sample");
+    const previousSample = sampleSelect.value;
+    sampleSelect.replaceChildren();
+    workspaceOption(sampleSelect, "", samples.length ? "Select sample" : "No samples imported");
+    for (const sample of samples) {
+      const suffix = sample.bindingComplete ? "bound" : "needs binding";
+      workspaceOption(sampleSelect, sample.sampleId, `${sample.sampleId} · ${suffix}`);
+    }
+    if ([...sampleSelect.options].some(option => option.value === previousSample)) sampleSelect.value = previousSample;
+
+    const fileSelects = ["workspace-binding-primary", "workspace-binding-secondary", "workspace-binding-reference"];
+    for (const id of fileSelects) {
+      const select = byId(id);
+      const previous = select.value;
+      select.replaceChildren();
+      workspaceOption(select, "", id === "workspace-binding-primary" ? "Select file" : "None");
+      for (const file of files) {
+        const orphan = file.orphaned ? " · orphaned" : "";
+        workspaceOption(select, file.id, `${file.displayName} · ${file.fileType}${orphan}`);
+      }
+      if ([...select.options].some(option => option.value === previous)) select.value = previous;
+    }
+
+    const sampleChecklist = byId("workspace-batch-samples");
+    const selected = new Set([...sampleChecklist.querySelectorAll("input:checked")].map(input => input.value));
+    sampleChecklist.replaceChildren();
+    if (!samples.length) {
+      const note = document.createElement("span");
+      note.className = "muted";
+      note.textContent = "Import samples first.";
+      sampleChecklist.appendChild(note);
+    } else {
+      for (const sample of samples) {
+        const label = document.createElement("label");
+        const input = document.createElement("input");
+        input.type = "checkbox";
+        input.value = sample.sampleId;
+        input.checked = selected.size ? selected.has(sample.sampleId) : sample.bindingComplete === true;
+        const text = document.createElement("span");
+        text.textContent = `${sample.sampleId}${sample.bindingComplete ? "" : " · binding issue"}`;
+        label.append(input, text);
+        sampleChecklist.appendChild(label);
+      }
+    }
+
+    const broken = [];
+    for (const sample of samples) {
+      const issues = Array.isArray(sample.issues) ? sample.issues : [];
+      for (const issue of issues) broken.push(`${sample.sampleId}: ${workspaceText(issue.message)}`);
+    }
+    for (const file of files.filter(file => file.orphaned)) broken.push(`Orphan input: ${workspaceText(file.displayName)} (${file.id})`);
+    const linkIssues = byId("workspace-link-issues");
+    if (!projectWorkspaceState.bindingPreview) {
+      linkIssues.replaceChildren();
+      for (const message of broken.slice(0, 40)) {
+        const row = document.createElement("div");
+        row.className = "workspace-issue warning";
+        row.textContent = message;
+        linkIssues.appendChild(row);
+      }
+      if (!broken.length) {
+        const row = document.createElement("div");
+        row.className = "workspace-preview-row";
+        row.textContent = "No broken sample links or orphaned managed inputs detected.";
+        linkIssues.appendChild(row);
+      }
+    }
+    renderWorkspaceBatchList();
+  };
+
+  const renderWorkspaceBatchPreview = () => {
+    const container = byId("workspace-batch-preview-output");
+    container.replaceChildren();
+    const preview = projectWorkspaceState.batchPreview;
+    if (!preview) return;
+    const globalIssues = Array.isArray(preview.issues) ? preview.issues : [];
+    for (const issue of globalIssues) {
+      const row = document.createElement("div");
+      row.className = `workspace-issue ${issue.severity === "warning" ? "warning" : "blocker"}`;
+      row.textContent = `${workspaceText(issue.code)} · ${workspaceText(issue.message)}`;
+      container.appendChild(row);
+    }
+    const samples = Array.isArray(preview.samples) ? preview.samples : [];
+    for (const sample of samples) {
+      const row = document.createElement("div");
+      row.className = `workspace-batch-preview-row ${sample.valid ? "" : "invalid"}`.trim();
+      const label = document.createElement("label");
+      const exclude = document.createElement("input");
+      exclude.type = "checkbox";
+      exclude.dataset.workspaceExcludeSample = sample.sampleId;
+      exclude.checked = sample.valid !== true;
+      const title = document.createElement("strong");
+      title.textContent = `${sample.sampleId} · ${sample.valid ? "valid" : "invalid"} · ${Number.isSafeInteger(sample.nodeCount) ? sample.nodeCount : 0} nodes`;
+      label.append(exclude, title);
+      row.appendChild(label);
+      const issues = Array.isArray(sample.issues) ? sample.issues : [];
+      for (const issue of issues) {
+        const issueNode = document.createElement("div");
+        issueNode.className = "muted";
+        issueNode.textContent = `${workspaceText(issue.code)} · ${workspaceText(issue.message)}`;
+        row.appendChild(issueNode);
+      }
+      container.appendChild(row);
+    }
+    byId("workspace-batch-approve").disabled = preview.globallyValid !== true;
+  };
+
+  const renderWorkspaceBatchList = () => {
+    const container = byId("workspace-batch-list");
+    container.replaceChildren();
+    const batches = projectWorkspaceState.snapshot && Array.isArray(projectWorkspaceState.snapshot.batches)
+      ? projectWorkspaceState.snapshot.batches : [];
+    if (!batches.length) {
+      const note = document.createElement("span");
+      note.className = "muted";
+      note.textContent = "No approved batches.";
+      container.appendChild(note);
+      return;
+    }
+    for (const batch of batches) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = `workspace-batch-item${projectWorkspaceState.selectedBatchId === batch.planId ? " active" : ""}`;
+      const stateText = batch.execution && typeof batch.execution.state === "string" ? batch.execution.state : "approved / not submitted";
+      const strong = document.createElement("strong");
+      strong.textContent = batch.planId;
+      const small = document.createElement("small");
+      small.textContent = `${batch.templateId}@${batch.templateVersion} · ${stateText} · ${batch.recoveryAttention || 0} recovery`;
+      button.append(strong, small);
+      button.addEventListener("click", () => selectWorkspaceBatch(batch.planId).catch(error => {
+        setWorkspaceMessage("workspace-monitor-message", error.message, "error");
+      }));
+      container.appendChild(button);
+    }
+  };
+
+  const renderWorkspaceBatchDetail = () => {
+    const container = byId("workspace-batch-detail");
+    container.replaceChildren();
+    const snapshot = projectWorkspaceState.snapshot;
+    const batch = snapshot && Array.isArray(snapshot.batches)
+      ? snapshot.batches.find(item => item.planId === projectWorkspaceState.selectedBatchId)
+      : null;
+    if (!batch) {
+      const note = document.createElement("p");
+      note.className = "muted";
+      note.textContent = "Select a batch to inspect execution, recovery and results.";
+      container.appendChild(note);
+      return;
+    }
+    const heading = document.createElement("div");
+    heading.className = "workspace-detail-heading";
+    const title = document.createElement("h4");
+    title.textContent = batch.planId;
+    const badge = document.createElement("span");
+    badge.className = "status-badge status-idle";
+    badge.textContent = batch.execution ? workspaceText(batch.execution.state) : "approved";
+    heading.append(title, badge);
+    container.appendChild(heading);
+
+    const grid = document.createElement("div");
+    grid.className = "workspace-detail-grid";
+    const details = [
+      ["Template", `${batch.templateId}@${batch.templateVersion}`],
+      ["Included", String(batch.includedSamples || 0)],
+      ["Excluded", String(batch.excludedSamples || 0)],
+      ["Recovery", String(batch.recoveryAttention || 0)]
+    ];
+    for (const [label, value] of details) {
+      const cell = document.createElement("div");
+      const span = document.createElement("span"); span.textContent = label;
+      const strong = document.createElement("strong"); strong.textContent = value;
+      cell.append(span, strong); grid.appendChild(cell);
+    }
+    container.appendChild(grid);
+
+    const actions = document.createElement("div");
+    actions.className = "workspace-detail-actions";
+    if (!batch.execution) {
+      const submit = document.createElement("button");
+      submit.type = "button"; submit.className = "button button-primary button-small"; submit.textContent = "Submit batch";
+      submit.addEventListener("click", () => submitWorkspaceBatch(batch.planId).catch(error => setWorkspaceMessage("workspace-monitor-message", error.message, "error")));
+      actions.appendChild(submit);
+    } else if (["active", "attention", "cancelling"].includes(batch.execution.state)) {
+      const cancel = document.createElement("button");
+      cancel.type = "button"; cancel.className = "button button-danger button-small"; cancel.textContent = "Cancel batch";
+      cancel.addEventListener("click", () => cancelWorkspaceBatch(batch.planId).catch(error => setWorkspaceMessage("workspace-monitor-message", error.message, "error")));
+      actions.appendChild(cancel);
+    }
+    const manifest = document.createElement("a");
+    manifest.className = "button button-quiet button-small";
+    manifest.href = `/api/v1/batches/${encodeURIComponent(batch.planId)}/export-manifest.json`;
+    manifest.target = "_blank"; manifest.rel = "noopener"; manifest.textContent = "JSON manifest";
+    const report = document.createElement("a");
+    report.className = "button button-quiet button-small";
+    report.href = `/api/v1/batches/${encodeURIComponent(batch.planId)}/report.html`;
+    report.target = "_blank"; report.rel = "noopener"; report.textContent = "HTML report";
+    actions.append(manifest, report);
+    container.appendChild(actions);
+
+    const recovery = projectWorkspaceState.recovery;
+    if (recovery && recovery.planId === batch.planId && Array.isArray(recovery.samples)) {
+      const headingNode = document.createElement("h5"); headingNode.textContent = "Recovery"; container.appendChild(headingNode);
+      const list = document.createElement("div"); list.className = "workspace-recovery-list";
+      for (const sample of recovery.samples) {
+        if (sample.action === "none") continue;
+        const row = document.createElement("div"); row.className = "workspace-recovery-row";
+        const text = document.createElement("div"); text.textContent = `${sample.sampleId} · ${sample.action} · ${workspaceText(sample.reason)}`;
+        row.appendChild(text);
+        const rowActions = document.createElement("div"); rowActions.className = "workspace-row-actions";
+        for (const action of ["resume", "retry"]) {
+          if (sample.action !== action && !(sample.action === "retry" && action === "retry")) continue;
+          const button = document.createElement("button"); button.type = "button"; button.className = "button button-quiet button-small"; button.textContent = action;
+          button.addEventListener("click", () => recoverWorkspaceSample(batch.planId, sample.sampleId, action).catch(error => setWorkspaceMessage("workspace-monitor-message", error.message, "error")));
+          rowActions.appendChild(button);
+        }
+        row.appendChild(rowActions); list.appendChild(row);
+      }
+      if (!list.childElementCount) {
+        const note = document.createElement("span"); note.className = "muted"; note.textContent = "No sample requires explicit recovery."; list.appendChild(note);
+      }
+      container.appendChild(list);
+    }
+
+    const results = projectWorkspaceState.results;
+    if (results && results.planId === batch.planId && Array.isArray(results.samples)) {
+      const headingNode = document.createElement("h5"); headingNode.textContent = "Results"; container.appendChild(headingNode);
+      const list = document.createElement("div"); list.className = "workspace-results-list";
+      for (const sample of results.samples) {
+        const row = document.createElement("div"); row.className = "workspace-result-row";
+        const artifactCount = Array.isArray(sample.artifacts) ? sample.artifacts.length : 0;
+        const qcCount = Array.isArray(sample.qcSummaries) ? sample.qcSummaries.length : 0;
+        row.textContent = `${sample.sampleId} · ${workspaceText(sample.latestJobStatus || sample.state)} · attempt ${sample.latestAttemptNumber || 0} · ${artifactCount} artifacts · ${qcCount} QC summaries`;
+        list.appendChild(row);
+      }
+      const comparisons = Array.isArray(results.qcComparisons) ? results.qcComparisons : [];
+      for (const comparison of comparisons) {
+        const row = document.createElement("div"); row.className = "workspace-result-row";
+        row.textContent = `QC ${comparison.nodeId} · ${comparison.state} · ${workspaceText(comparison.reason)}`;
+        list.appendChild(row);
+      }
+      container.appendChild(list);
+    }
+  };
+
+  const loadProjectWorkspace = async () => {
+    projectWorkspaceState.snapshot = await workspaceRequest("/api/v1/project-workspace");
+    renderProjectWorkspaceSnapshot();
+    if (projectWorkspaceState.selectedBatchId) renderWorkspaceBatchDetail();
+    return projectWorkspaceState.snapshot;
+  };
+
+  const bindingRequestPayload = () => {
+    const sampleId = byId("workspace-binding-sample").value;
+    const primary = byId("workspace-binding-primary").value;
+    if (!sampleId) throw new Error("Select a sample first.");
+    if (!primary) throw new Error("Select a primary managed file.");
+    return {
+      sampleId,
+      body: {
+        layout: byId("workspace-binding-layout").value,
+        primaryFileId: primary,
+        secondaryFileId: byId("workspace-binding-secondary").value || null,
+        referenceFileId: byId("workspace-binding-reference").value || null
+      }
+    };
+  };
+
+  const parseWorkspaceLines = (text, kind) => {
+    const values = [];
+    for (const raw of text.split(/\r?\n/)) {
+      const line = raw.trim();
+      if (!line) continue;
+      const parts = line.split("|").map(value => value.trim());
+      if (parts.length !== 3 || parts.some(value => !value)) throw new Error(`${kind} line must contain exactly three non-empty fields separated by |.`);
+      if (kind === "Input assignment") values.push({ nodeId: parts[0], inputPort: parts[1], role: parts[2] });
+      else values.push({ nodeId: parts[0], parameterName: parts[1], value: parts[2] });
+    }
+    return values;
+  };
+
+  const workspaceBatchPreviewPayload = () => {
+    const planId = byId("workspace-plan-id").value.trim();
+    const template = byId("workspace-template").value.split("\t");
+    const sampleIds = [...byId("workspace-batch-samples").querySelectorAll("input:checked")].map(input => input.value);
+    if (!planId) throw new Error("Plan ID is required.");
+    if (template.length !== 2 || !template[0] || !template[1]) throw new Error("Select an exact workflow template.");
+    if (!sampleIds.length) throw new Error("Select at least one sample.");
+    return {
+      planId,
+      templateId: template[0],
+      templateVersion: template[1],
+      sampleIds,
+      parameterOverrides: parseWorkspaceLines(byId("workspace-parameter-overrides").value, "Parameter override"),
+      inputAssignments: parseWorkspaceLines(byId("workspace-input-assignments").value, "Input assignment")
+    };
+  };
+
+  const selectWorkspaceBatch = async planId => {
+    projectWorkspaceState.selectedBatchId = planId;
+    projectWorkspaceState.recovery = null;
+    projectWorkspaceState.results = null;
+    renderWorkspaceBatchList();
+    const batch = projectWorkspaceState.snapshot && Array.isArray(projectWorkspaceState.snapshot.batches)
+      ? projectWorkspaceState.snapshot.batches.find(item => item.planId === planId)
+      : null;
+    if (!batch || !batch.execution) {
+      renderWorkspaceBatchDetail();
+      return;
+    }
+    const [recovery, results] = await Promise.all([
+      workspaceRequest(`/api/v1/project-workspace/batches/${encodeURIComponent(planId)}/recovery`),
+      workspaceRequest(`/api/v1/project-workspace/batches/${encodeURIComponent(planId)}/results`)
+    ]);
+    projectWorkspaceState.recovery = recovery;
+    projectWorkspaceState.results = results;
+    renderWorkspaceBatchDetail();
+  };
+
+  const submitWorkspaceBatch = async planId => {
+    const concurrency = Number.parseInt(byId("workspace-concurrency").value, 10);
+    if (!Number.isSafeInteger(concurrency) || concurrency < 1 || concurrency > 64) throw new Error("Maximum concurrent jobs must be between 1 and 64.");
+    await workspaceRequest(`/api/v1/project-workspace/batches/${encodeURIComponent(planId)}/submit`, {
+      method: "POST", contentType: "application/json",
+      body: JSON.stringify({ maximumConcurrentJobs: concurrency, priority: byId("workspace-batch-priority").value })
+    });
+    setWorkspaceMessage("workspace-monitor-message", `Batch ${planId} submitted through the existing scheduler.`, "ready");
+    await loadProjectWorkspace();
+    await selectWorkspaceBatch(planId);
+  };
+
+  const cancelWorkspaceBatch = async planId => {
+    await workspaceRequest(`/api/v1/project-workspace/batches/${encodeURIComponent(planId)}/cancel`, { method: "POST" });
+    setWorkspaceMessage("workspace-monitor-message", `Cancellation requested for ${planId}.`, "ready");
+    await loadProjectWorkspace();
+    await selectWorkspaceBatch(planId);
+  };
+
+  const recoverWorkspaceSample = async (planId, sampleId, action) => {
+    await workspaceRequest(`/api/v1/project-workspace/batches/${encodeURIComponent(planId)}/samples/${encodeURIComponent(sampleId)}/${action}`, {
+      method: "POST", contentType: "application/json",
+      body: JSON.stringify({ priority: byId("workspace-batch-priority").value })
+    });
+    setWorkspaceMessage("workspace-monitor-message", `${action} created a new attempt for ${sampleId}.`, "ready");
+    await loadProjectWorkspace();
+    await selectWorkspaceBatch(planId);
+  };
+
+
   const probeSession = async () => {
     try {
       await loadJobs();
@@ -2748,6 +3253,10 @@
         select.replaceChildren();
         appendOption(select, "", "Template catalog unavailable");
         byId("builder-load-template").disabled = true;
+      });
+      await loadProjectWorkspace().catch(error => {
+        projectWorkspaceState.snapshot = null;
+        setWorkspaceMessage("workspace-monitor-message", error instanceof Error ? error.message : "Project workspace unavailable.", "error");
       });
       await loadWorkflowExecutions().catch(() => {
         executionWorkspaceState.summaries = [];
@@ -3182,6 +3691,139 @@
     byId("pipeline-id").focus();
   });
 
+  byId("project-workspace-refresh").addEventListener("click", () => {
+    loadProjectWorkspace().catch(error => setWorkspaceMessage("workspace-monitor-message", error.message, "error"));
+  });
+  byId("project-workspace-open-builder").addEventListener("click", () => {
+    byId("workflow-builder-panel").scrollIntoView({ behavior: "smooth", block: "start" });
+  });
+  byId("project-workspace-open-execution").addEventListener("click", () => {
+    byId("workflow-execution-workspace-panel").scrollIntoView({ behavior: "smooth", block: "start" });
+  });
+  byId("workspace-batch-refresh").addEventListener("click", () => {
+    const selected = projectWorkspaceState.selectedBatchId;
+    loadProjectWorkspace().then(() => selected ? selectWorkspaceBatch(selected) : null)
+      .catch(error => setWorkspaceMessage("workspace-monitor-message", error.message, "error"));
+  });
+
+  byId("workspace-sample-preview").addEventListener("click", async () => {
+    const text = byId("workspace-sample-table").value;
+    if (!text.trim()) {
+      setWorkspaceMessage("workspace-sample-message", "Paste a CSV or TSV sample table first.", "warning");
+      return;
+    }
+    const format = byId("workspace-sample-format").value;
+    try {
+      projectWorkspaceState.samplePreview = await workspaceRequest(`/api/v1/project-workspace/samples/import/${format}/preview`, {
+        method: "POST", contentType: "text/plain;charset=utf-8", body: text
+      });
+      renderWorkspaceSamplePreview();
+      byId("workspace-sample-commit").disabled = projectWorkspaceState.samplePreview.valid !== true;
+      setWorkspaceMessage("workspace-sample-message", projectWorkspaceState.samplePreview.valid
+        ? "Preview valid. Commit will persist exactly this table through the existing sample registry service."
+        : "Preview contains blocking issues; fix them before commit.", projectWorkspaceState.samplePreview.valid ? "ready" : "warning");
+    } catch (error) {
+      byId("workspace-sample-commit").disabled = true;
+      setWorkspaceMessage("workspace-sample-message", error.message, "error");
+    }
+  });
+  byId("workspace-sample-commit").addEventListener("click", async () => {
+    const text = byId("workspace-sample-table").value;
+    const format = byId("workspace-sample-format").value;
+    try {
+      projectWorkspaceState.samplePreview = await workspaceRequest(`/api/v1/project-workspace/samples/import/${format}/commit`, {
+        method: "POST", contentType: "text/plain;charset=utf-8", body: text
+      });
+      byId("workspace-sample-commit").disabled = true;
+      setWorkspaceMessage("workspace-sample-message", "Sample registry committed.", "ready");
+      renderWorkspaceSamplePreview();
+      await loadProjectWorkspace();
+    } catch (error) {
+      setWorkspaceMessage("workspace-sample-message", error.message, "error");
+    }
+  });
+
+  byId("workspace-binding-sample").addEventListener("change", event => {
+    setWorkspaceBindingFromSample(event.target.value);
+  });
+  byId("workspace-binding-preview").addEventListener("click", async () => {
+    try {
+      const request = bindingRequestPayload();
+      projectWorkspaceState.bindingPreview = await workspaceRequest(`/api/v1/project-workspace/samples/${encodeURIComponent(request.sampleId)}/binding/preview`, {
+        method: "POST", contentType: "application/json", body: JSON.stringify(request.body)
+      });
+      renderWorkspaceLinkIssues();
+      byId("workspace-binding-commit").disabled = projectWorkspaceState.bindingPreview.valid !== true;
+      setWorkspaceMessage("workspace-binding-message", projectWorkspaceState.bindingPreview.valid
+        ? "Binding preview valid. Save will re-run integrity/reference validation."
+        : "Binding contains blocking issues.", projectWorkspaceState.bindingPreview.valid ? "ready" : "warning");
+    } catch (error) {
+      byId("workspace-binding-commit").disabled = true;
+      setWorkspaceMessage("workspace-binding-message", error.message, "error");
+    }
+  });
+  byId("workspace-binding-commit").addEventListener("click", async () => {
+    try {
+      const request = bindingRequestPayload();
+      projectWorkspaceState.bindingPreview = await workspaceRequest(`/api/v1/project-workspace/samples/${encodeURIComponent(request.sampleId)}/binding/commit`, {
+        method: "POST", contentType: "application/json", body: JSON.stringify(request.body)
+      });
+      byId("workspace-binding-commit").disabled = true;
+      setWorkspaceMessage("workspace-binding-message", "Sample binding saved after current integrity/reference validation.", "ready");
+      renderWorkspaceLinkIssues();
+      await loadProjectWorkspace();
+    } catch (error) {
+      setWorkspaceMessage("workspace-binding-message", error.message, "error");
+    }
+  });
+
+  byId("workspace-batch-preview").addEventListener("click", async () => {
+    try {
+      projectWorkspaceState.batchPreview = await workspaceRequest("/api/v1/project-workspace/batches/preview", {
+        method: "POST", contentType: "application/json", body: JSON.stringify(workspaceBatchPreviewPayload())
+      });
+      projectWorkspaceState.approvedPlanId = null;
+      byId("workspace-batch-submit").disabled = true;
+      renderWorkspaceBatchPreview();
+      setWorkspaceMessage("workspace-batch-message", projectWorkspaceState.batchPreview.globallyValid
+        ? "Preview valid. Invalid samples, if any, must be explicitly excluded before approval."
+        : "Batch preview contains global blocking issues.", projectWorkspaceState.batchPreview.globallyValid ? "ready" : "warning");
+    } catch (error) {
+      byId("workspace-batch-approve").disabled = true;
+      byId("workspace-batch-submit").disabled = true;
+      setWorkspaceMessage("workspace-batch-message", error.message, "error");
+    }
+  });
+  byId("workspace-batch-approve").addEventListener("click", async () => {
+    const preview = projectWorkspaceState.batchPreview;
+    if (!preview || !preview.planId) return;
+    const excludedSampleIds = [...byId("workspace-batch-preview-output").querySelectorAll("input[data-workspace-exclude-sample]:checked")]
+      .map(input => input.dataset.workspaceExcludeSample);
+    try {
+      const approved = await workspaceRequest(`/api/v1/project-workspace/batches/${encodeURIComponent(preview.planId)}/approve`, {
+        method: "POST", contentType: "application/json", body: JSON.stringify({ excludedSampleIds })
+      });
+      projectWorkspaceState.approvedPlanId = approved.planId;
+      byId("workspace-batch-approve").disabled = true;
+      byId("workspace-batch-submit").disabled = false;
+      setWorkspaceMessage("workspace-batch-message", `Approved immutable batch ${approved.planId}.`, "ready");
+      await loadProjectWorkspace();
+      projectWorkspaceState.selectedBatchId = approved.planId;
+      renderWorkspaceBatchList();
+      renderWorkspaceBatchDetail();
+    } catch (error) {
+      setWorkspaceMessage("workspace-batch-message", error.message, "error");
+    }
+  });
+  byId("workspace-batch-submit").addEventListener("click", () => {
+    const planId = projectWorkspaceState.approvedPlanId;
+    if (!planId) return;
+    submitWorkspaceBatch(planId).then(() => {
+      byId("workspace-batch-submit").disabled = true;
+      setWorkspaceMessage("workspace-batch-message", `Batch ${planId} submitted.`, "ready");
+    }).catch(error => setWorkspaceMessage("workspace-batch-message", error.message, "error"));
+  });
+
   for (const filter of document.querySelectorAll("[data-filter]")) {
     filter.addEventListener("click", () => {
       state.filter = filter.dataset.filter || "all";
@@ -3195,7 +3837,9 @@
   for (const navigation of document.querySelectorAll("[data-view]")) {
     navigation.addEventListener("click", () => {
       const view = navigation.dataset.view;
-      if (view === "wizard") {
+      if (view === "project-workspace") {
+        byId("project-workspace-panel").scrollIntoView({ behavior: "smooth", block: "start" });
+      } else if (view === "wizard") {
         byId("analysis-wizard-panel").scrollIntoView({ behavior: "smooth", block: "start" });
       } else if (view === "builder") {
         byId("workflow-builder-panel").scrollIntoView({ behavior: "smooth", block: "start" });

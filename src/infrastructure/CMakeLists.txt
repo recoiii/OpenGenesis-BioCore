@@ -37,6 +37,7 @@ target_sources(
         source/sqlite/project_database_initializer.cpp
         source/sqlite/project_migration_runner.cpp
         source/sqlite/sqlite_connection.cpp
+        source/sqlite/sqlite_current_project_store.cpp
         source/sqlite/sqlite_error.cpp
         source/sqlite/sqlite_job_repository.cpp
         source/sqlite/sqlite_managed_file_repository.cpp
@@ -83,6 +84,7 @@ target_sources(
             include/biocore/infrastructure/sqlite/project_database_initializer.hpp
             include/biocore/infrastructure/sqlite/project_migration_runner.hpp
             include/biocore/infrastructure/sqlite/sqlite_connection.hpp
+            include/biocore/infrastructure/sqlite/sqlite_current_project_store.hpp
             include/biocore/infrastructure/sqlite/sqlite_error.hpp
             include/biocore/infrastructure/sqlite/sqlite_job_repository.hpp
             include/biocore/infrastructure/sqlite/sqlite_managed_file_repository.hpp

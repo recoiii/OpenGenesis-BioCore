@@ -31,6 +31,7 @@
 #include "biocore/application/managed_file_service.hpp"
 #include "biocore/application/managed_file_service_error.hpp"
 #include "biocore/application/pipeline_bindings.hpp"
+#include "biocore/application/project_workspace_integration_service.hpp"
 #include "biocore/domain/job.hpp"
 #include "biocore/domain/managed_file.hpp"
 #include "biocore/domain/pipeline_step.hpp"
@@ -46,6 +47,7 @@
 #include "biocore/presentation/batch_result_package_report.hpp"
 #include "biocore/presentation/health_json.hpp"
 #include "biocore/presentation/local_browser_session.hpp"
+#include "biocore/presentation/project_workspace_json.hpp"
 
 namespace biocore::presentation {
 namespace {
@@ -1123,10 +1125,12 @@ LocalApiController::LocalApiController(
     application::JobRetryService* retries,
     const application::IWorkflowTemplateCatalog* workflow_templates,
     application::WorkflowExecutionWorkspaceService* workflow_workspace,
-    application::BatchResultPackageService* batch_result_packages
+    application::BatchResultPackageService* batch_result_packages,
+    application::ProjectWorkspaceIntegrationService* project_workspace
 )
     : jobs_{jobs}, retries_{retries}, submissions_{submissions}, managed_files_{managed_files},
-      artifacts_{artifacts}, batch_result_packages_{batch_result_packages}, clock_{clock},
+      artifacts_{artifacts}, batch_result_packages_{batch_result_packages},
+      project_workspace_{project_workspace}, clock_{clock},
       workflow_templates_{workflow_templates}, workflow_workspace_{workflow_workspace},
       bootstrap_token_{std::move(bootstrap_token)}, browser_session_{browser_session} {
     if (bootstrap_token_.size() < 32U || bootstrap_token_.size() > 2048U) {
@@ -1164,6 +1168,12 @@ LocalHttpResponse LocalApiController::handle(const LocalHttpRequest& request) {
         path.size() == 3U && path[0] == "api" && path[1] == "v1" &&
         path[2] == "workflow-executions" &&
         request.method == HttpMethod::post;
+    const bool workspace_sample_import_route =
+        path.size() == 7U && path[0] == "api" && path[1] == "v1" &&
+        path[2] == "project-workspace" && path[3] == "samples" &&
+        path[4] == "import" && (path[5] == "csv" || path[5] == "tsv") &&
+        (path[6] == "preview" || path[6] == "commit") &&
+        request.method == HttpMethod::post;
     if (upload_chunk_route) {
         if (request.body.empty() ||
             request.body.size() > application::ManagedFileService::maximum_upload_chunk_bytes) {
@@ -1171,9 +1181,11 @@ LocalHttpResponse LocalApiController::handle(const LocalHttpRequest& request) {
         }
     } else {
         const std::size_t maximum_body_bytes =
-            (workflow_validation_route || workflow_execution_create_route)
-                ? pipeline_protocol::maximum_workflow_document_bytes
-                : maximum_request_body_bytes;
+            workspace_sample_import_route
+                ? maximum_sample_table_bytes
+                : ((workflow_validation_route || workflow_execution_create_route)
+                       ? pipeline_protocol::maximum_workflow_document_bytes
+                       : maximum_request_body_bytes);
         if (request.body.size() > maximum_body_bytes) {
             return error_response(413, "request_too_large", "Request body is too large");
         }
@@ -1386,6 +1398,99 @@ if (path.size() == 6U && path[2] == "files" && path[3] == "uploads" &&
     }
     return json_response(200, "{\"status\":\"cancelled\"}");
 }
+
+
+        if (path[2] == "project-workspace") {
+            if (project_workspace_ == nullptr) {
+                return error_response(503, "project_workspace_unavailable",
+                                      "Project workspace integration is unavailable");
+            }
+            if (path.size() == 3U && request.method == HttpMethod::get) {
+                return json_response(200, render_project_workspace_snapshot(project_workspace_->snapshot()));
+            }
+            if (path.size() == 7U && path[3] == "samples" && path[4] == "import" &&
+                (path[5] == "csv" || path[5] == "tsv") &&
+                (path[6] == "preview" || path[6] == "commit") &&
+                request.method == HttpMethod::post) {
+                const auto format = path[5] == "csv"
+                    ? application::SampleTableFormat::csv
+                    : application::SampleTableFormat::tsv;
+                if (path[6] == "preview") {
+                    return json_response(200, render_sample_import_preview(
+                        project_workspace_->preview_sample_import(request.body, format)));
+                }
+                return json_response(201, render_sample_import_preview(
+                    project_workspace_->commit_sample_import(request.body, format)));
+            }
+            if (path.size() == 7U && path[3] == "samples" && safe_path_atom(path[4]) &&
+                path[5] == "binding" && (path[6] == "preview" || path[6] == "commit") &&
+                request.method == HttpMethod::post) {
+                const auto parsed = parse_workspace_binding_request(path[4], request.body);
+                if (path[6] == "preview") {
+                    return json_response(200, render_sample_binding_preview(
+                        project_workspace_->preview_binding(parsed)));
+                }
+                return json_response(200, render_sample_binding_preview(
+                    project_workspace_->commit_binding(parsed)));
+            }
+            if (path.size() == 5U && path[3] == "batches" && path[4] == "preview" &&
+                request.method == HttpMethod::post) {
+                return json_response(200, render_batch_plan_preview(
+                    project_workspace_->preview_batch(parse_workspace_batch_preview_request(request.body))));
+            }
+            if (path.size() >= 5U && path[3] == "batches" && safe_path_atom(path[4])) {
+                const std::string_view plan_id = path[4];
+                if (path.size() == 5U && request.method == HttpMethod::get) {
+                    const auto snapshot = project_workspace_->find_batch(plan_id);
+                    if (!snapshot.has_value()) {
+                        return error_response(404, "batch_execution_not_found",
+                                              "Batch execution was not found");
+                    }
+                    return json_response(200, render_batch_execution_snapshot(*snapshot));
+                }
+                if (path.size() == 6U && path[5] == "approve" &&
+                    request.method == HttpMethod::post) {
+                    return json_response(201, render_approved_batch_plan(
+                        project_workspace_->approve_batch(
+                            plan_id, parse_workspace_exclusions(request.body))));
+                }
+                if (path.size() == 6U && path[5] == "submit" &&
+                    request.method == HttpMethod::post) {
+                    return json_response(202, render_batch_execution_snapshot(
+                        project_workspace_->submit_batch(
+                            plan_id, parse_workspace_batch_submit_request(request.body))));
+                }
+                if (path.size() == 6U && path[5] == "cancel" &&
+                    request.method == HttpMethod::post) {
+                    if (!request.body.empty()) {
+                        throw std::invalid_argument("Batch cancellation request body must be empty");
+                    }
+                    return json_response(200, render_batch_execution_snapshot(
+                        project_workspace_->cancel_batch(plan_id)));
+                }
+                if (path.size() == 6U && path[5] == "recovery" &&
+                    request.method == HttpMethod::get) {
+                    return json_response(200, render_batch_recovery_inspection(
+                        project_workspace_->inspect_recovery(plan_id)));
+                }
+                if (path.size() == 6U && path[5] == "results" &&
+                    request.method == HttpMethod::get) {
+                    return json_response(200, render_batch_results_overview(
+                        project_workspace_->results(plan_id)));
+                }
+                if (path.size() == 8U && path[5] == "samples" && safe_path_atom(path[6]) &&
+                    (path[7] == "resume" || path[7] == "retry") &&
+                    request.method == HttpMethod::post) {
+                    const auto priority = parse_workspace_recovery_priority(request.body);
+                    if (path[7] == "resume") {
+                        return json_response(202, render_batch_attempt(
+                            project_workspace_->resume_sample(plan_id, path[6], priority)));
+                    }
+                    return json_response(202, render_batch_attempt(
+                        project_workspace_->retry_sample(plan_id, path[6], priority)));
+                }
+            }
+        }
 
 
         if (path.size() >= 4U && path[2] == "batches" && safe_path_atom(path[3])) {

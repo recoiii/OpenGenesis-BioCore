@@ -16,6 +16,8 @@ public:
         std::string_view plan_id
     ) override;
 
+    [[nodiscard]] std::vector<application::ApprovedBatchPlan> list() override;
+
 private:
     SqliteConnection& connection_;
 };

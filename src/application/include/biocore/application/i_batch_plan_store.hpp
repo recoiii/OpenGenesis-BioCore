@@ -2,6 +2,7 @@
 
 #include <optional>
 #include <string_view>
+#include <vector>
 
 #include "biocore/application/batch_plan.hpp"
 
@@ -17,6 +18,8 @@ public:
     [[nodiscard]] virtual std::optional<ApprovedBatchPlan> find(
         std::string_view plan_id
     ) = 0;
+
+    [[nodiscard]] virtual std::vector<ApprovedBatchPlan> list() = 0;
 };
 
 }  // namespace biocore::application

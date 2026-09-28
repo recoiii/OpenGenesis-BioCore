@@ -10,6 +10,7 @@
 namespace biocore::application {
 class ArtifactPresentationService;
 class BatchResultPackageService;
+class ProjectWorkspaceIntegrationService;
 class JobService;
 class JobRetryService;
 class ManagedFileService;
@@ -54,6 +55,7 @@ struct LocalHttpResponse final {
 class LocalApiController final {
 public:
     static constexpr std::size_t maximum_request_body_bytes = 16U * 1024U;
+    static constexpr std::size_t maximum_sample_table_bytes = 4U * 1024U * 1024U;
 
     LocalApiController(
         application::JobService& jobs,
@@ -66,7 +68,8 @@ public:
         application::JobRetryService* retries = nullptr,
         const application::IWorkflowTemplateCatalog* workflow_templates = nullptr,
         application::WorkflowExecutionWorkspaceService* workflow_workspace = nullptr,
-        application::BatchResultPackageService* batch_result_packages = nullptr
+        application::BatchResultPackageService* batch_result_packages = nullptr,
+        application::ProjectWorkspaceIntegrationService* project_workspace = nullptr
     );
 
     [[nodiscard]] LocalHttpResponse handle(const LocalHttpRequest& request);
@@ -94,6 +97,7 @@ private:
     application::ManagedFileService& managed_files_;
     application::ArtifactPresentationService& artifacts_;
     application::BatchResultPackageService* batch_result_packages_;
+    application::ProjectWorkspaceIntegrationService* project_workspace_;
     application::IUtcClock& clock_;
     const application::IWorkflowTemplateCatalog* workflow_templates_;
     application::WorkflowExecutionWorkspaceService* workflow_workspace_;

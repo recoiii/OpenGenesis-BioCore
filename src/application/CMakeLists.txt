@@ -36,6 +36,7 @@ target_sources(
         source/project_recovery_service.cpp
         source/project_service.cpp
         source/project_service_error.cpp
+        source/project_workspace_integration_service.cpp
         source/sample_registry_import.cpp
         source/sample_binding_service.cpp
         source/project_workspace_error.cpp
@@ -74,6 +75,7 @@ target_sources(
             include/biocore/application/health_snapshot.hpp
             include/biocore/application/i_artifact_content_access.hpp
             include/biocore/application/i_batch_execution_store.hpp
+            include/biocore/application/i_current_project_store.hpp
             include/biocore/application/i_batch_plan_store.hpp
             include/biocore/application/i_batch_scheduling_policy.hpp
             include/biocore/application/i_execution_plan_store.hpp
@@ -120,6 +122,8 @@ target_sources(
             include/biocore/application/project_recovery_service.hpp
             include/biocore/application/project_service.hpp
             include/biocore/application/project_service_error.hpp
+            include/biocore/application/project_workspace_integration.hpp
+            include/biocore/application/project_workspace_integration_service.hpp
             include/biocore/application/project_workspace_error.hpp
             include/biocore/application/sample_registry_import.hpp
             include/biocore/application/sample_binding_service.hpp

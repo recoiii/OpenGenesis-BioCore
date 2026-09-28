@@ -799,4 +799,36 @@ SqliteBatchPlanStore::find(const std::string_view plan_id) {
     return plan;
 }
 
+std::vector<application::ApprovedBatchPlan> SqliteBatchPlanStore::list() {
+    Statement statement{
+        connection_.native_handle(),
+        "SELECT plan_id FROM batch_plans WHERE sealed=1 ORDER BY approved_at_utc,plan_id;",
+        "Unable to list batch plans"
+    };
+    std::vector<std::string> ids;
+    for (;;) {
+        const int result = statement.step();
+        if (result == SQLITE_DONE) break;
+        if (result != SQLITE_ROW) {
+            throw SqliteError{
+                result,
+                std::string{"Unable to list batch plans: "} +
+                    sqlite3_errmsg(connection_.native_handle())
+            };
+        }
+        ids.push_back(statement.text(0));
+    }
+
+    std::vector<application::ApprovedBatchPlan> plans;
+    plans.reserve(ids.size());
+    for (const auto& id : ids) {
+        auto plan = find(id);
+        if (!plan.has_value()) {
+            throw SqliteError{SQLITE_CORRUPT, "Listed batch plan disappeared during read"};
+        }
+        plans.push_back(std::move(*plan));
+    }
+    return plans;
+}
+
 }  // namespace biocore::infrastructure::sqlite
