@@ -258,3 +258,249 @@ void add_artifact(
         .plugin_version = "0.1.0",
         .parameters = {{
             .name = "min-depth",
+            .type = domain::PluginParameterType::integer,
+            .value = "3",
+            .source = application::BatchPlanParameterSource::workflow_parameter,
+        }},
+        .inputs = {{
+            .port_name = "reference-evidence",
+            .artifact_type = "fasta",
+            .source_kind = application::BatchPlanInputSourceKind::managed_file,
+            .source_id = std::string{"ref-"} + reference_fill,
+            .source_port = {},
+            .managed_file = reference_snapshot(reference_fill),
+        }},
+        .outputs = {{"filtered", "vcf"}, {"summary", "json"}, {"table", "tsv"}},
+    };
+}
+
+[[nodiscard]] application::ApprovedBatchPlan make_plan(
+    std::vector<application::ApprovedBatchSamplePlan> samples
+) {
+    return {
+        .plan_id = "plan-1",
+        .project_id = "project-1",
+        .template_id = "template-1",
+        .template_version = "1",
+        .approved_at_utc = "approved",
+        .samples = std::move(samples),
+    };
+}
+
+[[nodiscard]] application::ApprovedBatchSamplePlan sample_plan(
+    std::string id,
+    application::BatchPlanNodeSnapshot node
+) {
+    return {
+        .sample_id = std::move(id),
+        .disposition = application::BatchPlanSampleDisposition::included,
+        .workflow_id = std::string{"workflow"},
+        .nodes = {std::move(node)},
+    };
+}
+
+void seed_execution(ExecutionStore& executions, const std::vector<std::pair<std::string, std::string>>& samples) {
+    application::BatchExecutionRecord record{
+        .plan_id = "plan-1", .maximum_concurrent_jobs = 2U,
+        .cancellation_requested = false, .submitted_at_utc = "submitted", .updated_at_utc = "submitted", .jobs = {}
+    };
+    std::size_t ordinal = 0U;
+    for (const auto& [sample, job] : samples) {
+        record.jobs.push_back({sample, ordinal++, job});
+        executions.attempts.push_back({
+            .plan_id = "plan-1", .sample_id = sample, .attempt_number = 1,
+            .job_id = job, .parent_job_id = std::nullopt,
+            .mode = application::BatchAttemptMode::initial,
+            .created_at_utc = "created", .execution_node_ids = {"qc"}
+        });
+    }
+    executions.record = std::move(record);
+}
+
+[[nodiscard]] application::BatchResultsOverview comparable_overview(bool missing_metric = false) {
+    PlanStore plans;
+    plans.plan = make_plan({sample_plan("sample-a", fastq_qc_node()), sample_plan("sample-b", fastq_qc_node())});
+    ExecutionStore executions;
+    seed_execution(executions, {{"sample-a", "job-a"}, {"sample-b", "job-b"}});
+    Jobs jobs;
+    jobs.values.emplace("job-a", completed_job("job-a"));
+    jobs.values.emplace("job-b", completed_job("job-b"));
+    ManagedFiles files;
+    Reader reader;
+    add_artifact(files, reader, "a-table", "job-a", "qc", "table", "org.biocore.fastqqc.stats", "tsv",
+                 "metric\tvalue\nread_count\t10\nq30_percent\t90.0\n");
+    add_artifact(files, reader, "b-table", "job-b", "qc", "table", "org.biocore.fastqqc.stats", "tsv",
+                 missing_metric ? "metric\tvalue\nread_count\t12\n"
+                                : "metric\tvalue\nread_count\t12\nq30_percent\t88.0\n");
+    application::BatchResultsService service{plans, executions, jobs, files, reader};
+    return service.overview("plan-1");
+}
+
+[[nodiscard]] bool test_comparable() {
+    const auto result = comparable_overview(false);
+    return result.samples.size() == 2U && result.qc_comparisons.size() == 1U &&
+           result.qc_comparisons.front().state == application::BatchQcComparisonState::comparable &&
+           result.samples.front().qc_summaries.front().metrics.size() == 2U;
+}
+
+[[nodiscard]] bool test_missing_not_zero() {
+    const auto result = comparable_overview(true);
+    if (result.qc_comparisons.size() != 1U ||
+        result.qc_comparisons.front().state != application::BatchQcComparisonState::incomplete) return false;
+    const auto& metrics = result.samples[1].qc_summaries.front().metrics;
+    return metrics.size() == 1U && metrics.front().key == "read_count";
+}
+
+[[nodiscard]] bool test_contract_mismatch() {
+    PlanStore plans;
+    plans.plan = make_plan({sample_plan("sample-a", fastq_qc_node("20")), sample_plan("sample-b", fastq_qc_node("25"))});
+    ExecutionStore executions;
+    seed_execution(executions, {{"sample-a", "job-a"}, {"sample-b", "job-b"}});
+    Jobs jobs;
+    jobs.values.emplace("job-a", completed_job("job-a"));
+    jobs.values.emplace("job-b", completed_job("job-b"));
+    ManagedFiles files;
+    Reader reader;
+    const std::string table = "metric\tvalue\nminimum_length\t20\ninput_reads\t10\nkept_reads\t8\n";
+    add_artifact(files, reader, "a-table", "job-a", "qc", "table", "org.biocore.fastqqc.trim-single", "tsv", table);
+    add_artifact(files, reader, "b-table", "job-b", "qc", "table", "org.biocore.fastqqc.trim-single", "tsv", table);
+    application::BatchResultsService service{plans, executions, jobs, files, reader};
+    const auto result = service.overview("plan-1");
+    return result.qc_comparisons.size() == 1U &&
+           result.qc_comparisons.front().state == application::BatchQcComparisonState::incompatible &&
+           result.samples[0].qc_summaries[0].metrics.size() == 2U;
+}
+
+
+[[nodiscard]] bool test_reference_mismatch() {
+    PlanStore plans;
+    plans.plan = make_plan({sample_plan("sample-a", vcf_node('a')), sample_plan("sample-b", vcf_node('b'))});
+    ExecutionStore executions;
+    seed_execution(executions, {{"sample-a", "job-a"}, {"sample-b", "job-b"}});
+    Jobs jobs;
+    jobs.values.emplace("job-a", completed_job("job-a"));
+    jobs.values.emplace("job-b", completed_job("job-b"));
+    ManagedFiles files;
+    Reader reader;
+    const std::string summary =
+        "{\"schemaVersion\":1,\"module\":\"org.biocore.vcfqc.filter\","
+        "\"metrics\":{\"totalRecords\":10,\"tiTvRatio\":null}}\n";
+    add_artifact(files, reader, "a-summary", "job-a", "qc", "summary", "org.biocore.vcfqc.filter", "json", summary);
+    add_artifact(files, reader, "b-summary", "job-b", "qc", "summary", "org.biocore.vcfqc.filter", "json", summary);
+    application::BatchResultsService service{plans, executions, jobs, files, reader};
+    const auto result = service.overview("plan-1");
+    if (result.qc_comparisons.size() != 1U ||
+        result.qc_comparisons.front().state != application::BatchQcComparisonState::incompatible) return false;
+    const auto& metrics = result.samples[0].qc_summaries[0].metrics;
+    const auto null_metric = std::ranges::find_if(metrics, [](const auto& metric) {
+        return metric.key == "tiTvRatio";
+    });
+    return null_metric != metrics.end() &&
+           null_metric->kind == application::BatchQcMetricValueKind::null_value &&
+           !null_metric->value.has_value();
+}
+
+[[nodiscard]] bool test_lineage_boundary() {
+    PlanStore plans;
+    plans.plan = make_plan({sample_plan("sample-a", fastq_qc_node())});
+    ExecutionStore executions;
+    seed_execution(executions, {{"sample-a", "job-1"}});
+    executions.attempts.push_back({
+        .plan_id="plan-1", .sample_id="sample-a", .attempt_number=2, .job_id="job-2",
+        .parent_job_id=std::string{"job-1"}, .mode=application::BatchAttemptMode::resume,
+        .created_at_utc="resume", .execution_node_ids={}
+    });
+    Jobs jobs;
+    jobs.values.emplace("job-1", completed_job("job-1"));
+    jobs.values.emplace("job-2", completed_job("job-2", 2));
+    ManagedFiles files;
+    Reader reader;
+    add_artifact(files, reader, "old-table", "job-1", "qc", "table", "org.biocore.fastqqc.stats", "tsv",
+                 "metric\tvalue\nread_count\t10\n");
+    application::BatchResultsService service{plans, executions, jobs, files, reader};
+    const auto resumed = service.overview("plan-1");
+    if (resumed.samples[0].artifacts.size() != 1U || resumed.samples[0].artifacts[0].job_id != "job-1") return false;
+    executions.attempts.back().execution_node_ids = {"qc"};
+    const auto recomputing = service.overview("plan-1");
+    if (!recomputing.samples[0].artifacts.empty()) return false;
+    executions.attempts.back().mode = application::BatchAttemptMode::retry;
+    const auto retried = service.overview("plan-1");
+    return retried.samples[0].artifacts.empty() && retried.samples[0].qc_summaries.empty();
+}
+
+[[nodiscard]] std::string vcf_for(std::string_view sample, std::string_view genotype) {
+    return "##fileformat=VCFv4.3\n"
+           "##FORMAT=<ID=GT,Number=1,Type=String,Description=\"Genotype\">\n"
+           "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\t" + std::string{sample} + "\n"
+           "chr1\t10\trs1\tA\tG\t.\tPASS\t.\tGT\t" + std::string{genotype} + "\n";
+}
+
+[[nodiscard]] bool test_matrix() {
+    PlanStore plans;
+    plans.plan = make_plan({sample_plan("sample-a", vcf_node()), sample_plan("sample-b", vcf_node())});
+    ExecutionStore executions;
+    seed_execution(executions, {{"sample-a", "job-a"}, {"sample-b", "job-b"}});
+    Jobs jobs;
+    jobs.values.emplace("job-a", completed_job("job-a"));
+    jobs.values.emplace("job-b", completed_job("job-b"));
+    ManagedFiles files;
+    Reader reader;
+    add_artifact(files, reader, "a-vcf", "job-a", "qc", "filtered", "org.biocore.vcfqc.filter", "vcf", vcf_for("sample-a", "0/1"));
+    add_artifact(files, reader, "b-vcf", "job-b", "qc", "filtered", "org.biocore.vcfqc.filter", "vcf", vcf_for("sample-b", "1/1"));
+    application::BatchResultsService service{plans, executions, jobs, files, reader};
+    std::istringstream fasta{">chr1\nAAAAAAAAAAAAAAAAAAAA\n"};
+    const auto reference = domain::ReferenceGenome::from_fasta(fasta, domain::ReferenceAssembly::grch38);
+    const auto built = service.build_variant_matrix(
+        "plan-1", {domain::ReferenceAssembly::grch38, {}}, reference
+    );
+    const auto a = built.matrix.sample_index("sample-a");
+    const auto b = built.matrix.sample_index("sample-b");
+    return built.preview.ready && built.matrix.sample_count() == 2U && built.matrix.variant_count() == 1U &&
+           a.has_value() && b.has_value() &&
+           built.matrix.find_observation(*a, 0U)->alternate_dosage == 1U &&
+           built.matrix.find_observation(*b, 0U)->alternate_dosage == 2U;
+}
+
+[[nodiscard]] bool test_matrix_rejects_sample_mismatch() {
+    PlanStore plans;
+    plans.plan = make_plan({sample_plan("sample-a", vcf_node())});
+    ExecutionStore executions;
+    seed_execution(executions, {{"sample-a", "job-a"}});
+    Jobs jobs;
+    jobs.values.emplace("job-a", completed_job("job-a"));
+    ManagedFiles files;
+    Reader reader;
+    add_artifact(files, reader, "a-vcf", "job-a", "qc", "filtered", "org.biocore.vcfqc.filter", "vcf", vcf_for("wrong-sample", "0/1"));
+    application::BatchResultsService service{plans, executions, jobs, files, reader};
+    std::istringstream fasta{">chr1\nAAAAAAAAAAAAAAAAAAAA\n"};
+    const auto reference = domain::ReferenceGenome::from_fasta(fasta, domain::ReferenceAssembly::grch38);
+    try {
+        static_cast<void>(service.build_variant_matrix(
+            "plan-1", {domain::ReferenceAssembly::grch38, {}}, reference
+        ));
+        return false;
+    } catch (const std::invalid_argument&) {
+        return true;
+    }
+}
+
+}  // namespace
+
+int main(int argc, char** argv) {
+    if (argc != 2) return EXIT_FAILURE;
+    const std::string mode = argv[1];
+    bool ok = false;
+    if (mode == "comparable") ok = test_comparable();
+    else if (mode == "missing") ok = test_missing_not_zero();
+    else if (mode == "contract") ok = test_contract_mismatch();
+    else if (mode == "reference") ok = test_reference_mismatch();
+    else if (mode == "lineage") ok = test_lineage_boundary();
+    else if (mode == "matrix") ok = test_matrix();
+    else if (mode == "matrix-reject") ok = test_matrix_rejects_sample_mismatch();
+    else return EXIT_FAILURE;
+    if (!ok) {
+        std::cerr << "Batch results test failed: " << mode << '\n';
+        return EXIT_FAILURE;
+    }
+    return EXIT_SUCCESS;
+}
