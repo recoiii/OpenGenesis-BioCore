@@ -5,6 +5,8 @@ target_sources(
     biocore-application
     PRIVATE
         source/artifact_presentation_service.cpp
+        source/batch_result_package_error.cpp
+        source/batch_result_package_service.cpp
         source/batch_execution.cpp
         source/batch_recovery_service.cpp
         source/batch_results.cpp
@@ -53,6 +55,9 @@ target_sources(
         BASE_DIRS include
         FILES
             include/biocore/application/artifact_presentation_service.hpp
+            include/biocore/application/batch_result_package.hpp
+            include/biocore/application/batch_result_package_error.hpp
+            include/biocore/application/batch_result_package_service.hpp
             include/biocore/application/batch_execution.hpp
             include/biocore/application/batch_execution_materializer.hpp
             include/biocore/application/batch_recovery_service.hpp

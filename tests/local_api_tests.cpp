@@ -16,6 +16,11 @@
 #include <vector>
 
 #include "biocore/application/artifact_presentation_service.hpp"
+#include "biocore/application/batch_result_package_service.hpp"
+#include "biocore/application/batch_results_service.hpp"
+#include "biocore/application/i_batch_execution_store.hpp"
+#include "biocore/application/i_batch_plan_store.hpp"
+#include "biocore/application/i_result_artifact_reader.hpp"
 #include "biocore/application/generated_output_artifact.hpp"
 #include "biocore/application/i_artifact_content_access.hpp"
 #include "biocore/application/i_id_generator.hpp"
@@ -130,6 +135,57 @@ public:
     std::vector<biocore::domain::ManagedFile> files;
 };
 
+
+class FakeBatchPlanStore final : public biocore::application::IBatchPlanStore {
+public:
+    bool add(const biocore::application::ApprovedBatchPlan& value) override { plan = value; return true; }
+    std::optional<biocore::application::ApprovedBatchPlan> find(std::string_view id) override {
+        return plan.has_value() && plan->plan_id == id ? plan : std::nullopt;
+    }
+    std::optional<biocore::application::ApprovedBatchPlan> plan;
+};
+
+class FakeBatchExecutionStore final : public biocore::application::IBatchExecutionStore {
+public:
+    biocore::application::AddBatchExecutionResult add(
+        const biocore::application::BatchExecutionRecord& value,
+        std::span<const biocore::application::BatchPreparedJob>
+    ) override { record = value; return biocore::application::AddBatchExecutionResult::created; }
+    std::optional<biocore::application::BatchExecutionRecord> find(std::string_view id) override {
+        return record.has_value() && record->plan_id == id ? record : std::nullopt;
+    }
+    std::vector<biocore::application::BatchExecutionRecord> list() override {
+        return record.has_value() ? std::vector<biocore::application::BatchExecutionRecord>{*record}
+                                  : std::vector<biocore::application::BatchExecutionRecord>{};
+    }
+    std::vector<biocore::application::BatchExecutionAttemptRecord> list_attempts(std::string_view id) override {
+        std::vector<biocore::application::BatchExecutionAttemptRecord> out;
+        for (const auto& attempt : attempts) if (attempt.plan_id == id) out.push_back(attempt);
+        return out;
+    }
+    biocore::application::AddBatchAttemptResult add_attempt(
+        const biocore::application::BatchPreparedAttempt& item
+    ) override {
+        attempts.push_back(item.attempt);
+        return biocore::application::AddBatchAttemptResult::created;
+    }
+    bool request_cancellation(std::string_view, std::string_view) override { return true; }
+    std::optional<biocore::application::BatchSchedulingQuota> quota_for_job(std::string_view) override {
+        return std::nullopt;
+    }
+    std::optional<biocore::application::BatchExecutionRecord> record;
+    std::vector<biocore::application::BatchExecutionAttemptRecord> attempts;
+};
+
+class FakeResultReader final : public biocore::application::IResultArtifactReader {
+public:
+    biocore::application::ResultArtifactText read_verified_text(
+        const biocore::application::GeneratedOutputArtifact&,
+        std::size_t
+    ) override {
+        throw std::runtime_error("Non-QC local API fixture must not parse output content");
+    }
+};
 
 class SequenceIdGenerator final : public biocore::application::IIdGenerator {
 public:
@@ -416,6 +472,41 @@ int main() {
         files_repo, input_storage, file_ids, clock, clock
     };
     biocore::application::ArtifactPresentationService artifacts{files_repo, jobs_repo, content, clock};
+    FakeBatchPlanStore batch_plans;
+    batch_plans.plan = biocore::application::ApprovedBatchPlan{
+        .plan_id = "plan-1", .project_id = "project-1", .template_id = "template-1",
+        .template_version = "1.0.0", .approved_at_utc = "2026-08-07T11:39:00Z",
+        .samples = {{
+            .sample_id = "sample-a",
+            .disposition = biocore::application::BatchPlanSampleDisposition::included,
+            .workflow_id = std::string{"workflow"},
+            .nodes = {{
+                .node_id = "step-a", .module_id = "org.biocore.demo.copy",
+                .plugin_version = "1.0.0", .parameters = {}, .inputs = {},
+                .outputs = {{"result", "binary"}},
+            }},
+        }},
+    };
+    FakeBatchExecutionStore batch_executions;
+    batch_executions.record = biocore::application::BatchExecutionRecord{
+        .plan_id = "plan-1", .maximum_concurrent_jobs = 1U, .cancellation_requested = false,
+        .submitted_at_utc = "2026-08-07T11:39:10Z",
+        .updated_at_utc = "2026-08-07T11:40:00Z",
+        .jobs = {{"sample-a", 0U, "job-a"}},
+    };
+    batch_executions.attempts = {{
+        .plan_id = "plan-1", .sample_id = "sample-a", .attempt_number = 1,
+        .job_id = "job-a", .parent_job_id = std::nullopt,
+        .mode = biocore::application::BatchAttemptMode::initial,
+        .created_at_utc = "2026-08-07T11:39:10Z", .execution_node_ids = {"step-a"},
+    }};
+    FakeResultReader batch_reader;
+    biocore::application::BatchResultsService batch_results{
+        batch_plans, batch_executions, jobs_repo, files_repo, batch_reader
+    };
+    biocore::application::BatchResultPackageService batch_packages{
+        batch_results, files_repo, content, clock
+    };
     biocore::application::WorkflowStateService workflow_states{
         workflow_state_store, clock
     };
@@ -428,7 +519,7 @@ int main() {
     biocore::presentation::LocalBrowserSession browser_session{8421U, browser_token};
     biocore::presentation::LocalApiController api{
         jobs, submissions, managed_files, artifacts, clock, bootstrap_token, browser_session,
-        nullptr, &workflow_templates, &workflow_workspace
+        nullptr, &workflow_templates, &workflow_workspace, &batch_packages
     };
 
     const auto health = api.handle({.method = biocore::presentation::HttpMethod::get, .target = "/api/v1/health", .authorization = {}, .body = {}});
@@ -441,6 +532,33 @@ int main() {
     require(prefix_only.status == 401, "empty bearer token must fail");
 
     const std::string auth = "Bearer " + bootstrap_token;
+
+    const auto batch_manifest = api.handle({
+        .method = biocore::presentation::HttpMethod::get,
+        .target = "/api/v1/batches/plan-1/export-manifest.json",
+        .authorization = auth,
+        .body = {}
+    });
+    require(batch_manifest.status == 200, "batch export manifest status");
+    require(batch_manifest.body.find("\"plan\":{\"id\":\"plan-1\"") != std::string::npos,
+            "batch export manifest plan identity");
+    require(batch_manifest.body.find(std::string(64U, 'a')) != std::string::npos,
+            "batch export manifest verified checksum");
+    require(batch_manifest.body.find("/secret/project") == std::string::npos,
+            "batch export manifest must not leak absolute paths");
+
+    const auto batch_html = api.handle({
+        .method = biocore::presentation::HttpMethod::get,
+        .target = "/api/v1/batches/plan-1/report.html",
+        .authorization = auth,
+        .body = {}
+    });
+    require(batch_html.status == 200 && batch_html.content_type == "text/html; charset=utf-8",
+            "batch HTML report status");
+    require(batch_html.body.find("OpenGenesis-BioCore Batch Results Report") != std::string::npos,
+            "batch HTML report content");
+    require(batch_html.body.find("/secret/project") == std::string::npos,
+            "batch HTML report must not leak absolute paths");
 
 
     const auto template_list = api.handle({

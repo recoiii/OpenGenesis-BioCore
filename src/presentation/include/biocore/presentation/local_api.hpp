@@ -9,6 +9,7 @@
 
 namespace biocore::application {
 class ArtifactPresentationService;
+class BatchResultPackageService;
 class JobService;
 class JobRetryService;
 class ManagedFileService;
@@ -64,7 +65,8 @@ public:
         LocalBrowserSession& browser_session,
         application::JobRetryService* retries = nullptr,
         const application::IWorkflowTemplateCatalog* workflow_templates = nullptr,
-        application::WorkflowExecutionWorkspaceService* workflow_workspace = nullptr
+        application::WorkflowExecutionWorkspaceService* workflow_workspace = nullptr,
+        application::BatchResultPackageService* batch_result_packages = nullptr
     );
 
     [[nodiscard]] LocalHttpResponse handle(const LocalHttpRequest& request);
@@ -91,6 +93,7 @@ private:
     application::IJobSubmitter& submissions_;
     application::ManagedFileService& managed_files_;
     application::ArtifactPresentationService& artifacts_;
+    application::BatchResultPackageService* batch_result_packages_;
     application::IUtcClock& clock_;
     const application::IWorkflowTemplateCatalog* workflow_templates_;
     application::WorkflowExecutionWorkspaceService* workflow_workspace_;

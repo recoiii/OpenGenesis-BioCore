@@ -9,6 +9,8 @@
 
 #include "biocore/application/artifact_presentation_service.hpp"
 #include "biocore/application/batch_recovery_service.hpp"
+#include "biocore/application/batch_result_package_service.hpp"
+#include "biocore/application/batch_results_service.hpp"
 #include "biocore/application/job_scheduler.hpp"
 #include "biocore/application/job_retry_service.hpp"
 #include "biocore/application/job_service.hpp"
@@ -24,6 +26,7 @@
 #include "biocore/application/workflow_state_service.hpp"
 #include "biocore/infrastructure/filesystem_artifact_content_access.hpp"
 #include "biocore/infrastructure/filesystem_input_file_storage.hpp"
+#include "biocore/infrastructure/filesystem_result_artifact_reader.hpp"
 #include "biocore/infrastructure/filesystem_output_artifact_inspector.hpp"
 #include "biocore/infrastructure/filesystem_partial_output_cleaner.hpp"
 #include "biocore/infrastructure/filesystem_pipeline_catalog.hpp"
@@ -306,6 +309,14 @@ int run_local_server(
         api_ids, clock, api_jobs
     };
     const auto batch_recovery_inspections = batch_recovery.inspect_all();
+    infrastructure::FilesystemResultArtifactReader result_artifact_reader{root};
+    application::BatchResultsService batch_results{
+        api_batch_plans, api_batch_executions, api_job_repository, api_managed_files,
+        result_artifact_reader
+    };
+    application::BatchResultPackageService batch_result_packages{
+        batch_results, api_managed_files, content_access, clock
+    };
     application::PipelinePreparationService preparation{execution_plans, plugins, api_managed_files};
     application::JobSubmissionService submissions{api_prepared_jobs, pipelines, preparation, execution_plans, api_ids, clock};
     application::JobRetryService retries{api_jobs, api_prepared_jobs, clock};
@@ -329,7 +340,7 @@ int run_local_server(
     };
     presentation::LocalApiController api{
         api_jobs, submissions, managed_files, artifacts, clock, token, browser_session,
-        &retries, &workflow_templates, &workflow_workspace
+        &retries, &workflow_templates, &workflow_workspace, &batch_result_packages
     };
     standard_output << "OpenGenesis-BioCore project recovery: " << recovery_result.recovered_jobs.size()
                     << " stale job(s) interrupted, " << recovery_result.issues.size() << " issue(s).\n";

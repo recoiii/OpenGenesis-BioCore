@@ -1015,3 +1015,21 @@ foreach(mode verified limit tamper)
         COMMAND biocore-filesystem-result-artifact-reader-tests ${mode}
     )
 endforeach()
+
+add_executable(biocore-batch-result-package-tests batch_result_package_tests.cpp)
+target_link_libraries(
+    biocore-batch-result-package-tests
+    PRIVATE BioCore::application BioCore::project_options BioCore::project_warnings BioCore::sanitizers
+)
+foreach(mode verified missing identity integrity)
+    add_test(NAME integration.batch_result_package_${mode} COMMAND biocore-batch-result-package-tests ${mode})
+endforeach()
+
+add_executable(biocore-batch-result-package-report-tests batch_result_package_report_tests.cpp)
+target_link_libraries(
+    biocore-batch-result-package-report-tests
+    PRIVATE BioCore::presentation BioCore::project_options BioCore::project_warnings BioCore::sanitizers
+)
+foreach(mode json html)
+    add_test(NAME presentation.batch_result_package_${mode} COMMAND biocore-batch-result-package-report-tests ${mode})
+endforeach()

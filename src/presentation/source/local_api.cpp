@@ -14,6 +14,8 @@
 #include <vector>
 
 #include "biocore/application/artifact_presentation_service.hpp"
+#include "biocore/application/batch_result_package_error.hpp"
+#include "biocore/application/batch_result_package_service.hpp"
 #include "biocore/application/artifact_presentation_service_error.hpp"
 #include "biocore/application/build_info.hpp"
 #include "biocore/application/health_snapshot.hpp"
@@ -41,6 +43,7 @@
 #include "biocore/domain/workflow_dag.hpp"
 #include "biocore/pipeline_protocol/workflow_document_codec.hpp"
 #include "biocore/presentation/artifact_report.hpp"
+#include "biocore/presentation/batch_result_package_report.hpp"
 #include "biocore/presentation/health_json.hpp"
 #include "biocore/presentation/local_browser_session.hpp"
 
@@ -1119,11 +1122,12 @@ LocalApiController::LocalApiController(
     LocalBrowserSession& browser_session,
     application::JobRetryService* retries,
     const application::IWorkflowTemplateCatalog* workflow_templates,
-    application::WorkflowExecutionWorkspaceService* workflow_workspace
+    application::WorkflowExecutionWorkspaceService* workflow_workspace,
+    application::BatchResultPackageService* batch_result_packages
 )
     : jobs_{jobs}, retries_{retries}, submissions_{submissions}, managed_files_{managed_files},
-      artifacts_{artifacts}, clock_{clock}, workflow_templates_{workflow_templates},
-      workflow_workspace_{workflow_workspace},
+      artifacts_{artifacts}, batch_result_packages_{batch_result_packages}, clock_{clock},
+      workflow_templates_{workflow_templates}, workflow_workspace_{workflow_workspace},
       bootstrap_token_{std::move(bootstrap_token)}, browser_session_{browser_session} {
     if (bootstrap_token_.size() < 32U || bootstrap_token_.size() > 2048U) {
         throw std::invalid_argument("Bootstrap token length is invalid");
@@ -1383,6 +1387,39 @@ if (path.size() == 6U && path[2] == "files" && path[3] == "uploads" &&
     return json_response(200, "{\"status\":\"cancelled\"}");
 }
 
+
+        if (path.size() >= 4U && path[2] == "batches" && safe_path_atom(path[3])) {
+            const std::string_view plan_id = path[3];
+            if (batch_result_packages_ == nullptr) {
+                return error_response(503, "batch_result_package_unavailable",
+                                      "Batch result packaging service is unavailable");
+            }
+            if (path.size() == 5U && path[4] == "export-manifest.json" &&
+                request.method == HttpMethod::get) {
+                return json_response(
+                    200, render_batch_result_package_manifest_json(
+                             batch_result_packages_->build(plan_id)
+                         )
+                );
+            }
+            if (path.size() == 5U && path[4] == "report.html" &&
+                request.method == HttpMethod::get) {
+                LocalHttpResponse response;
+                response.status = 200;
+                response.content_type = "text/html; charset=utf-8";
+                response.body = render_batch_result_package_html(
+                    batch_result_packages_->build(plan_id)
+                );
+                response.headers.emplace_back("Cache-Control", "no-store");
+                response.headers.emplace_back("X-Content-Type-Options", "nosniff");
+                response.headers.emplace_back(
+                    "Content-Security-Policy",
+                    "default-src 'none'; style-src 'unsafe-inline'; frame-ancestors 'none'"
+                );
+                return response;
+            }
+        }
+
         if (path.size() == 3U && path[2] == "jobs" && request.method == HttpMethod::get) {
             return json_response(200, render_jobs(jobs_.list()));
         }
@@ -1506,6 +1543,8 @@ if (path.size() == 6U && path[2] == "files" && path[3] == "uploads" &&
             }
         }
         return error_response(404, "not_found", "Route was not found");
+    } catch (const application::BatchResultPackageError& error) {
+        return error_response(409, application::to_string(error.code()), error.what());
     } catch (const application::ArtifactPresentationError& error) {
         using Code = application::ArtifactPresentationErrorCode;
         const bool missing = error.code() == Code::job_not_found || error.code() == Code::artifact_not_found || error.code() == Code::content_missing;
