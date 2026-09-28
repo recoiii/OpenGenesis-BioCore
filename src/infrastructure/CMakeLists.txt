@@ -7,6 +7,7 @@ target_sources(
     biocore-infrastructure
     PRIVATE
         source/filesystem_artifact_content_access.cpp
+        source/filesystem_result_artifact_reader.cpp
         source/filesystem_workflow_checkpoint_artifact_verifier.cpp
         source/filesystem_input_file_storage.cpp
         source/filesystem_reference_compatibility_inspector.cpp
@@ -52,6 +53,7 @@ target_sources(
         BASE_DIRS include
         FILES
             include/biocore/infrastructure/filesystem_artifact_content_access.hpp
+            include/biocore/infrastructure/filesystem_result_artifact_reader.hpp
             include/biocore/infrastructure/filesystem_workflow_checkpoint_artifact_verifier.hpp
             include/biocore/infrastructure/filesystem_input_file_storage.hpp
             include/biocore/infrastructure/filesystem_reference_compatibility_inspector.hpp
