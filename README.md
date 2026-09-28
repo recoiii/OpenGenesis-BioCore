@@ -6,7 +6,7 @@ OpenGenesis-BioCore is a local-first C++20 bioinformatics platform with a localh
 processes, SQLite project persistence, plugin/pipeline execution, live job telemetry, durable artifacts,
 and an integrated FASTA/FASTQ-to-variant-analysis workflow suite.
 
-**Current stable release: v0.4.0**
+**Current stable release: v0.5.0**
 
 ## Highlights
 
@@ -16,6 +16,9 @@ and an integrated FASTA/FASTQ-to-variant-analysis workflow suite.
 - Native out-of-process workers/plugins, bounded job scheduling, cancellation, retry and live lifecycle telemetry.
 - Workflow Engine 2.0 DAG modeling, deterministic validation/planning, typed binding, bounded branching and checkpoint/resume planning.
 - Durable SQLite workflow execution state, exact-version reusable workflow templates, browser Workflow Builder and Execution Workspace.
+- Project/sample research workspace with revision-controlled research context, sample registry and explicit input/reference bindings.
+- Deterministic per-sample batch planning/execution with bounded concurrency, cancellation, immutable attempt lineage and explicit resume/retry recovery.
+- Lineage-aware sample results and QC comparison guards, existing v0.3 multi-sample matrix bridging, and integrity-verified batch JSON/HTML reporting.
 - FASTA/FASTQ QC, paired-end processing, trimming/filtering, alignment, SAM/BAM QC and coverage/depth.
 - Canonical small-variant representation for SNV, insertion, deletion, MNV and DELINS/complex alleles.
 - VCF ingestion, coordinate indexing and FASTA-backed normalization.
@@ -30,16 +33,16 @@ and an integrated FASTA/FASTQ-to-variant-analysis workflow suite.
 
 ## Validation
 
-OpenGenesis-BioCore v0.4.0 closes against one exact Iteration 078 source candidate. Linux GCC Debug/Release,
-Clang Debug, GCC ASan+UBSan, native Windows MSVC Debug/Release, clean install and portable-package smoke,
-the retained v0.3 scientific/performance gates, v0.3 project/assets compatibility gates, Workflow Engine 2.0
-end-to-end recovery evidence, and independent Gemini + Claude Code release review must all refer to the same
-candidate identity. Historical evidence is never reused to close a newer source state.
+OpenGenesis-BioCore v0.5.0 closes against one exact Iteration 088 source candidate. Linux GCC Debug/Release,
+Clang Debug, GCC ASan+UBSan, the retained scientific/performance gates, the v9→v15 migration and recovery/E2E
+closure gates, native Windows MSVC Debug/Release, clean install and portable-package smoke, and independent
+Gemini + Claude final review must all refer to the same candidate identity. Historical evidence is never reused
+to close a newer source state.
 
 See [`docs/release/VALIDATION.md`](docs/release/VALIDATION.md),
 [`docs/release/FINAL-WINDOWS-CLOSURE.md`](docs/release/FINAL-WINDOWS-CLOSURE.md),
 [`docs/release/KNOWN-LIMITATIONS.md`](docs/release/KNOWN-LIMITATIONS.md), and
-[`docs/release/RELEASE-NOTES-0.4.0.md`](docs/release/RELEASE-NOTES-0.4.0.md).
+[`docs/release/RELEASE-NOTES-0.5.0.md`](docs/release/RELEASE-NOTES-0.5.0.md).
 
 ## Build on Linux
 
@@ -88,12 +91,14 @@ installing a plugin is equivalent to installing native software from that publis
 
 ## Scientific scope
 
-The v0.4.0 release retains the v0.3 small-variant scientific scope and adds the Workflow Engine 2.0
-authoring/planning/persistence/workspace layer. It does not claim a separate second native multi-node dispatcher. Structural-variant/CNV calling, tumor-normal
-somatic calling, full GWAS, ACMG clinical classification and distributed/cloud execution remain outside scope.
-The current Annotation 2.0 implementation performs exact allele lookup and GFF/GTF feature overlap; it does not
-claim transcript/CDS/codon/protein consequence prediction. The GIAB gate demonstrates truth-set ingestion and
-comparison compatibility, not end-to-end caller accuracy on HG002 sequencing reads.
+The v0.5.0 release retains the v0.3 canonical small-variant scientific methods and the v0.4 Workflow Engine 2.0
+contracts. v0.5 adds project/sample/batch context, recovery lineage, QC/result aggregation, verified reporting and
+an integrated project workspace; it does not introduce a new caller, association method, biological score or
+second execution engine. Structural-variant/CNV calling, tumor-normal somatic calling, full GWAS, ACMG clinical
+classification and distributed/cloud execution remain outside scope. The current Annotation 2.0 implementation
+performs exact allele lookup and GFF/GTF feature overlap; it does not claim transcript/CDS/codon/protein
+consequence prediction. The GIAB gate demonstrates truth-set ingestion/comparison compatibility, not end-to-end
+caller accuracy on HG002 sequencing reads.
 
 ## License
 
@@ -102,7 +107,7 @@ OpenGenesis-BioCore is distributed under the [MIT License](LICENSE).
 ## Citation
 
 The stable Zenodo concept DOI for OpenGenesis-BioCore is **10.5281/zenodo.22012037**. The repository citation
-metadata identify this source as v0.4.0. A version-specific v0.4.0 DOI is added only after the accepted release
+metadata identify this source as v0.5.0. A version-specific v0.5.0 DOI is added only after the accepted release
 source is deposited; no unreleased DOI is fabricated in this candidate.
 
 Citation metadata are available in [`CITATION.cff`](CITATION.cff).

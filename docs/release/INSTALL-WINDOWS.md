@@ -1,8 +1,8 @@
-# OpenGenesis-BioCore v0.4.0 — Windows Installation
+# OpenGenesis-BioCore v0.5.0 — Windows Installation
 
-OpenGenesis-BioCore v0.4.0 is distributed as a portable x64 ZIP. No cloud account or remote service is required.
+OpenGenesis-BioCore v0.5.0 is distributed as a portable x64 ZIP. No cloud account or remote service is required.
 
-1. Verify the published SHA-256 for `OpenGenesis-BioCore-0.4.0-windows-x64.zip`.
+1. Verify the published SHA-256 for `OpenGenesis-BioCore-0.5.0-windows-x64.zip`.
 2. Extract the ZIP to a user-writable directory, for example `C:\OpenGenesis-BioCore`.
 3. Open PowerShell in the extracted top-level directory.
 4. Confirm the release identity:
@@ -12,7 +12,7 @@ OpenGenesis-BioCore v0.4.0 is distributed as a portable x64 ZIP. No cloud accoun
 .\bin\biocore-worker.exe --self-test
 ```
 
-The expected Core version is exactly `0.4.0` and the worker protocol is `2`.
+The expected Core version is exactly `0.5.0` and the worker protocol is `2`.
 
 5. Create a project directory and catalog:
 
@@ -29,10 +29,10 @@ The expected Core version is exactly `0.4.0` and the worker protocol is `2`.
 .\bin\biocore.exe --serve "$HOME\OpenGenesis-BioCoreProjects\my-project"
 ```
 
-7. Open the localhost UI printed by the terminal.
-8. Paste the bootstrap bearer token printed by the same process into the browser session form.
-9. Use the available analysis workflows to select explicit managed inputs and parameters.
-10. Use Results and generated exports to inspect local reports and artifacts.
+7. Open the localhost UI printed by the terminal and exchange the bootstrap token for the browser session.
+8. Use **Project Workspace** to import samples, bind local inputs/references, preview/approve a frozen batch, monitor
+   execution/recovery and inspect verified results/reports.
+9. Use the existing Workflow Builder and Execution Workspace for workflow authoring/state inspection when needed.
 
 OpenGenesis-BioCore is intended to stay local. Do not expose the listener through port forwarding, reverse proxies,
 LAN binds or public tunnels. Native plugins are trusted local executables and are not sandboxed.
