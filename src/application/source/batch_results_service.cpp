@@ -688,3 +688,243 @@ BatchResultsOverview BatchResultsService::overview(const std::string_view plan_i
         for (const auto& node : sample.nodes) {
             if (!qc_module(node.module_id)) continue;
             const ArtifactKey key{node.node_id, qc_port(node.module_id)};
+            const auto artifact_it = selected.find(key);
+            if (artifact_it == selected.end()) {
+                add_artifact_issue(
+                    result.issues, sample.sample_id,
+                    latest_job->status() == domain::JobStatus::completed
+                        ? "qc_summary_missing" : "qc_summary_pending",
+                    "QC output is not available in the current result lineage"
+                );
+                continue;
+            }
+            try {
+                std::uint32_t schema_version = 1U;
+                auto metrics = qc_metrics(
+                    artifact_reader_, managed_files_, artifact_it->second, node, schema_version
+                );
+                const auto reference = reference_signature(sample, node);
+                sample_result.qc_summaries.push_back(BatchQcSummary{
+                    .sample_id = sample.sample_id,
+                    .node_id = node.node_id,
+                    .module_id = node.module_id,
+                    .plugin_version = node.plugin_version,
+                    .metric_schema_version = schema_version,
+                    .parameter_signature = parameter_signature(node),
+                    .reference_signature = reference.value,
+                    .reference_evidence_complete = reference.complete,
+                    .stable = latest_job->status() == domain::JobStatus::completed,
+                    .source_artifact = artifact_it->second,
+                    .metrics = std::move(metrics),
+                });
+            } catch (const std::exception& error) {
+                add_artifact_issue(
+                    result.issues, sample.sample_id, "qc_summary_unavailable",
+                    std::string{"QC summary could not be safely aggregated: "} + error.what()
+                );
+            }
+        }
+
+        result.samples.push_back(std::move(sample_result));
+    }
+
+    for (auto& sample : result.samples) {
+        for (auto& summary : sample.qc_summaries) {
+            summaries_by_node[{summary.node_id, summary.module_id}].push_back(&summary);
+        }
+    }
+
+    for (const auto& [key, expected_samples] : expected_by_node) {
+        const auto found = summaries_by_node.find(key);
+        const auto& summaries = found == summaries_by_node.end()
+            ? std::vector<const BatchQcSummary*>{}
+            : found->second;
+        BatchQcComparisonGroup group{
+            .node_id = key.first,
+            .module_id = key.second,
+            .state = BatchQcComparisonState::incomplete,
+            .sample_ids = expected_samples,
+            .reason = {},
+        };
+        if (summaries.size() != expected_samples.size()) {
+            group.reason = "One or more included samples have no available QC metric set; missing values are not imputed";
+        } else if (std::ranges::any_of(summaries, [](const auto* summary) { return !summary->stable; })) {
+            group.reason = "One or more QC summaries belong to a non-completed latest attempt";
+        } else if (std::ranges::any_of(summaries, [](const auto* summary) {
+                       return !summary->reference_evidence_complete;
+                   })) {
+            group.reason = "Reference identity evidence is unavailable for a reference-sensitive QC comparison";
+        } else {
+            const auto* first = summaries.front();
+            const auto first_shape = metric_shape(*first);
+            const bool contract_mismatch = std::ranges::any_of(summaries, [first](const auto* summary) {
+                return summary->plugin_version != first->plugin_version ||
+                       summary->metric_schema_version != first->metric_schema_version ||
+                       summary->parameter_signature != first->parameter_signature ||
+                       summary->reference_signature != first->reference_signature;
+            });
+            if (contract_mismatch) {
+                group.state = BatchQcComparisonState::incompatible;
+                group.reason = "QC plugin/schema/parameter/reference contract differs across samples";
+            } else if (std::ranges::any_of(summaries, [&first_shape](const auto* summary) {
+                           return metric_shape(*summary) != first_shape;
+                       })) {
+                group.reason = "QC metric sets differ across samples; absent metrics remain missing rather than zero";
+            } else {
+                group.state = BatchQcComparisonState::comparable;
+                group.reason = "QC metric contract is identical across completed sample results";
+            }
+        }
+        result.qc_comparisons.push_back(std::move(group));
+    }
+    std::ranges::sort(result.qc_comparisons, [](const auto& left, const auto& right) {
+        return std::tie(left.node_id, left.module_id) < std::tie(right.node_id, right.module_id);
+    });
+    return result;
+}
+
+BatchVariantMatrixPreview BatchResultsService::preview_variant_matrix(
+    const std::string_view plan_id
+) {
+    require_plan_id(plan_id);
+    const auto plan = plans_.find(plan_id);
+    if (!plan.has_value()) throw std::invalid_argument{"Batch matrix plan was not found"};
+    BatchVariantMatrixPreview preview{
+        .plan_id = plan->plan_id,
+        .ready = false,
+        .sources = {},
+        .issues = {},
+    };
+    const auto execution = executions_.find(plan_id);
+    if (!execution.has_value()) {
+        add_artifact_issue(preview.issues, {}, "batch_not_submitted", "Batch has no persisted execution");
+        return preview;
+    }
+    const auto attempts_by_sample = index_attempts(executions_.list_attempts(plan_id));
+    std::optional<std::string> expected_contract;
+
+    for (const auto& sample : plan->samples) {
+        if (sample.disposition != BatchPlanSampleDisposition::included) continue;
+        const auto attempts_it = attempts_by_sample.find(sample.sample_id);
+        if (attempts_it == attempts_by_sample.end() || attempts_it->second.empty()) {
+            add_artifact_issue(preview.issues, sample.sample_id, "matrix_sample_not_submitted", "Sample has no batch attempt");
+            continue;
+        }
+        const auto& latest = attempts_it->second.back();
+        const auto job = jobs_.find_by_id(latest.job_id);
+        if (!job.has_value()) throw std::runtime_error{"Batch matrix latest attempt references a missing Job"};
+        if (job->status() != domain::JobStatus::completed) {
+            add_artifact_issue(preview.issues, sample.sample_id, "matrix_sample_not_completed", "Sample latest attempt is not completed");
+            continue;
+        }
+        const auto terminal = terminal_vcf_outputs(sample);
+        if (terminal.size() != 1U) {
+            add_artifact_issue(
+                preview.issues, sample.sample_id,
+                terminal.empty() ? "matrix_terminal_vcf_missing" : "matrix_terminal_vcf_ambiguous",
+                terminal.empty()
+                    ? "Frozen sample plan has no terminal VCF output"
+                    : "Frozen sample plan has more than one terminal VCF output"
+            );
+            continue;
+        }
+        const auto& node = require_node(sample, terminal.front().first);
+        const std::string contract = terminal_contract_signature(sample, node);
+        if (!expected_contract.has_value()) expected_contract = contract;
+        else if (*expected_contract != contract) {
+            add_artifact_issue(
+                preview.issues, sample.sample_id, "matrix_contract_mismatch",
+                "Terminal VCF plugin/version/parameter contract differs across samples"
+            );
+            continue;
+        }
+
+        std::vector<BatchResultIssue> artifact_issues;
+        const auto selected = collect_current_artifacts(
+            sample, attempts_it->second, managed_files_, artifact_issues
+        );
+        preview.issues.insert(preview.issues.end(), artifact_issues.begin(), artifact_issues.end());
+        const auto artifact_it = selected.find(terminal.front());
+        if (artifact_it == selected.end()) {
+            add_artifact_issue(preview.issues, sample.sample_id, "matrix_vcf_artifact_missing", "Terminal VCF artifact is not registered in the current result lineage");
+            continue;
+        }
+        const auto artifact = resolve_artifact(managed_files_, artifact_it->second);
+        if (!artifact.has_value()) throw std::runtime_error{"Batch matrix artifact disappeared from persistence"};
+        const auto read = artifact_reader_.read_verified_text(*artifact, maximum_matrix_vcf_bytes);
+        if (read.status != ResultArtifactReadStatus::verified || !read.text.has_value()) {
+            add_artifact_issue(
+                preview.issues, sample.sample_id, "matrix_vcf_unavailable",
+                "Terminal VCF content is not verified: " + read_status_text(read.status)
+            );
+            continue;
+        }
+        preview.sources.push_back(BatchVariantMatrixSource{
+            .sample_id = sample.sample_id,
+            .artifact = artifact_it->second,
+        });
+    }
+
+    preview.ready = preview.issues.empty() && !preview.sources.empty();
+    return preview;
+}
+
+BatchVariantMatrixBuild BatchResultsService::build_variant_matrix(
+    const std::string_view plan_id,
+    const domain::ReferenceAssemblyIdentity& assembly,
+    const domain::ReferenceGenome& reference
+) {
+    domain::validate_reference_assembly_identity(assembly);
+    if (reference.contigs().assembly() != assembly.assembly) {
+        throw std::invalid_argument{"Batch matrix reference assembly does not match requested assembly identity"};
+    }
+    auto preview = preview_variant_matrix(plan_id);
+    if (!preview.ready) {
+        const std::string reason = preview.issues.empty()
+            ? "Batch has no compatible terminal VCF outputs"
+            : preview.issues.front().message;
+        throw std::invalid_argument{"Batch variant matrix is not ready: " + reason};
+    }
+
+    std::vector<domain::VcfIngestionResult> ingestions;
+    ingestions.reserve(preview.sources.size());
+    for (const auto& source : preview.sources) {
+        const auto artifact = resolve_artifact(managed_files_, source.artifact);
+        if (!artifact.has_value()) throw std::runtime_error{"Batch matrix artifact disappeared from persistence"};
+        const auto read = artifact_reader_.read_verified_text(*artifact, maximum_matrix_vcf_bytes);
+        if (read.status != ResultArtifactReadStatus::verified || !read.text.has_value()) {
+            throw std::runtime_error{"Batch matrix VCF failed content verification"};
+        }
+        std::istringstream input{*read.text};
+        auto ingestion = domain::ingest_vcf(input, reference);
+        if (ingestion.header.sample_names.size() != 1U ||
+            ingestion.header.sample_names.front() != source.sample_id) {
+            throw std::invalid_argument{
+                "Terminal VCF does not satisfy the single-sample v0.3 matrix input contract for sample '" +
+                source.sample_id + "'"
+            };
+        }
+        ingestions.push_back(std::move(ingestion));
+    }
+
+    std::vector<domain::MultiSampleMatrixSource> sources;
+    sources.reserve(preview.sources.size());
+    for (std::size_t index = 0U; index < preview.sources.size(); ++index) {
+        sources.push_back(domain::MultiSampleMatrixSource{
+            .source_id = preview.sources[index].artifact.managed_file_id,
+            .assembly = assembly,
+            .contigs = &reference.contigs(),
+            .variants = &ingestions[index],
+        });
+    }
+
+    auto matrix = domain::build_multi_sample_matrix(
+        assembly, reference.contigs(), sources
+    );
+    return BatchVariantMatrixBuild{
+        .preview = std::move(preview),
+        .matrix = std::move(matrix),
+    };
+}
+
+}  // namespace biocore::application
