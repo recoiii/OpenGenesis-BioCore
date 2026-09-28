@@ -989,3 +989,29 @@ target_link_libraries(
 foreach(mode restart resume checkpoint-complete retry changed-input checkpoint-integrity cancel-latest)
     add_test(NAME integration.batch_recovery_${mode} COMMAND biocore-batch-recovery-tests ${mode})
 endforeach()
+
+
+add_executable(biocore-batch-results-tests batch_results_tests.cpp)
+target_link_libraries(
+    biocore-batch-results-tests
+    PRIVATE BioCore::application BioCore::infrastructure
+            BioCore::project_options BioCore::project_warnings BioCore::sanitizers
+)
+foreach(mode comparable missing contract reference lineage matrix matrix-reject)
+    add_test(NAME integration.batch_results_${mode} COMMAND biocore-batch-results-tests ${mode})
+endforeach()
+
+add_executable(
+    biocore-filesystem-result-artifact-reader-tests
+    filesystem_result_artifact_reader_tests.cpp
+)
+target_link_libraries(
+    biocore-filesystem-result-artifact-reader-tests
+    PRIVATE BioCore::infrastructure BioCore::project_options BioCore::project_warnings BioCore::sanitizers
+)
+foreach(mode verified limit tamper)
+    add_test(
+        NAME infrastructure.filesystem_result_artifact_reader_${mode}
+        COMMAND biocore-filesystem-result-artifact-reader-tests ${mode}
+    )
+endforeach()
