@@ -1458,6 +1458,418 @@ void apply_version_sixteen(SqliteConnection& connection) {
     )sql");
 }
 
+void apply_version_seventeen(SqliteConnection& connection) {
+    connection.execute(R"sql(
+        CREATE TABLE cohort_analysis_snapshots (
+            project_id TEXT NOT NULL
+                REFERENCES project_metadata(project_id) ON DELETE RESTRICT,
+            analysis_id TEXT NOT NULL CHECK(
+                length(CAST(analysis_id AS BLOB)) BETWEEN 1 AND 128 AND
+                instr(analysis_id, char(0)) = 0
+            ),
+            cohort_id TEXT NOT NULL,
+            cohort_revision INTEGER NOT NULL CHECK(cohort_revision >= 1),
+            contract_version TEXT NOT NULL CHECK(
+                length(CAST(contract_version AS BLOB)) BETWEEN 1 AND 128 AND
+                instr(contract_version, char(0)) = 0
+            ),
+            preview_digest TEXT NOT NULL CHECK(
+                length(preview_digest) = 64 AND
+                preview_digest NOT GLOB '*[^0-9a-f]*'
+            ),
+            snapshot_digest TEXT NOT NULL CHECK(
+                length(snapshot_digest) = 64 AND
+                snapshot_digest NOT GLOB '*[^0-9a-f]*'
+            ),
+            approved_at_utc TEXT NOT NULL CHECK(
+                length(CAST(approved_at_utc AS BLOB)) BETWEEN 1 AND 200 AND
+                instr(approved_at_utc, char(0)) = 0
+            ),
+            reference_file_id TEXT NOT NULL
+                REFERENCES managed_files(id) ON DELETE RESTRICT,
+            reference_file_type TEXT NOT NULL CHECK(reference_file_type = 'fasta'),
+            reference_size_bytes INTEGER NOT NULL CHECK(reference_size_bytes >= 0),
+            reference_sha256 TEXT NOT NULL CHECK(
+                length(reference_sha256) = 64 AND
+                reference_sha256 NOT GLOB '*[^0-9a-f]*'
+            ),
+            reference_assembly TEXT NOT NULL CHECK(
+                reference_assembly IN ('grch37', 'grch38', 'custom')
+            ),
+            reference_custom_id TEXT CHECK(
+                reference_custom_id IS NULL OR (
+                    length(CAST(reference_custom_id AS BLOB)) BETWEEN 1 AND 256 AND
+                    instr(reference_custom_id, char(0)) = 0
+                )
+            ),
+            normalization_contract_version TEXT NOT NULL CHECK(
+                length(CAST(normalization_contract_version AS BLOB)) BETWEEN 1 AND 128 AND
+                instr(normalization_contract_version, char(0)) = 0
+            ),
+            association_contract_version TEXT NOT NULL CHECK(
+                length(CAST(association_contract_version AS BLOB)) BETWEEN 1 AND 128 AND
+                instr(association_contract_version, char(0)) = 0
+            ),
+            test_filter_version TEXT NOT NULL CHECK(
+                length(CAST(test_filter_version AS BLOB)) BETWEEN 1 AND 128 AND
+                instr(test_filter_version, char(0)) = 0
+            ),
+            minimum_complete_case_calls INTEGER NOT NULL CHECK(
+                minimum_complete_case_calls BETWEEN 1 AND 100
+            ),
+            minimum_complete_control_calls INTEGER NOT NULL CHECK(
+                minimum_complete_control_calls BETWEEN 1 AND 100
+            ),
+            maximum_fisher_table_states INTEGER NOT NULL CHECK(
+                maximum_fisher_table_states BETWEEN 1 AND 100000
+            ),
+            approved_case_samples INTEGER NOT NULL CHECK(
+                approved_case_samples BETWEEN 1 AND 100
+            ),
+            approved_control_samples INTEGER NOT NULL CHECK(
+                approved_control_samples BETWEEN 1 AND 100
+            ),
+            allele_family_size INTEGER NOT NULL CHECK(
+                allele_family_size BETWEEN 0 AND 10000
+            ),
+            carrier_family_size INTEGER NOT NULL CHECK(
+                carrier_family_size BETWEEN 0 AND 10000
+            ),
+            sealed INTEGER NOT NULL DEFAULT 0 CHECK(sealed IN (0, 1)),
+            PRIMARY KEY(project_id, analysis_id),
+            UNIQUE(project_id, snapshot_digest),
+            FOREIGN KEY(project_id, cohort_id, cohort_revision)
+                REFERENCES cohort_revisions(project_id, cohort_id, revision)
+                ON DELETE RESTRICT,
+            CHECK(
+                (reference_assembly = 'custom' AND reference_custom_id IS NOT NULL) OR
+                (reference_assembly != 'custom' AND reference_custom_id IS NULL)
+            )
+        );
+
+        CREATE TABLE cohort_analysis_samples (
+            project_id TEXT NOT NULL,
+            analysis_id TEXT NOT NULL,
+            ordinal INTEGER NOT NULL CHECK(ordinal >= 0),
+            sample_id TEXT NOT NULL CHECK(
+                length(CAST(sample_id AS BLOB)) BETWEEN 1 AND 128 AND
+                instr(sample_id, char(0)) = 0
+            ),
+            sample_display_name TEXT NOT NULL DEFAULT '' CHECK(
+                length(CAST(sample_display_name AS BLOB)) <= 255 AND
+                instr(sample_display_name, char(0)) = 0
+            ),
+            sample_group_metadata TEXT NOT NULL DEFAULT '' CHECK(
+                length(CAST(sample_group_metadata AS BLOB)) <= 128 AND
+                instr(sample_group_metadata, char(0)) = 0
+            ),
+            biological_unit_id TEXT NOT NULL CHECK(
+                length(CAST(biological_unit_id AS BLOB)) BETWEEN 1 AND 128 AND
+                instr(biological_unit_id, char(0)) = 0
+            ),
+            group_token TEXT NOT NULL CHECK(group_token IN ('case', 'control', 'unassigned')),
+            cohort_disposition TEXT NOT NULL CHECK(cohort_disposition IN ('included', 'excluded')),
+            cohort_exclusion_reason TEXT CHECK(
+                cohort_exclusion_reason IS NULL OR (
+                    length(CAST(cohort_exclusion_reason AS BLOB)) BETWEEN 1 AND 512 AND
+                    length(trim(cohort_exclusion_reason)) > 0 AND
+                    instr(cohort_exclusion_reason, char(0)) = 0
+                )
+            ),
+            analysis_disposition TEXT NOT NULL CHECK(analysis_disposition IN ('included', 'excluded')),
+            analysis_reason TEXT CHECK(
+                analysis_reason IS NULL OR (
+                    length(CAST(analysis_reason AS BLOB)) BETWEEN 1 AND 512 AND
+                    length(trim(analysis_reason)) > 0 AND
+                    instr(analysis_reason, char(0)) = 0
+                )
+            ),
+            qc_state TEXT NOT NULL CHECK(qc_state IN ('verified', 'unavailable', 'not_applicable')),
+            qc_reason TEXT NOT NULL CHECK(
+                length(CAST(qc_reason AS BLOB)) BETWEEN 1 AND 1024 AND
+                instr(qc_reason, char(0)) = 0
+            ),
+            qc_file_id TEXT REFERENCES managed_files(id) ON DELETE RESTRICT,
+            qc_job_id TEXT,
+            qc_step_id TEXT,
+            qc_output_port TEXT,
+            qc_module_id TEXT,
+            qc_plugin_version TEXT,
+            qc_size_bytes INTEGER,
+            qc_sha256 TEXT,
+            PRIMARY KEY(project_id, analysis_id, sample_id),
+            UNIQUE(project_id, analysis_id, ordinal),
+            FOREIGN KEY(project_id, analysis_id)
+                REFERENCES cohort_analysis_snapshots(project_id, analysis_id)
+                ON DELETE RESTRICT,
+            FOREIGN KEY(project_id, sample_id)
+                REFERENCES project_samples(project_id, sample_id)
+                ON DELETE RESTRICT,
+            CHECK(
+                (cohort_disposition = 'included' AND cohort_exclusion_reason IS NULL) OR
+                (cohort_disposition = 'excluded' AND cohort_exclusion_reason IS NOT NULL)
+            ),
+            CHECK(
+                cohort_disposition = 'included' OR analysis_disposition = 'excluded'
+            ),
+            CHECK(
+                analysis_disposition = 'excluded' OR group_token IN ('case', 'control')
+            ),
+            CHECK(
+                (analysis_disposition = 'excluded' AND analysis_reason IS NOT NULL) OR
+                (analysis_disposition = 'included' AND
+                    (qc_state = 'verified' OR analysis_reason IS NOT NULL))
+            ),
+            CHECK(
+                (qc_state = 'verified' AND
+                    qc_file_id IS NOT NULL AND qc_job_id IS NOT NULL AND
+                    qc_step_id IS NOT NULL AND qc_output_port IS NOT NULL AND
+                    qc_module_id IS NOT NULL AND qc_plugin_version IS NOT NULL AND
+                    qc_size_bytes IS NOT NULL AND qc_size_bytes >= 0 AND
+                    qc_sha256 IS NOT NULL AND length(qc_sha256) = 64 AND
+                    qc_sha256 NOT GLOB '*[^0-9a-f]*') OR
+                (qc_state != 'verified' AND
+                    qc_file_id IS NULL AND qc_job_id IS NULL AND
+                    qc_step_id IS NULL AND qc_output_port IS NULL AND
+                    qc_module_id IS NULL AND qc_plugin_version IS NULL AND
+                    qc_size_bytes IS NULL AND qc_sha256 IS NULL)
+            )
+        );
+
+        CREATE TABLE cohort_analysis_sources (
+            project_id TEXT NOT NULL,
+            analysis_id TEXT NOT NULL,
+            project_sample_id TEXT NOT NULL,
+            biological_unit_id TEXT NOT NULL,
+            plan_id TEXT NOT NULL,
+            workflow_id TEXT NOT NULL,
+            producer_sample_id TEXT NOT NULL,
+            attempt_number INTEGER NOT NULL CHECK(attempt_number >= 1),
+            job_id TEXT NOT NULL,
+            step_id TEXT NOT NULL,
+            output_port TEXT NOT NULL,
+            module_id TEXT NOT NULL,
+            plugin_version TEXT NOT NULL,
+            managed_file_id TEXT NOT NULL
+                REFERENCES managed_files(id) ON DELETE RESTRICT,
+            size_bytes INTEGER NOT NULL CHECK(size_bytes >= 0),
+            sha256 TEXT NOT NULL CHECK(
+                length(sha256) = 64 AND sha256 NOT GLOB '*[^0-9a-f]*'
+            ),
+            vcf_sample_name TEXT NOT NULL CHECK(
+                length(CAST(vcf_sample_name AS BLOB)) BETWEEN 1 AND 1024 AND
+                instr(vcf_sample_name, char(0)) = 0
+            ),
+            PRIMARY KEY(project_id, analysis_id, project_sample_id),
+            FOREIGN KEY(project_id, analysis_id)
+                REFERENCES cohort_analysis_snapshots(project_id, analysis_id)
+                ON DELETE RESTRICT,
+            FOREIGN KEY(project_id, project_sample_id)
+                REFERENCES project_samples(project_id, sample_id)
+                ON DELETE RESTRICT
+        );
+
+        CREATE TABLE cohort_analysis_reference_contigs (
+            project_id TEXT NOT NULL,
+            analysis_id TEXT NOT NULL,
+            ordinal INTEGER NOT NULL CHECK(ordinal >= 0),
+            canonical_name TEXT NOT NULL CHECK(
+                length(CAST(canonical_name AS BLOB)) BETWEEN 1 AND 4096 AND
+                instr(canonical_name, char(0)) = 0
+            ),
+            length_bases INTEGER NOT NULL CHECK(length_bases >= 1),
+            PRIMARY KEY(project_id, analysis_id, ordinal),
+            UNIQUE(project_id, analysis_id, canonical_name),
+            FOREIGN KEY(project_id, analysis_id)
+                REFERENCES cohort_analysis_snapshots(project_id, analysis_id)
+                ON DELETE RESTRICT
+        );
+
+        CREATE TABLE cohort_analysis_reference_aliases (
+            project_id TEXT NOT NULL,
+            analysis_id TEXT NOT NULL,
+            ordinal INTEGER NOT NULL CHECK(ordinal >= 0),
+            alias TEXT NOT NULL CHECK(
+                length(CAST(alias AS BLOB)) BETWEEN 1 AND 4096 AND
+                instr(alias, char(0)) = 0
+            ),
+            canonical_name TEXT NOT NULL CHECK(
+                length(CAST(canonical_name AS BLOB)) BETWEEN 1 AND 4096 AND
+                instr(canonical_name, char(0)) = 0
+            ),
+            PRIMARY KEY(project_id, analysis_id, ordinal),
+            UNIQUE(project_id, analysis_id, alias),
+            FOREIGN KEY(project_id, analysis_id)
+                REFERENCES cohort_analysis_snapshots(project_id, analysis_id)
+                ON DELETE RESTRICT
+        );
+
+        CREATE TABLE cohort_analysis_test_universe (
+            project_id TEXT NOT NULL,
+            analysis_id TEXT NOT NULL,
+            ordinal INTEGER NOT NULL CHECK(ordinal >= 0),
+            contig TEXT NOT NULL CHECK(
+                length(CAST(contig AS BLOB)) BETWEEN 1 AND 4096 AND
+                instr(contig, char(0)) = 0
+            ),
+            start INTEGER NOT NULL CHECK(start >= 0),
+            end INTEGER NOT NULL CHECK(end >= start),
+            reference_allele TEXT NOT NULL CHECK(
+                length(CAST(reference_allele AS BLOB)) BETWEEN 1 AND 100000 AND
+                instr(reference_allele, char(0)) = 0
+            ),
+            alternate_allele TEXT NOT NULL CHECK(
+                length(CAST(alternate_allele AS BLOB)) BETWEEN 1 AND 100000 AND
+                instr(alternate_allele, char(0)) = 0
+            ),
+            case_unobserved INTEGER NOT NULL CHECK(case_unobserved >= 0),
+            control_unobserved INTEGER NOT NULL CHECK(control_unobserved >= 0),
+            case_no_calls INTEGER NOT NULL CHECK(case_no_calls >= 0),
+            control_no_calls INTEGER NOT NULL CHECK(control_no_calls >= 0),
+            case_partial_calls INTEGER NOT NULL CHECK(case_partial_calls >= 0),
+            control_partial_calls INTEGER NOT NULL CHECK(control_partial_calls >= 0),
+            case_complete_calls INTEGER NOT NULL CHECK(case_complete_calls >= 0),
+            control_complete_calls INTEGER NOT NULL CHECK(control_complete_calls >= 0),
+            allele_family_member INTEGER NOT NULL CHECK(allele_family_member IN (0, 1)),
+            carrier_family_member INTEGER NOT NULL CHECK(carrier_family_member IN (0, 1)),
+            PRIMARY KEY(project_id, analysis_id, ordinal),
+            FOREIGN KEY(project_id, analysis_id)
+                REFERENCES cohort_analysis_snapshots(project_id, analysis_id)
+                ON DELETE RESTRICT
+        );
+
+        CREATE INDEX idx_cohort_analysis_snapshots_cohort
+            ON cohort_analysis_snapshots(project_id, cohort_id, cohort_revision, approved_at_utc);
+        CREATE INDEX idx_cohort_analysis_sources_file
+            ON cohort_analysis_sources(managed_file_id);
+        CREATE INDEX idx_cohort_analysis_samples_sample
+            ON cohort_analysis_samples(project_id, sample_id);
+
+        CREATE TRIGGER cohort_analysis_snapshots_validate_update
+        BEFORE UPDATE ON cohort_analysis_snapshots
+        WHEN NOT (
+            OLD.sealed = 0 AND NEW.sealed = 1 AND
+            NEW.project_id = OLD.project_id AND
+            NEW.analysis_id = OLD.analysis_id AND
+            NEW.cohort_id = OLD.cohort_id AND
+            NEW.cohort_revision = OLD.cohort_revision AND
+            NEW.contract_version = OLD.contract_version AND
+            NEW.preview_digest = OLD.preview_digest AND
+            NEW.snapshot_digest = OLD.snapshot_digest AND
+            NEW.approved_at_utc = OLD.approved_at_utc AND
+            NEW.reference_file_id = OLD.reference_file_id AND
+            NEW.reference_file_type = OLD.reference_file_type AND
+            NEW.reference_size_bytes = OLD.reference_size_bytes AND
+            NEW.reference_sha256 = OLD.reference_sha256 AND
+            NEW.reference_assembly = OLD.reference_assembly AND
+            NEW.reference_custom_id IS OLD.reference_custom_id AND
+            NEW.normalization_contract_version = OLD.normalization_contract_version AND
+            NEW.association_contract_version = OLD.association_contract_version AND
+            NEW.test_filter_version = OLD.test_filter_version AND
+            NEW.minimum_complete_case_calls = OLD.minimum_complete_case_calls AND
+            NEW.minimum_complete_control_calls = OLD.minimum_complete_control_calls AND
+            NEW.maximum_fisher_table_states = OLD.maximum_fisher_table_states AND
+            NEW.approved_case_samples = OLD.approved_case_samples AND
+            NEW.approved_control_samples = OLD.approved_control_samples AND
+            NEW.allele_family_size = OLD.allele_family_size AND
+            NEW.carrier_family_size = OLD.carrier_family_size
+        )
+        BEGIN
+            SELECT RAISE(ABORT, 'cohort analysis snapshot is immutable after creation');
+        END;
+
+        CREATE TRIGGER cohort_analysis_snapshots_immutable_delete
+        BEFORE DELETE ON cohort_analysis_snapshots
+        BEGIN
+            SELECT RAISE(ABORT, 'cohort analysis snapshot cannot be deleted');
+        END;
+
+        CREATE TRIGGER cohort_analysis_samples_require_open_snapshot
+        BEFORE INSERT ON cohort_analysis_samples
+        WHEN COALESCE((
+            SELECT sealed FROM cohort_analysis_snapshots
+            WHERE project_id = NEW.project_id AND analysis_id = NEW.analysis_id
+        ), 1) != 0
+        BEGIN
+            SELECT RAISE(ABORT, 'cohort analysis samples require an open snapshot');
+        END;
+        CREATE TRIGGER cohort_analysis_samples_immutable_update
+        BEFORE UPDATE ON cohort_analysis_samples
+        BEGIN SELECT RAISE(ABORT, 'cohort analysis samples are immutable'); END;
+        CREATE TRIGGER cohort_analysis_samples_immutable_delete
+        BEFORE DELETE ON cohort_analysis_samples
+        BEGIN SELECT RAISE(ABORT, 'cohort analysis samples are immutable'); END;
+
+        CREATE TRIGGER cohort_analysis_sources_require_open_snapshot
+        BEFORE INSERT ON cohort_analysis_sources
+        WHEN COALESCE((
+            SELECT sealed FROM cohort_analysis_snapshots
+            WHERE project_id = NEW.project_id AND analysis_id = NEW.analysis_id
+        ), 1) != 0
+        BEGIN
+            SELECT RAISE(ABORT, 'cohort analysis sources require an open snapshot');
+        END;
+        CREATE TRIGGER cohort_analysis_sources_immutable_update
+        BEFORE UPDATE ON cohort_analysis_sources
+        BEGIN SELECT RAISE(ABORT, 'cohort analysis sources are immutable'); END;
+        CREATE TRIGGER cohort_analysis_sources_immutable_delete
+        BEFORE DELETE ON cohort_analysis_sources
+        BEGIN SELECT RAISE(ABORT, 'cohort analysis sources are immutable'); END;
+
+        CREATE TRIGGER cohort_analysis_reference_contigs_require_open_snapshot
+        BEFORE INSERT ON cohort_analysis_reference_contigs
+        WHEN COALESCE((
+            SELECT sealed FROM cohort_analysis_snapshots
+            WHERE project_id = NEW.project_id AND analysis_id = NEW.analysis_id
+        ), 1) != 0
+        BEGIN
+            SELECT RAISE(ABORT, 'cohort analysis reference contigs require an open snapshot');
+        END;
+        CREATE TRIGGER cohort_analysis_reference_contigs_immutable_update
+        BEFORE UPDATE ON cohort_analysis_reference_contigs
+        BEGIN SELECT RAISE(ABORT, 'cohort analysis reference contigs are immutable'); END;
+        CREATE TRIGGER cohort_analysis_reference_contigs_immutable_delete
+        BEFORE DELETE ON cohort_analysis_reference_contigs
+        BEGIN SELECT RAISE(ABORT, 'cohort analysis reference contigs are immutable'); END;
+
+        CREATE TRIGGER cohort_analysis_reference_aliases_require_open_snapshot
+        BEFORE INSERT ON cohort_analysis_reference_aliases
+        WHEN COALESCE((
+            SELECT sealed FROM cohort_analysis_snapshots
+            WHERE project_id = NEW.project_id AND analysis_id = NEW.analysis_id
+        ), 1) != 0
+        BEGIN
+            SELECT RAISE(ABORT, 'cohort analysis reference aliases require an open snapshot');
+        END;
+        CREATE TRIGGER cohort_analysis_reference_aliases_immutable_update
+        BEFORE UPDATE ON cohort_analysis_reference_aliases
+        BEGIN SELECT RAISE(ABORT, 'cohort analysis reference aliases are immutable'); END;
+        CREATE TRIGGER cohort_analysis_reference_aliases_immutable_delete
+        BEFORE DELETE ON cohort_analysis_reference_aliases
+        BEGIN SELECT RAISE(ABORT, 'cohort analysis reference aliases are immutable'); END;
+
+        CREATE TRIGGER cohort_analysis_test_universe_require_open_snapshot
+        BEFORE INSERT ON cohort_analysis_test_universe
+        WHEN COALESCE((
+            SELECT sealed FROM cohort_analysis_snapshots
+            WHERE project_id = NEW.project_id AND analysis_id = NEW.analysis_id
+        ), 1) != 0
+        BEGIN
+            SELECT RAISE(ABORT, 'cohort analysis test universe requires an open snapshot');
+        END;
+        CREATE TRIGGER cohort_analysis_test_universe_immutable_update
+        BEFORE UPDATE ON cohort_analysis_test_universe
+        BEGIN SELECT RAISE(ABORT, 'cohort analysis test universe is immutable'); END;
+        CREATE TRIGGER cohort_analysis_test_universe_immutable_delete
+        BEFORE DELETE ON cohort_analysis_test_universe
+        BEGIN SELECT RAISE(ABORT, 'cohort analysis test universe is immutable'); END;
+
+        INSERT INTO schema_migrations(version, name, applied_at_utc)
+        VALUES (17, 'persist_immutable_cohort_analysis_snapshots',
+                strftime('%Y-%m-%dT%H:%M:%fZ', 'now'));
+    )sql");
+}
+
 ProjectMigrationRunner::ProjectMigrationRunner(SqliteConnection& connection) noexcept
     : connection_{connection} {}
 
@@ -1527,6 +1939,9 @@ void ProjectMigrationRunner::apply_pending() {
     }
     if (version < 16) {
         apply_version_sixteen(connection_);
+    }
+    if (version < 17) {
+        apply_version_seventeen(connection_);
     }
     transaction.commit();
 }
