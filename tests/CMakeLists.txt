@@ -1155,3 +1155,16 @@ foreach(mode store duplicate drift recovery retry cancel completion persistence-
         COMMAND biocore-cohort-execution-tests ${mode}
     )
 endforeach()
+
+add_executable(biocore-cohort-results-tests cohort_results_tests.cpp)
+target_link_libraries(
+    biocore-cohort-results-tests
+    PRIVATE BioCore::application BioCore::presentation
+            BioCore::project_options BioCore::project_warnings BioCore::sanitizers
+)
+foreach(mode pagination views statistics annotations provenance exports bounded drift)
+    add_test(
+        NAME integration.cohort_results_${mode}
+        COMMAND biocore-cohort-results-tests ${mode}
+    )
+endforeach()
