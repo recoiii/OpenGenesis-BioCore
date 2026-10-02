@@ -71,6 +71,34 @@ int main() {
         check(list.starts_with("{\"cohorts\":["), "cohort list envelope missing");
         check(list.find("\"cohortId\":\"cohort-097\"") != std::string::npos,
               "cohort list identity missing");
+
+        const auto create = presentation::parse_create_cohort_request(
+            R"({"name":"AD cohort","members":[{"sampleId":"case-1","biologicalUnitId":"person-1","group":"case"},{"sampleId":"control-1","biologicalUnitId":"person-2","group":"control","disposition":"excluded","exclusionReason":"QC"}]})"
+        );
+        check(create.name == "AD cohort" && create.members.size() == 2U,
+              "create cohort parser lost identity");
+        check(create.members[0].group == application::CohortGroup::case_group &&
+              create.members[0].disposition == application::CohortMemberDisposition::included,
+              "create cohort parser lost default inclusion");
+        check(create.members[1].disposition == application::CohortMemberDisposition::excluded &&
+              create.members[1].exclusion_reason == std::optional<std::string>{"QC"},
+              "create cohort parser lost explicit exclusion");
+
+        const auto revise = presentation::parse_revise_cohort_request(
+            R"({"expectedRevision":2,"members":[{"sampleId":"case-1","biologicalUnitId":"person-1","group":"case"}]})"
+        );
+        check(revise.expected_revision == 2U && revise.members.size() == 1U,
+              "revision parser lost optimistic concurrency token");
+
+        bool rejected = false;
+        try {
+            static_cast<void>(presentation::parse_create_cohort_request(
+                R"({"name":"bad","members":[{"sampleId":"case-1","biologicalUnitId":"person-1","group":"case","unknown":1}]})"
+            ));
+        } catch (const std::invalid_argument&) {
+            rejected = true;
+        }
+        check(rejected, "unknown cohort JSON field must be rejected");
         std::cout << "PASS cohort workspace json\n";
         return EXIT_SUCCESS;
     } catch (const std::exception& error) {
