@@ -1,0 +1,6 @@
+##fileformat=VCFv4.3
+##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">
+#CHROM	POS	ID	REF	ALT	QUAL	FILTER	INFO	FORMAT	001	Örnek-A
+chr1	10	v10	A	G	.	PASS	.	GT	0/1	1/1
+chr1	20	v20	A	G	.	PASS	.	GT	./.	0/.
+chr1	40	v40	A	G	.	PASS	.	GT	0/0	0/0

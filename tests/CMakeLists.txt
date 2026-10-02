@@ -1051,3 +1051,12 @@ add_test(
     NAME integration.project_workspace_v05_e2e
     COMMAND biocore-project-workspace-v05-e2e-tests
 )
+add_executable(biocore-cohort-contract-tests cohort_contract_tests.cpp)
+target_compile_definitions(biocore-cohort-contract-tests PRIVATE BIOCORE_SOURCE_ROOT="${PROJECT_SOURCE_DIR}")
+target_link_libraries(biocore-cohort-contract-tests PRIVATE BioCore::domain BioCore::project_options BioCore::project_warnings BioCore::sanitizers)
+foreach(mode missingness statistics ordering validation)
+    add_test(NAME domain.cohort_contract_${mode} COMMAND biocore-cohort-contract-tests ${mode})
+endforeach()
+
+add_executable(biocore-cohort-contract-benchmark cohort_contract_benchmark.cpp)
+target_link_libraries(biocore-cohort-contract-benchmark PRIVATE BioCore::domain BioCore::project_options BioCore::project_warnings BioCore::sanitizers)

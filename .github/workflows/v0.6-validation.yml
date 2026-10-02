@@ -1,0 +1,141 @@
+name: OpenGenesis-BioCore v0.6 iteration validation
+
+on:
+  push:
+    branches: [v0.6.0-dev]
+  pull_request:
+    branches: [v0.6.0-dev]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  BIOCORE_ITERATION: "089"
+  BIOCORE_EXPECTED_TESTS: "292"
+
+jobs:
+  linux:
+    name: ${{ matrix.lane }}
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        lane: [linux-gcc-debug, linux-gcc-release, linux-clang-debug, linux-gcc-asan-ubsan]
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build libsqlite3-dev zlib1g-dev clang
+      - name: Configure
+        shell: bash
+        run: |
+          if [ '${{ matrix.lane }}' = linux-gcc-asan-ubsan ]; then
+            cmake -S . -B build/linux-gcc-asan-ubsan -G Ninja \
+              -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_COMPILER=g++ \
+              -DBIOCORE_BUILD_TESTS=ON -DBIOCORE_WARNINGS_AS_ERRORS=ON \
+              -DBIOCORE_ENABLE_ASAN=ON -DBIOCORE_ENABLE_UBSAN=ON -DBIOCORE_VERSION_SUFFIX=dev
+          else
+            cmake --preset '${{ matrix.lane }}'
+          fi
+      - name: Build
+        run: cmake --build build/${{ matrix.lane }} --parallel 4
+      - name: Verify inventory, identity and regressions
+        shell: bash
+        env:
+          ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
+          UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/evidence
+          lane='${{ matrix.lane }}'
+          count="$(ctest --test-dir "build/$lane" -N | sed -n 's/^Total Tests: //p')"
+          test "$count" = "$BIOCORE_EXPECTED_TESTS"
+          version="$("build/$lane/apps/biocore/biocore" --version)"
+          test "$version" = '0.6.0-dev'
+          ctest --test-dir "build/$lane" --output-on-failure \
+            --output-junit "$GITHUB_WORKSPACE/artifacts/$lane.xml" | tee "artifacts/$lane-full.log"
+          {
+            echo "COMMIT=$(git rev-parse HEAD)"
+            echo "VERSION=$version"
+            echo "CTEST_COUNT=$count"
+            tail -n 5 "artifacts/$lane-full.log"
+          } > "artifacts/evidence/$lane.txt"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: iteration-089-${{ matrix.lane }}
+          path: artifacts/
+          if-no-files-found: error
+
+  benchmark:
+    name: Cohort contract scale evidence
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build libsqlite3-dev zlib1g-dev time
+      - name: Build benchmark
+        run: |
+          cmake --preset linux-gcc-release
+          cmake --build --preset linux-gcc-release --target biocore-cohort-contract-benchmark --parallel 4
+      - name: Measure independent scale axes
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/evidence
+          {
+            echo "COMMIT=$(git rev-parse HEAD)"
+            uname -a
+            lscpu | head -n 24
+            free -m
+            g++ --version
+          } > artifacts/evidence/hardware.txt
+          for dimensions in '20 1000 100' '100 1000 100' '20 10000 100' '100 10000 10' '100 10000 100'; do
+            key="${dimensions// /-}"
+            /usr/bin/time -f 'peak_rss_kib=%M\nwall_seconds=%e' -o "artifacts/evidence/time-$key.txt" \
+              timeout 120 build/linux-gcc-release/tests/biocore-cohort-contract-benchmark $dimensions \
+              > "artifacts/evidence/scale-$key.txt"
+            echo "summary_output_bytes=$(wc -c < "artifacts/evidence/scale-$key.txt")" >> "artifacts/evidence/time-$key.txt"
+            rss="$(sed -n 's/^peak_rss_kib=//p' "artifacts/evidence/time-$key.txt")"
+            test "$rss" -le 2097152
+          done
+      - uses: actions/upload-artifact@v4
+        with:
+          name: iteration-089-benchmark
+          path: artifacts/evidence/
+          if-no-files-found: error
+
+  review-package:
+    name: Exact four-part Gemini candidate
+    needs: [linux, benchmark]
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: actions/download-artifact@v5
+        with:
+          pattern: iteration-089-*
+          path: artifacts/downloads
+      - name: Collect exact-candidate evidence
+        shell: bash
+        run: |
+          mkdir -p artifacts/evidence
+          find artifacts/downloads -type f -name '*.txt' -exec cp {} artifacts/evidence/ \;
+      - name: Generate and verify sealed review package
+        shell: bash
+        run: |
+          python3 scripts/generate-gemini-review-v06.py --output artifacts/review \
+            --evidence-dir artifacts/evidence --ci-run-id '${{ github.run_id }}'
+          cd artifacts/review
+          sha256sum -c SHA256SUMS.txt
+          test "$(find . -name '*-part-*-of-04.md' | wc -l)" -eq 4
+      - uses: actions/upload-artifact@v4
+        with:
+          name: OpenGenesis-BioCore-iteration-089-GEMINI-review
+          path: artifacts/review/
+          if-no-files-found: error

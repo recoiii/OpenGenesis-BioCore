@@ -214,7 +214,7 @@ int main(const int argc, char** argv) {
         return v03_asset_compatibility_contract() ? EXIT_SUCCESS : EXIT_FAILURE;
     }
     if (mode == "identity") {
-        return biocore::application::BuildInfo::version() == "0.5.0"
+        return biocore::application::BuildInfo::version() == "0.6.0-dev"
             ? EXIT_SUCCESS
             : EXIT_FAILURE;
     }
