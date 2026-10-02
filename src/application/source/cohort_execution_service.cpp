@@ -395,6 +395,46 @@ CohortExecutionHistory CohortExecutionService::reconcile(
         auto target = state_for_job(job->status());
         auto failure = failure_message_for_job(*job);
         if (target == CohortExecutionState::completed) {
+            std::optional<GeneratedOutputArtifact> manifest;
+            for (const auto& artifact : managed_files_.list_generated_outputs(*attempt.job_id)) {
+                if (artifact.provenance.step_id == "analyze" &&
+                    artifact.provenance.output_port == "manifest" &&
+                    artifact.provenance.plugin_id == "org.biocore.cohortanalysis" &&
+                    artifact.provenance.plugin_version == "1.0.0" &&
+                    artifact.provenance.module_id == "org.biocore.cohort.analysis" &&
+                    artifact.provenance.file_type == "json" &&
+                    artifact.file.storage_mode() == domain::StorageMode::generated_output &&
+                    artifact.file.checksum_algorithm() == std::optional<std::string>{"sha256"} &&
+                    artifact.file.checksum_value().has_value() &&
+                    valid_sha256(*artifact.file.checksum_value())) {
+                    if (manifest.has_value()) {
+                        manifest.reset();
+                        break;
+                    }
+                    manifest = artifact;
+                }
+            }
+            if (manifest.has_value()) {
+                const auto now = clock_.now_utc_iso8601();
+                if (!executions_.record_completion(
+                        project_id,
+                        analysis_id,
+                        attempt.attempt_id,
+                        manifest->file.id(),
+                        *manifest->file.checksum_value(),
+                        now)) {
+                    fail(
+                        CohortExecutionErrorCode::concurrent_update,
+                        "Verified cohort result manifest could not be committed during reconciliation"
+                    );
+                }
+                attempt.state = CohortExecutionState::completed;
+                attempt.failure_message = std::nullopt;
+                attempt.result_manifest_file_id = std::string{manifest->file.id()};
+                attempt.result_manifest_sha256 = *manifest->file.checksum_value();
+                attempt.updated_at_utc = now;
+                continue;
+            }
             const std::string message =
                 "Job reached completed before a verified cohort result manifest was committed";
             target = CohortExecutionState::interrupted;
