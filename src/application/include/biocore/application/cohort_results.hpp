@@ -74,6 +74,13 @@ struct CohortResultPage final {
     std::vector<CohortResultRow> rows;
 };
 
+struct CohortResultExclusion final {
+    std::string sample_id;
+    std::optional<std::string> reason;
+
+    friend bool operator==(const CohortResultExclusion&, const CohortResultExclusion&) = default;
+};
+
 struct CohortResultPackage final {
     std::uint32_t schema_version{1U};
     std::string producer_name{"OpenGenesis-BioCore"};
@@ -91,6 +98,12 @@ struct CohortResultPackage final {
     std::size_t approved_case_samples{0U};
     std::size_t approved_control_samples{0U};
     std::size_t excluded_samples{0U};
+    std::vector<CohortResultExclusion> exclusions;
+    std::string association_contract_version;
+    std::string test_filter_version;
+    std::string no_call_policy;
+    std::size_t allele_family_size{0U};
+    std::size_t carrier_family_size{0U};
     std::string statistical_test;
     std::string effect_measure;
     std::string confidence_interval_method;
