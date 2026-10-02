@@ -72,7 +72,7 @@ namespace fs = std::filesystem;
     ProjectMigrationRunner initial{connection};
     initial.apply_pending();
     if (initial.current_version() != latest_project_schema_version ||
-        latest_project_schema_version != 15) {
+        latest_project_schema_version != 16) {
         return false;
     }
 
@@ -84,6 +84,16 @@ namespace fs = std::filesystem;
             '2026-09-15T12:00:00Z', '2026-09-15T12:01:00Z'
         );
 
+        DROP TRIGGER IF EXISTS cohort_revision_members_immutable_delete;
+        DROP TRIGGER IF EXISTS cohort_revision_members_immutable_update;
+        DROP TRIGGER IF EXISTS cohort_revision_members_require_open_revision;
+        DROP TRIGGER IF EXISTS cohort_revisions_immutable_delete;
+        DROP TRIGGER IF EXISTS cohort_revisions_validate_update;
+        DROP TRIGGER IF EXISTS cohort_definitions_immutable_delete;
+        DROP TRIGGER IF EXISTS cohort_definitions_validate_update;
+        DROP TABLE cohort_revision_members;
+        DROP TABLE cohort_revisions;
+        DROP TABLE cohort_definitions;
         DROP TRIGGER IF EXISTS workflow_states_prevent_branch_schema_clear;
         DROP TRIGGER IF EXISTS workflow_branch_decisions_require_snapshot_insert;
         DROP TRIGGER IF EXISTS batch_execution_attempt_nodes_immutable_delete;

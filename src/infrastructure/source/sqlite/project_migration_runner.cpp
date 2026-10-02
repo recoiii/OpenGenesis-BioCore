@@ -1282,6 +1282,182 @@ void apply_version_fifteen(SqliteConnection& connection) {
     )sql");
 }
 
+void apply_version_sixteen(SqliteConnection& connection) {
+    connection.execute(R"sql(
+        CREATE TABLE cohort_definitions (
+            project_id TEXT NOT NULL
+                REFERENCES project_metadata(project_id) ON DELETE RESTRICT,
+            cohort_id TEXT NOT NULL CHECK(
+                length(CAST(cohort_id AS BLOB)) BETWEEN 1 AND 128 AND
+                instr(cohort_id, char(0)) = 0
+            ),
+            name TEXT NOT NULL CHECK(
+                length(CAST(name AS BLOB)) BETWEEN 1 AND 200 AND
+                length(trim(name)) > 0 AND
+                instr(name, char(0)) = 0
+            ),
+            current_revision INTEGER NOT NULL DEFAULT 0 CHECK(current_revision >= 0),
+            created_at_utc TEXT NOT NULL CHECK(
+                length(CAST(created_at_utc AS BLOB)) BETWEEN 1 AND 200 AND
+                instr(created_at_utc, char(0)) = 0
+            ),
+            updated_at_utc TEXT NOT NULL CHECK(
+                length(CAST(updated_at_utc AS BLOB)) BETWEEN 1 AND 200 AND
+                instr(updated_at_utc, char(0)) = 0
+            ),
+            PRIMARY KEY(project_id, cohort_id)
+        );
+
+        CREATE TABLE cohort_revisions (
+            project_id TEXT NOT NULL,
+            cohort_id TEXT NOT NULL,
+            revision INTEGER NOT NULL CHECK(revision >= 1),
+            parent_revision INTEGER,
+            created_at_utc TEXT NOT NULL CHECK(
+                length(CAST(created_at_utc AS BLOB)) BETWEEN 1 AND 200 AND
+                instr(created_at_utc, char(0)) = 0
+            ),
+            sealed INTEGER NOT NULL DEFAULT 0 CHECK(sealed IN (0, 1)),
+            PRIMARY KEY(project_id, cohort_id, revision),
+            FOREIGN KEY(project_id, cohort_id)
+                REFERENCES cohort_definitions(project_id, cohort_id)
+                ON DELETE RESTRICT,
+            FOREIGN KEY(project_id, cohort_id, parent_revision)
+                REFERENCES cohort_revisions(project_id, cohort_id, revision)
+                ON DELETE RESTRICT,
+            CHECK(
+                (revision = 1 AND parent_revision IS NULL) OR
+                (revision > 1 AND parent_revision = revision - 1)
+            )
+        );
+
+        CREATE TABLE cohort_revision_members (
+            project_id TEXT NOT NULL,
+            cohort_id TEXT NOT NULL,
+            revision INTEGER NOT NULL CHECK(revision >= 1),
+            sample_id TEXT NOT NULL CHECK(
+                length(CAST(sample_id AS BLOB)) BETWEEN 1 AND 128 AND
+                instr(sample_id, char(0)) = 0
+            ),
+            ordinal INTEGER NOT NULL CHECK(ordinal >= 0),
+            sample_display_name TEXT NOT NULL DEFAULT '' CHECK(
+                length(CAST(sample_display_name AS BLOB)) <= 255 AND
+                instr(sample_display_name, char(0)) = 0
+            ),
+            sample_group_metadata TEXT NOT NULL DEFAULT '' CHECK(
+                length(CAST(sample_group_metadata AS BLOB)) <= 128 AND
+                instr(sample_group_metadata, char(0)) = 0
+            ),
+            biological_unit_id TEXT NOT NULL CHECK(
+                length(CAST(biological_unit_id AS BLOB)) BETWEEN 1 AND 128 AND
+                instr(biological_unit_id, char(0)) = 0
+            ),
+            group_token TEXT NOT NULL CHECK(group_token IN ('case', 'control', 'unassigned')),
+            disposition TEXT NOT NULL CHECK(disposition IN ('included', 'excluded')),
+            exclusion_reason TEXT CHECK(
+                exclusion_reason IS NULL OR (
+                    length(CAST(exclusion_reason AS BLOB)) BETWEEN 1 AND 512 AND
+                    length(trim(exclusion_reason)) > 0 AND
+                    instr(exclusion_reason, char(0)) = 0
+                )
+            ),
+            PRIMARY KEY(project_id, cohort_id, revision, sample_id),
+            UNIQUE(project_id, cohort_id, revision, ordinal),
+            FOREIGN KEY(project_id, cohort_id, revision)
+                REFERENCES cohort_revisions(project_id, cohort_id, revision)
+                ON DELETE RESTRICT,
+            FOREIGN KEY(project_id, sample_id)
+                REFERENCES project_samples(project_id, sample_id)
+                ON DELETE RESTRICT,
+            CHECK(
+                (disposition = 'included' AND exclusion_reason IS NULL) OR
+                (disposition = 'excluded' AND exclusion_reason IS NOT NULL)
+            )
+        );
+
+        CREATE INDEX idx_cohort_definitions_project_created
+            ON cohort_definitions(project_id, created_at_utc, cohort_id);
+        CREATE INDEX idx_cohort_revision_members_sample
+            ON cohort_revision_members(project_id, sample_id);
+
+        CREATE TRIGGER cohort_definitions_validate_update
+        BEFORE UPDATE ON cohort_definitions
+        WHEN NOT (
+            NEW.project_id = OLD.project_id AND
+            NEW.cohort_id = OLD.cohort_id AND
+            NEW.name = OLD.name AND
+            NEW.created_at_utc = OLD.created_at_utc AND
+            NEW.current_revision = OLD.current_revision + 1 AND
+            length(CAST(NEW.updated_at_utc AS BLOB)) BETWEEN 1 AND 200 AND
+            instr(NEW.updated_at_utc, char(0)) = 0 AND
+            EXISTS (
+                SELECT 1 FROM cohort_revisions
+                WHERE project_id = OLD.project_id
+                  AND cohort_id = OLD.cohort_id
+                  AND revision = NEW.current_revision
+                  AND sealed = 1
+            )
+        )
+        BEGIN
+            SELECT RAISE(ABORT, 'cohort definition revision may advance only to a sealed revision');
+        END;
+
+        CREATE TRIGGER cohort_definitions_immutable_delete
+        BEFORE DELETE ON cohort_definitions
+        BEGIN
+            SELECT RAISE(ABORT, 'cohort definition cannot be deleted');
+        END;
+
+        CREATE TRIGGER cohort_revisions_validate_update
+        BEFORE UPDATE ON cohort_revisions
+        WHEN NOT (
+            OLD.sealed = 0 AND NEW.sealed = 1 AND
+            NEW.project_id = OLD.project_id AND
+            NEW.cohort_id = OLD.cohort_id AND
+            NEW.revision = OLD.revision AND
+            NEW.parent_revision IS OLD.parent_revision AND
+            NEW.created_at_utc = OLD.created_at_utc
+        )
+        BEGIN
+            SELECT RAISE(ABORT, 'cohort revision is immutable after sealing');
+        END;
+
+        CREATE TRIGGER cohort_revisions_immutable_delete
+        BEFORE DELETE ON cohort_revisions
+        BEGIN
+            SELECT RAISE(ABORT, 'cohort revision cannot be deleted');
+        END;
+
+        CREATE TRIGGER cohort_revision_members_require_open_revision
+        BEFORE INSERT ON cohort_revision_members
+        WHEN COALESCE((
+            SELECT sealed FROM cohort_revisions
+            WHERE project_id = NEW.project_id
+              AND cohort_id = NEW.cohort_id
+              AND revision = NEW.revision
+        ), 1) != 0
+        BEGIN
+            SELECT RAISE(ABORT, 'cohort members require an open revision');
+        END;
+
+        CREATE TRIGGER cohort_revision_members_immutable_update
+        BEFORE UPDATE ON cohort_revision_members
+        BEGIN
+            SELECT RAISE(ABORT, 'cohort revision members are immutable');
+        END;
+
+        CREATE TRIGGER cohort_revision_members_immutable_delete
+        BEFORE DELETE ON cohort_revision_members
+        BEGIN
+            SELECT RAISE(ABORT, 'cohort revision members are immutable');
+        END;
+
+        INSERT INTO schema_migrations(version, name, applied_at_utc)
+        VALUES (16, 'add_cohort_registry_and_revisions',
+                strftime('%Y-%m-%dT%H:%M:%fZ', 'now'));
+    )sql");
+}
+
 ProjectMigrationRunner::ProjectMigrationRunner(SqliteConnection& connection) noexcept
     : connection_{connection} {}
 
@@ -1348,6 +1524,9 @@ void ProjectMigrationRunner::apply_pending() {
     }
     if (version < 15) {
         apply_version_fifteen(connection_);
+    }
+    if (version < 16) {
+        apply_version_sixteen(connection_);
     }
     transaction.commit();
 }

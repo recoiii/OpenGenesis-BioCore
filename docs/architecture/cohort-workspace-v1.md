@@ -1,6 +1,6 @@
 # Cohort Analysis Workspace v1 — 089 contract
 
-Status: candidate contract, implementation ownership below. Version: 1.
+Status: accepted 089 contract; Iteration 090 registry persistence implemented as a candidate. Version: 1.
 All paths are relative to the repository. Current behavior is distinct from
 required future cohort integration. Existing scientific engines remain unchanged.
 
@@ -20,7 +20,7 @@ required future cohort integration. Existing scientific engines remain unchanged
 | Variant views/annotation | `src/domain/source/variant_workspace.cpp`, `VariantAnalysisWorkspace`; `src/domain/source/variant_annotation.cpp`, `annotate_variant`; `src/application/include/biocore/application/variant_export.hpp`, `build_variant_export_plan` | Reuse query/export and annotation primitives; 096 adds cohort result adapter and frozen provenance. Existing variant workspace is not a cohort results store. |
 | Scheduling/process | `src/application/source/job_scheduler.cpp`, `JobScheduler::tick`; `src/application/source/worker_runtime.cpp`, `WorkerRuntime::run_cycle`; `src/application/source/job_service.cpp`, `JobService` | Reuse queued jobs, worker supervision, cancellation and artifact ingestion. Domain matrix/association currently have no cohort job dispatch. Add a thin native plugin adapter by 092, not a second engine or HTTP-thread execution. |
 | Recovery | `src/application/source/batch_recovery_service.cpp`, `BatchRecoveryService`; `src/application/source/workflow_state_recovery_service.cpp`, `WorkflowStateRecoveryService`; `src/application/source/workflow_resume_planner.cpp`, `WorkflowResumePlanner` | Reuse state/verification primitives, not batch-specific membership assumptions. 095 hardens cohort attempt lineage. |
-| Persistence | `src/infrastructure/source/sqlite/project_migration_runner.cpp`, `ProjectMigrationRunner::apply_pending`; `src/infrastructure/include/biocore/infrastructure/sqlite/project_migration_runner.hpp`, `latest_project_schema_version = 15` | No migration in 089. 090 adds v16 registry/revision tables; later additive migrations when snapshots/execution land. |
+| Persistence | `src/infrastructure/source/sqlite/project_migration_runner.cpp`, `ProjectMigrationRunner::apply_pending`; `src/infrastructure/include/biocore/infrastructure/sqlite/project_migration_runner.hpp`, `latest_project_schema_version = 16` | 090 adds v16 registry/revision tables and immutable membership snapshots; later additive migrations remain owned by their iterations. |
 | UI/API | `src/application/source/project_workspace_integration_service.cpp`, `ProjectWorkspaceIntegrationService`; `src/presentation/source/project_workspace_json.cpp`; `src/presentation/source/drogon_local_web_server.cpp`; `frontend/` | Extend existing project workspace and request/response pipeline in 097. 089 defines routes only; no callable cohort API yet. |
 | Reports | `src/application/source/batch_result_package_service.cpp`, `BatchResultPackageService`; `src/presentation/source/batch_result_package_report.cpp` | Reuse verified packaging/escaping patterns; don't regenerate existing batch report feature. 096 adds cohort content. |
 
@@ -116,6 +116,21 @@ tests cover v9→current and v15→v16, failure injection, rollback/reopen, fore
 integrity and retained jobs/batches/reports. No downgrade guarantee. Mutable sample
 deletion must be restricted or tombstoned when referenced; never cascade immutable
 analysis history away. Entire cohort revision insert/update is atomic.
+
+**Iteration 090 implementation.** Schema v16 now persists `cohort_definitions`,
+`cohort_revisions` and `cohort_revision_members`. Revisions are sealed before the
+optimistic `current_revision` advance; member rows copy display/group metadata at
+revision creation and keep exact sample IDs, biological-unit IDs, explicit
+`case|control|unassigned`, disposition and exclusion reason. Database foreign keys
+and triggers reject cross-project/nonexistent samples, mutation or deletion of sealed
+history, and deletion of referenced project samples. The application service rejects
+duplicate sample IDs, stale revisions and invalid exclusion semantics before commit.
+Artifact/run/attempt selection, analysis snapshots, execution and result APIs remain
+091+ scope; 090 does not resolve a "latest" artifact or run scientific computation.
+
+The route ownership table below names the domain/application operation introduced by
+an iteration. Wiring these operations into the existing Drogon project-workspace HTTP
+surface and the browser UI remains the integrated workspace work assigned to 097.
 
 ## 4. Execution and retry contract (dispatch in 092, hardening in 095)
 
