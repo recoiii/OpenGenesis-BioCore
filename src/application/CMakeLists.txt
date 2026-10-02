@@ -20,6 +20,8 @@ target_sources(
         source/cohort_registry.cpp
         source/cohort_registry_service.cpp
         source/cohort_analysis_selection_service.cpp
+        source/cohort_matrix.cpp
+        source/cohort_matrix_service.cpp
         source/execution_plan.cpp
         source/job_scheduler.cpp
         source/job_scheduler_error.cpp
@@ -79,6 +81,9 @@ target_sources(
             include/biocore/application/cohort_analysis_selection.hpp
             include/biocore/application/cohort_analysis_selection_service.hpp
             include/biocore/application/i_reference_manifest_reader.hpp
+            include/biocore/application/cohort_matrix.hpp
+            include/biocore/application/cohort_matrix_service.hpp
+            include/biocore/application/i_reference_genome_reader.hpp
             include/biocore/application/execution_plan.hpp
             include/biocore/application/generated_output_artifact.hpp
             include/biocore/application/health_snapshot.hpp
