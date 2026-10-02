@@ -15,6 +15,7 @@ class ICohortAnalysisSnapshotStore;
 class ICohortExecutionStore;
 class IIdGenerator;
 class IJobSubmitter;
+class IManagedFileRepository;
 class IUtcClock;
 class JobService;
 struct CohortAnalysisSnapshot;
@@ -92,6 +93,7 @@ public:
         ICohortExecutionStore& executions,
         ICohortExecutionInputVerifier& input_verifier,
         IJobSubmitter& submitter,
+        IManagedFileRepository& managed_files,
         JobService& jobs,
         IIdGenerator& ids,
         IUtcClock& clock
@@ -130,6 +132,7 @@ private:
     ICohortExecutionStore& executions_;
     ICohortExecutionInputVerifier& input_verifier_;
     IJobSubmitter& submitter_;
+    IManagedFileRepository& managed_files_;
     JobService& jobs_;
     IIdGenerator& ids_;
     IUtcClock& clock_;
