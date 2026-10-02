@@ -422,7 +422,10 @@ void add_qc(
         .normalization_contract_version = "biocore.normalized-allele.v1",
         .reference_file_id = "ref",
         .reference_sha256 = ref_hash,
-        .sources = {},
+        .sources = {
+            {"case-1", "vcf-case", vcf_hash, "case-1"},
+            {"control-1", "vcf-control", vcf_hash, "control-1"},
+        },
         .maximum_samples = 100U,
         .maximum_sources = 100U,
         .maximum_normalized_alleles = 10000U,
