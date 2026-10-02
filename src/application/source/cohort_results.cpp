@@ -30,7 +30,8 @@ void validate_probability(const std::optional<double>& value, const char* name) 
     static constexpr char hex[] = "0123456789abcdef";
     std::string result;
     result.reserve(value.size() * 2U);
-    for (const unsigned char c : value) {
+    for (const char raw : value) {
+        const auto c = static_cast<unsigned char>(raw);
         result.push_back(hex[(c >> 4U) & 0x0fU]);
         result.push_back(hex[c & 0x0fU]);
     }
