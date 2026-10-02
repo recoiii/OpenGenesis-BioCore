@@ -14,6 +14,7 @@
 #include "biocore/application/i_id_generator.hpp"
 #include "biocore/application/i_job_repository.hpp"
 #include "biocore/application/i_job_submitter.hpp"
+#include "biocore/application/i_managed_file_repository.hpp"
 #include "biocore/application/i_utc_clock.hpp"
 #include "biocore/application/job_service.hpp"
 #include "biocore/domain/job.hpp"
@@ -100,6 +101,88 @@ public:
     }
     bool valid{true};
     int calls{0};
+};
+
+class Files final : public application::IManagedFileRepository {
+public:
+    bool add(const domain::ManagedFile& file) override {
+        return files.emplace(std::string{file.id()}, file).second;
+    }
+
+    std::optional<domain::ManagedFile> find_by_id(
+        const std::string_view id
+    ) override {
+        const auto it = files.find(std::string{id});
+        return it == files.end() ? std::nullopt
+                                 : std::optional<domain::ManagedFile>{it->second};
+    }
+
+    std::optional<domain::ManagedFile> find_by_relative_project_path(
+        const std::string_view path
+    ) override {
+        for (const auto& [id, file] : files) {
+            (void)id;
+            if (file.relative_project_path() ==
+                std::optional<std::string>{std::string{path}}) return file;
+        }
+        return std::nullopt;
+    }
+
+    std::vector<domain::ManagedFile> list() override {
+        std::vector<domain::ManagedFile> result;
+        for (const auto& [id, file] : files) {
+            (void)id;
+            result.push_back(file);
+        }
+        return result;
+    }
+
+    bool add_generated_output(
+        const domain::ManagedFile& file,
+        const application::GeneratedOutputProvenance& provenance
+    ) override {
+        const application::GeneratedOutputArtifact artifact{file, provenance};
+        return add_generated_outputs_batch(std::span{&artifact, 1U});
+    }
+
+    bool add_generated_outputs_batch(
+        const std::span<const application::GeneratedOutputArtifact> values
+    ) override {
+        if (values.empty()) return false;
+        for (const auto& value : values) {
+            if (!files.emplace(std::string{value.file.id()}, value.file).second) {
+                return false;
+            }
+            artifacts.push_back(value);
+        }
+        return true;
+    }
+
+    std::optional<application::GeneratedOutputArtifact> find_generated_output(
+        const std::string_view job,
+        const std::string_view step,
+        const std::string_view port
+    ) override {
+        for (const auto& value : artifacts) {
+            if (value.provenance.job_id == job &&
+                value.provenance.step_id == step &&
+                value.provenance.output_port == port) return value;
+        }
+        return std::nullopt;
+    }
+
+    std::vector<application::GeneratedOutputArtifact> list_generated_outputs(
+        const std::string_view job
+    ) override {
+        std::vector<application::GeneratedOutputArtifact> result;
+        for (const auto& value : artifacts) {
+            if (value.provenance.job_id == job) result.push_back(value);
+        }
+        return result;
+    }
+
+    std::map<std::string, domain::ManagedFile, std::less<>> files;
+    std::vector<application::GeneratedOutputArtifact> artifacts;
 };
 
 class Jobs final : public application::IJobRepository {
@@ -239,13 +322,14 @@ struct Harness final {
     infrastructure::sqlite::SqliteCohortExecutionStore executions{connection};
     SnapshotStore snapshots;
     Verifier verifier;
+    Files files;
     Jobs job_repository;
     Clock clock;
     Ids ids;
     application::JobService jobs{job_repository, ids, clock};
     Submitter submitter{job_repository, connection};
     application::CohortExecutionService service{
-        snapshots, executions, verifier, submitter, jobs, ids, clock
+        snapshots, executions, verifier, submitter, files, jobs, ids, clock
     };
 
     Harness() {
@@ -455,6 +539,37 @@ void completion_test() {
         job2->id(), domain::JobStatus::completed, 1.0, std::nullopt
     );
     h2.connection.execute("INSERT INTO managed_files(id) VALUES('manifest-1');");
+    const domain::ManagedFile manifest{
+        "manifest-1",
+        "cohort-result-manifest.json",
+        domain::StorageMode::generated_output,
+        std::nullopt,
+        std::nullopt,
+        std::string{"outputs/manifest-1.json"},
+        "json",
+        128,
+        std::nullopt,
+        std::string{"sha256"},
+        std::string{manifest_hash},
+        "2026-10-02T15:32:00Z",
+        "2026-10-02T15:32:00Z"
+    };
+    check(h2.files.add_generated_output(
+        manifest,
+        application::GeneratedOutputProvenance{
+            .job_id = *second.job_id,
+            .step_id = "analysis",
+            .output_port = "manifest",
+            .plugin_id = "org.biocore.cohort",
+            .plugin_version = "1.0.0",
+            .module_id = "org.biocore.cohort.analysis",
+            .file_type = "json",
+            .relative_project_path = "outputs/manifest-1.json",
+            .step_progress = 1.0,
+            .registered_at_utc = "2026-10-02T15:32:00Z",
+        }),
+        "verified manifest fixture registered"
+    );
     const auto completed = h2.service.complete({
         .project_id = project_id,
         .analysis_id = analysis_id,
