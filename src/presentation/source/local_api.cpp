@@ -32,6 +32,7 @@
 #include "biocore/application/managed_file_service_error.hpp"
 #include "biocore/application/pipeline_bindings.hpp"
 #include "biocore/application/project_workspace_integration_service.hpp"
+#include "biocore/application/cohort_workspace_integration_service.hpp"
 #include "biocore/domain/job.hpp"
 #include "biocore/domain/managed_file.hpp"
 #include "biocore/domain/pipeline_step.hpp"
@@ -1126,11 +1127,12 @@ LocalApiController::LocalApiController(
     const application::IWorkflowTemplateCatalog* workflow_templates,
     application::WorkflowExecutionWorkspaceService* workflow_workspace,
     application::BatchResultPackageService* batch_result_packages,
-    application::ProjectWorkspaceIntegrationService* project_workspace
+    application::ProjectWorkspaceIntegrationService* project_workspace,
+    application::CohortWorkspaceIntegrationService* cohort_workspace
 )
     : jobs_{jobs}, retries_{retries}, submissions_{submissions}, managed_files_{managed_files},
       artifacts_{artifacts}, batch_result_packages_{batch_result_packages},
-      project_workspace_{project_workspace}, clock_{clock},
+      project_workspace_{project_workspace}, cohort_workspace_{cohort_workspace}, clock_{clock},
       workflow_templates_{workflow_templates}, workflow_workspace_{workflow_workspace},
       bootstrap_token_{std::move(bootstrap_token)}, browser_session_{browser_session} {
     if (bootstrap_token_.size() < 32U || bootstrap_token_.size() > 2048U) {
