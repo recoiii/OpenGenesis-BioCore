@@ -14,6 +14,7 @@
 #include <vector>
 
 #include "biocore/application/generated_output_artifact.hpp"
+#include "biocore/application/batch_results.hpp"
 #include "biocore/application/i_cohort_analysis_digester.hpp"
 #include "biocore/application/i_cohort_analysis_snapshot_store.hpp"
 #include "biocore/application/i_cohort_matrix_builder.hpp"
@@ -115,12 +116,10 @@ void add_issue(
         evidence.reason = "VCF QC summary bytes could not be verified";
         return evidence;
     }
-    if (read.text->empty() ||
-        read.text->find('\0') != std::string::npos ||
-        read.text->find("\"module\":\"org.biocore.vcfqc.filter\"") == std::string::npos ||
-        read.text->find("\"schemaVersion\":1") == std::string::npos ||
-        read.text->find("\"metrics\"") == std::string::npos) {
-        evidence.reason = "VCF QC summary content does not match schema v1 identity";
+    try {
+        validate_vcf_qc_summary_document(*read.text);
+    } catch (const std::exception&) {
+        evidence.reason = "VCF QC summary content does not satisfy the accepted schema v1 contract";
         return evidence;
     }
 
