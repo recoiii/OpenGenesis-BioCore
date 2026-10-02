@@ -594,6 +594,17 @@ void skip_ws(const std::string_view text, std::size_t& offset) {
 
 }  // namespace
 
+void validate_vcf_qc_summary_document(const std::string_view text) {
+    if (text.size() > BatchResultsService::maximum_qc_summary_bytes) {
+        throw std::length_error{"VCF QC summary exceeds the configured size limit"};
+    }
+    const auto schema_version = parse_schema_version(text);
+    if (schema_version != 1U) {
+        throw std::invalid_argument{"Unsupported VCF QC metric schema version"};
+    }
+    static_cast<void>(parse_vcf_qc_metrics(text));
+}
+
 BatchResultsService::BatchResultsService(
     IBatchPlanStore& plans,
     IBatchExecutionStore& executions,
