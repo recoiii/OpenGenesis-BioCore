@@ -1,0 +1,29 @@
+{
+  "manifestVersion": 2,
+  "id": "org.biocore.cohortanalysis",
+  "name": "OpenGenesis-BioCore Cohort Analysis",
+  "version": "1.0.0",
+  "apiVersion": "1.0",
+  "publisher": "OpenGenesis-BioCore Project",
+  "modules": [
+    {
+      "id": "org.biocore.cohort.analysis",
+      "type": "process",
+      "entrypoints": {
+        "linux-x64": "bin/linux-x64/biocore-cohort-analysis-plugin",
+        "windows-x64": "bin/windows-x64/biocore-cohort-analysis-plugin.exe"
+      },
+      "parameters": [
+        {"name":"project_id","type":"string","required":true,"default":null,"minimum":null,"maximum":null,"enumValues":[]},
+        {"name":"analysis_id","type":"string","required":true,"default":null,"minimum":null,"maximum":null,"enumValues":[]},
+        {"name":"snapshot_digest","type":"string","required":true,"default":null,"minimum":null,"maximum":null,"enumValues":[]}
+      ],
+      "inputs": [],
+      "outputs": [
+        {"name":"manifest","fileType":"json"},
+        {"name":"table","fileType":"tsv"},
+        {"name":"report","fileType":"html"}
+      ]
+    }
+  ]
+}
