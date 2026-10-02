@@ -139,7 +139,7 @@ shared/specific carrier views, frozen-statistics filtering, annotation linkage, 
 snapshot/filter provenance across CSV/TSV/JSON/HTML, export row bounds and drift rejection.
 Benchmark data describe retained cohort-contract regression performance on synthetic
 data. No independent 096 ACCEPT is assumed. Return REJECT for a blocking defect, with
-file/symbol, trigger, impact and correction. Do not start 096 or create
+file/symbol, trigger, impact and correction. Do not start 097 or create
 accepted/iteration-096 before an exact-candidate ACCEPT.
 
 ```text
