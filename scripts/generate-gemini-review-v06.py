@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Seal the 091 candidate and embed every changed file in four thematic parts."""
+"""Seal the 092 candidate and embed every changed file in four thematic parts."""
 from __future__ import annotations
 
 import argparse
@@ -15,8 +15,8 @@ assert spec and spec.loader
 base = importlib.util.module_from_spec(spec)
 sys.modules[spec.name] = base
 spec.loader.exec_module(base)
-BASELINE = "4d049e7c25f06f9ed50bc5c9b26f02eb34cc0cf3"
-BASELINE_TREE = "8effd1fe05152ef325e36ff062884d2994e63987"
+BASELINE = "d6fada4d5a84b8f4de62f02b01bd1b5dd157bf33"
+BASELINE_TREE = "1756bdd23295006bdda5d1f0e177a8407649848e"
 TITLES = ["Scope, baseline and contracts", "Implementation delta and source context",
           "Tests, regressions and failure scenarios", "Evidence, limits and verdict request"]
 
@@ -30,7 +30,7 @@ def main() -> None:
     evidence_mode.add_argument("--local-only", action="store_true",
                                help="Prepare a draft with local evidence; CI remains an open gate")
     args = parser.parse_args()
-    base.BASELINE_NAME = "accepted/iteration-090"
+    base.BASELINE_NAME = "accepted/iteration-092"
     base.BASELINE_COMMIT = BASELINE
     base.require_clean_tracked_tree()
     if base.git("rev-parse", f"{BASELINE}^{{tree}}") != BASELINE_TREE:
@@ -42,7 +42,7 @@ def main() -> None:
     groups: list[list] = [[], [], [], []]
     assignments = {}
     for entry in entries:
-        if entry.path.startswith("docs/") or "reference_manifest_reader" in entry.path:
+        if entry.path.startswith("docs/") or "reference_genome_reader" in entry.path:
             index = 0
         elif entry.path.startswith(("tests/",)):
             index = 2
@@ -55,7 +55,7 @@ def main() -> None:
     if any(not group for group in groups):
         raise RuntimeError("each thematic part must contain changed source")
     args.output.mkdir(parents=True, exist_ok=True)
-    archive = args.output / "OpenGenesis-BioCore-iteration-091-source-CANDIDATE.zip"
+    archive = args.output / "OpenGenesis-BioCore-iteration-092-source-CANDIDATE.zip"
     subprocess.run(["git", "archive", "--format=zip", "--prefix=OpenGenesis-BioCore/",
                     f"--output={archive}", "HEAD"], check=True)
     source_hash = hashlib.sha256(archive.read_bytes()).hexdigest()
@@ -68,7 +68,7 @@ def main() -> None:
         "linux-gcc-debug", "linux-gcc-release", "linux-clang-debug", "linux-gcc-asan-ubsan")
     for lane in lanes:
         summary = (args.evidence_dir / f"{lane}.txt").read_text()
-        if f"COMMIT={commit}" not in summary or "100% tests passed" not in summary or "308" not in summary:
+        if f"COMMIT={commit}" not in summary or "100% tests passed" not in summary or "316" not in summary:
             raise RuntimeError(f"missing/incorrect candidate test evidence: {lane}")
     evidence = "\n\n".join(f"### {path.name}\n\n```text\n{path.read_text().rstrip()}\n```"
                              for path in evidence_files)
@@ -77,31 +77,33 @@ def main() -> None:
                        f"Same-candidate CI: https://github.com/recoiii/OpenGenesis-BioCore/actions/runs/{args.ci_run_id}")
     generated = []
     for index, group in enumerate(groups):
-        body = f"""# OpenGenesis-BioCore v0.6.0-dev — Iteration 091 — Part {index + 1:02d}/04
+        body = f"""# OpenGenesis-BioCore v0.6.0-dev — Iteration 092 — Part {index + 1:02d}/04
 
 ## {TITLES[index]}
 
 - Candidate commit: `{commit}`
 - Candidate tree: `{tree}`
-- Frozen baseline: `accepted/iteration-090` / `{BASELINE}`
+- Frozen baseline: `accepted/iteration-091` / `{BASELINE}`
 - Baseline tree: `{BASELINE_TREE}`
 - Full source ZIP SHA-256: `{source_hash}`
 - Evidence status: {evidence_status}
 - Status: CANDIDATE; independent Gemini review pending; NOT accepted or frozen.
-- Linux evidence is included; native Windows and package closure are not claimed for 091.
+- Linux evidence is included; native Windows and package closure are not claimed for 092.
 
 Read all four parts and the source ZIP. Evaluate the accepted cohort contract and the
-091 acceptance criteria, not only green tests. 091 implements explicit artifact/run/
-attempt/VCF-column selection, exact-byte admission, reference provenance/manifest
-evidence and pre-matrix resource/ploidy gates. It does not persist analysis snapshots,
-construct/dispatch the cohort matrix, execute association, or add API/UI routes.
+092 acceptance criteria, not only green tests. 092 revalidates the exact 091 selection,
+loads the pinned FASTA from verified bytes, parses each physical VCF once, projects
+only explicitly selected columns to exact project sample IDs, and invokes the retained
+canonical multi-sample matrix engine with the fixed v0.6 resource envelope. It also
+emits the deterministic matrix-stage dispatch descriptor. It does not persist analysis
+snapshots, approve QC membership, execute association, or harden scheduler attempts.
 Project owner/developer: Recep Çelik. ChatGPT: AI-assisted implementation and review preparation.
 
 {base.manifest(entries, assignments)}
 """
         body += "\n".join(base.render_entry(entry) for entry in group)
         if index == 1:
-            body += """\n## Scientific source reuse boundary\n\nIteration 091 does not modify the matrix, VCF ingestion or case/control association engines.\nThose unchanged sources remain authoritative in the exact candidate source ZIP rather than\nbeing duplicated into this Markdown part. The changed-file manifest above is complete.\n"""
+            body += """\n## Scientific source reuse boundary\n\nIteration 092 does not modify the matrix, VCF ingestion or case/control association engines.\nThose unchanged sources remain authoritative in the exact candidate source ZIP rather than\nbeing duplicated into this Markdown part. The changed-file manifest above is complete.\n"""
         if index == 3:
             body += "\n## Executed evidence\n\n" + evidence
             body += """
@@ -116,7 +118,7 @@ contracts, not 091 claims. Benchmark data describe retained engine regression
 performance on synthetic data. Native Windows and package evidence remain final-
 closure gates. No independent 091 ACCEPT is assumed.
 Return REJECT for a blocking defect, with file/symbol, trigger, impact and correction.
-Do not start 092 or create accepted/iteration-091 before an exact-candidate ACCEPT.
+Do not start 093 or create accepted/iteration-092 before an exact-candidate ACCEPT.
 
 ```text
 VERDICT: ACCEPT | REJECT
@@ -130,7 +132,7 @@ NON-BLOCKING FINDINGS: NONE | <findings>
 RATIONALE: <independent rationale>
 ```
 """
-        path = args.output / f"OpenGenesis-BioCore-iteration-091-GEMINI-review-part-{index + 1:02d}-of-04.md"
+        path = args.output / f"OpenGenesis-BioCore-iteration-092-GEMINI-review-part-{index + 1:02d}-of-04.md"
         path.write_text(body, encoding="utf-8", newline="\n")
         generated.append(path)
     base.verify_generated(generated, entries, "")
