@@ -1060,3 +1060,18 @@ endforeach()
 
 add_executable(biocore-cohort-contract-benchmark cohort_contract_benchmark.cpp)
 target_link_libraries(biocore-cohort-contract-benchmark PRIVATE BioCore::domain BioCore::project_options BioCore::project_warnings BioCore::sanitizers)
+
+
+add_executable(biocore-cohort-registry-tests cohort_registry_tests.cpp)
+target_link_libraries(
+    biocore-cohort-registry-tests
+    PRIVATE
+        BioCore::infrastructure
+        SQLite::SQLite3
+        BioCore::project_options
+        BioCore::project_warnings
+        BioCore::sanitizers
+)
+foreach(mode tokens persistence revision migration)
+    add_test(NAME infrastructure.cohort_registry_${mode} COMMAND biocore-cohort-registry-tests ${mode})
+endforeach()
