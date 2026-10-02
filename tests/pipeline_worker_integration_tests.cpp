@@ -345,11 +345,13 @@ int main(const int argc, const char* const argv[]) {
     const auto known_module = registry.find_module("org.biocore.demo.validate");
     const auto fasta_module = registry.find_module("org.biocore.fastaqc.stats");
     const auto fastq_module = registry.find_module("org.biocore.fastqqc.stats");
-    const bool discovery_ok = report.loaded_plugins == 8U &&
-                              report.loaded_modules == 17U &&
+    const auto cohort_module = registry.find_module("org.biocore.cohortanalysis.analysis");
+    const bool discovery_ok = report.loaded_plugins == 9U &&
+                              report.loaded_modules == 18U &&
                               report.rejected.empty() && known_module.has_value() &&
                               fasta_module.has_value() &&
-                              fastq_module.has_value();
+                              fastq_module.has_value() &&
+                              cohort_module.has_value();
     const bool success_ok = discovery_ok && successful_execution_contract(worker, registry);
     const bool failure_ok = discovery_ok &&
                             plugin_failure_contract(worker, registry);
