@@ -313,7 +313,15 @@ void provenance_test() {
     check(package.reference_sha256 == reference_hash, "reference provenance");
     check(package.approved_case_samples == 2U &&
           package.approved_control_samples == 2U, "frozen denominators visible");
-    check(package.excluded_samples == 1U, "exclusion count visible");
+    check(package.excluded_samples == 1U &&
+          package.exclusions.size() == 1U &&
+          package.exclusions[0].sample_id == "qc-excluded" &&
+          package.exclusions[0].reason == std::optional<std::string>{"QC"},
+          "exclusion identity and reason visible");
+    check(package.no_call_policy == "complete-calls-only.v1" &&
+          package.allele_family_size == 3U &&
+          package.carrier_family_size == 3U,
+          "frozen method and family provenance visible");
     check(package.total_matched_variants == 1U, "package filter applied");
 }
 
