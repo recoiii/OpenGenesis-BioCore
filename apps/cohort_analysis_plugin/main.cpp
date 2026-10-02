@@ -83,7 +83,7 @@ using namespace biocore;
 }
 
 void validate_document(const plugin_protocol::PluginInvocationDocument& document) {
-    if (document.module_id != "org.biocore.cohort.analysis") {
+    if (document.module_id != "org.biocore.cohortanalysis.analysis") {
         throw std::invalid_argument("Unexpected cohort-analysis module id");
     }
     if (!document.inputs.empty()) {
