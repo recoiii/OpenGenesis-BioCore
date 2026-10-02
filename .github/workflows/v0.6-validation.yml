@@ -15,8 +15,8 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  BIOCORE_ITERATION: "093"
-  BIOCORE_EXPECTED_TESTS: "332"
+  BIOCORE_ITERATION: "094"
+  BIOCORE_EXPECTED_TESTS: "341"
 
 jobs:
   linux:
@@ -69,7 +69,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: iteration-093-${{ matrix.lane }}
+          name: iteration-094-${{ matrix.lane }}
           path: artifacts/
           if-no-files-found: error
 
@@ -109,7 +109,7 @@ jobs:
           done
       - uses: actions/upload-artifact@v4
         with:
-          name: iteration-093-benchmark
+          name: iteration-094-benchmark
           path: artifacts/evidence/
           if-no-files-found: error
 
@@ -123,7 +123,7 @@ jobs:
           fetch-depth: 0
       - uses: actions/download-artifact@v5
         with:
-          pattern: iteration-093-*
+          pattern: iteration-094-*
           path: artifacts/downloads
       - name: Collect exact-candidate evidence
         shell: bash
@@ -140,6 +140,6 @@ jobs:
           test "$(find . -name '*-part-*-of-04.md' | wc -l)" -eq 4
       - uses: actions/upload-artifact@v4
         with:
-          name: OpenGenesis-BioCore-iteration-093-GEMINI-review
+          name: OpenGenesis-BioCore-iteration-094-GEMINI-review
           path: artifacts/review/
           if-no-files-found: error
