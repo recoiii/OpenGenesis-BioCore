@@ -25,6 +25,8 @@ target_sources(
         source/cohort_analysis_snapshot.cpp
         source/cohort_analysis_approval_service.cpp
         source/cohort_case_control_analysis_service.cpp
+        source/cohort_execution.cpp
+        source/cohort_execution_service.cpp
         source/execution_plan.cpp
         source/job_scheduler.cpp
         source/job_scheduler_error.cpp
@@ -93,6 +95,9 @@ target_sources(
             include/biocore/application/i_cohort_analysis_snapshot_store.hpp
             include/biocore/application/cohort_analysis_approval_service.hpp
             include/biocore/application/cohort_case_control_analysis_service.hpp
+            include/biocore/application/cohort_execution.hpp
+            include/biocore/application/i_cohort_execution_store.hpp
+            include/biocore/application/cohort_execution_service.hpp
             include/biocore/application/execution_plan.hpp
             include/biocore/application/generated_output_artifact.hpp
             include/biocore/application/health_snapshot.hpp
