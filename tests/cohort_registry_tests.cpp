@@ -301,6 +301,11 @@ void immutability_contract() {
 }
 
 void drop_v17(SqliteConnection& connection) {
+    connection.execute("DROP TRIGGER IF EXISTS cohort_analysis_attempts_immutable_delete;");
+    connection.execute("DROP TRIGGER IF EXISTS cohort_analysis_attempts_validate_update;");
+    connection.execute("DROP TRIGGER IF EXISTS cohort_analysis_attempts_validate_insert;");
+    connection.execute("DROP TABLE IF EXISTS cohort_analysis_attempts;");
+    connection.execute("DELETE FROM schema_migrations WHERE version=18;");
     connection.execute("DROP TABLE cohort_analysis_test_universe;");
     connection.execute("DROP TABLE cohort_analysis_reference_aliases;");
     connection.execute("DROP TABLE cohort_analysis_reference_contigs;");
