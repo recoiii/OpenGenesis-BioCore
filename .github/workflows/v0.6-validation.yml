@@ -12,7 +12,7 @@ permissions:
 
 env:
   BIOCORE_ITERATION: "092"
-  BIOCORE_EXPECTED_TESTS: "316"
+  BIOCORE_EXPECTED_TESTS: "317"
 
 jobs:
   linux:
