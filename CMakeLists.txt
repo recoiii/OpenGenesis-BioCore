@@ -75,6 +75,7 @@ add_subdirectory(apps/alignment_qc_plugin)
 add_subdirectory(apps/variant_calling_plugin)
 add_subdirectory(apps/vcf_qc_plugin)
 add_subdirectory(apps/variant_annotation_plugin)
+add_subdirectory(apps/cohort_analysis_plugin)
 
 if(BIOCORE_BUILD_TESTS)
     add_subdirectory(tests)
