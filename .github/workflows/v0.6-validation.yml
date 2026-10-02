@@ -10,6 +10,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: v06-validation-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
   BIOCORE_ITERATION: "092"
   BIOCORE_EXPECTED_TESTS: "317"
