@@ -172,7 +172,7 @@ std::string canonical_cohort_analysis_snapshot(
         append_token(out, prefix + "cohort_disposition", to_string(sample.cohort_disposition));
         append_optional(out, prefix + "cohort_exclusion_reason", sample.cohort_exclusion_reason);
         append_token(out, prefix + "analysis_disposition", to_string(sample.analysis_disposition));
-        append_optional(out, prefix + "analysis_exclusion_reason", sample.analysis_exclusion_reason);
+        append_optional(out, prefix + "analysis_reason", sample.analysis_reason);
         append_token(out, prefix + "qc_state", to_string(sample.qc.state));
         append_token(out, prefix + "qc_reason", sample.qc.reason);
         append_optional(out, prefix + "qc_file_id", sample.qc.managed_file_id);
