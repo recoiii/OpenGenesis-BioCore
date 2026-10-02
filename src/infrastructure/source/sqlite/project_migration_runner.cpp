@@ -1930,6 +1930,7 @@ void apply_version_eighteen(SqliteConnection& connection) {
                 length(payload_digest) = 64 AND
                 payload_digest NOT GLOB '*[^0-9a-f]*'
             ),
+            operation TEXT NOT NULL CHECK(operation IN ('submit','retry')),
             cancellation_requested INTEGER NOT NULL DEFAULT 0
                 CHECK(cancellation_requested IN (0, 1)),
             state TEXT NOT NULL CHECK(state IN (
@@ -1957,13 +1958,13 @@ void apply_version_eighteen(SqliteConnection& connection) {
                 )
             ),
             PRIMARY KEY(project_id, analysis_id, attempt_number),
-            UNIQUE(project_id, analysis_id, idempotency_key),
+            UNIQUE(project_id, analysis_id, operation, idempotency_key),
             FOREIGN KEY(project_id, analysis_id)
                 REFERENCES cohort_analysis_snapshots(project_id, analysis_id)
                 ON DELETE RESTRICT,
             CHECK(
-                (attempt_number = 1 AND parent_attempt_id IS NULL) OR
-                (attempt_number > 1 AND parent_attempt_id IS NOT NULL)
+                (attempt_number = 1 AND parent_attempt_id IS NULL AND operation = 'submit') OR
+                (attempt_number > 1 AND parent_attempt_id IS NOT NULL AND operation = 'retry')
             ),
             CHECK(
                 (state IN ('failed','interrupted') AND failure_message IS NOT NULL) OR
@@ -2038,6 +2039,7 @@ void apply_version_eighteen(SqliteConnection& connection) {
             NEW.snapshot_digest != OLD.snapshot_digest OR
             NEW.idempotency_key != OLD.idempotency_key OR
             NEW.payload_digest != OLD.payload_digest OR
+            NEW.operation != OLD.operation OR
             NEW.created_at_utc != OLD.created_at_utc OR
             (OLD.job_id IS NOT NULL AND NEW.job_id IS NOT OLD.job_id) OR
             NEW.cancellation_requested < OLD.cancellation_requested OR
