@@ -1,4 +1,7 @@
+#include <algorithm>
+#include <cstdint>
 #include <cstdlib>
+#include <span>
 #include <iostream>
 #include <map>
 #include <optional>
