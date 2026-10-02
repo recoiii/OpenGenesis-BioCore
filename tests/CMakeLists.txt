@@ -1168,3 +1168,14 @@ foreach(mode pagination views statistics annotations provenance exports bounded 
         COMMAND biocore-cohort-results-tests ${mode}
     )
 endforeach()
+
+
+add_executable(biocore-cohort-workspace-json-tests cohort_workspace_json_tests.cpp)
+target_link_libraries(
+    biocore-cohort-workspace-json-tests
+    PRIVATE BioCore::presentation BioCore::project_options BioCore::project_warnings BioCore::sanitizers
+)
+add_test(
+    NAME presentation.cohort_workspace_json
+    COMMAND biocore-cohort-workspace-json-tests
+)
