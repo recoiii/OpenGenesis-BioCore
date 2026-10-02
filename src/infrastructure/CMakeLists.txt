@@ -12,6 +12,7 @@ target_sources(
         source/filesystem_input_file_storage.cpp
         source/filesystem_reference_compatibility_inspector.cpp
         source/filesystem_reference_manifest_reader.cpp
+        source/filesystem_reference_genome_reader.cpp
         source/filesystem_output_artifact_inspector.cpp
         source/filesystem_partial_output_cleaner.cpp
         source/filesystem_pipeline_catalog.cpp
@@ -61,6 +62,7 @@ target_sources(
             include/biocore/infrastructure/filesystem_input_file_storage.hpp
             include/biocore/infrastructure/filesystem_reference_compatibility_inspector.hpp
             include/biocore/infrastructure/filesystem_reference_manifest_reader.hpp
+            include/biocore/infrastructure/filesystem_reference_genome_reader.hpp
             include/biocore/infrastructure/filesystem_output_artifact_inspector.hpp
             include/biocore/infrastructure/filesystem_partial_output_cleaner.hpp
             include/biocore/infrastructure/filesystem_pipeline_catalog.hpp
