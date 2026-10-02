@@ -30,8 +30,6 @@
 namespace biocore::application {
 namespace {
 
-using ArtifactKey = std::tuple<std::string, std::string, std::string>;
-
 [[nodiscard]] bool blank(const std::string_view value) {
     return value.empty() || std::ranges::all_of(value, [](const char character) {
         return std::isspace(static_cast<unsigned char>(character)) != 0;
@@ -249,15 +247,6 @@ void inspect_vcf(
             }
         }
     }
-}
-
-[[nodiscard]] std::set<std::tuple<std::string, std::int64_t, std::string>, std::less<>>
-attempt_identity_set(const std::vector<BatchExecutionAttemptRecord>& attempts) {
-    std::set<std::tuple<std::string, std::int64_t, std::string>, std::less<>> result;
-    for (const auto& attempt : attempts) {
-        result.emplace(attempt.sample_id, attempt.attempt_number, attempt.job_id);
-    }
-    return result;
 }
 
 [[nodiscard]] bool reference_matches_plan(
@@ -526,7 +515,8 @@ CohortAnalysisSelectionPreview CohortAnalysisSelectionService::preview(
                       "Selected attempt has no frozen producer sample/workflow");
             continue;
         }
-        if (!std::ranges::contains(attempt.execution_node_ids, selection.step_id)) {
+        if (std::ranges::find(attempt.execution_node_ids, selection.step_id) ==
+            attempt.execution_node_ids.end()) {
             add_issue(preview, "mapping_conflict", selection.project_sample_id,
                       selection.managed_file_id,
                       "Selected step is outside the immutable attempt execution scope");
@@ -580,6 +570,19 @@ CohortAnalysisSelectionPreview CohortAnalysisSelectionService::preview(
             continue;
         }
 
+        const bool first_artifact = !counted_artifacts.contains(selection.managed_file_id);
+        if (first_artifact) {
+            const auto bytes = static_cast<std::uint64_t>(artifact->file.size_bytes());
+            if (preview.total_vcf_bytes >
+                    std::numeric_limits<std::uint64_t>::max() - bytes ||
+                preview.total_vcf_bytes + bytes > maximum_combined_vcf_bytes) {
+                add_issue(preview, "limit_exceeded", selection.project_sample_id,
+                          selection.managed_file_id,
+                          "Combined selected VCF text exceeds the 256 MiB admission budget");
+                continue;
+            }
+        }
+
         if (!verified_text_by_artifact.contains(selection.managed_file_id)) {
             const auto read = artifact_reader_.read_verified_text(*artifact, maximum_vcf_bytes);
             if (read.status != ResultArtifactReadStatus::verified ||
@@ -594,16 +597,9 @@ CohortAnalysisSelectionPreview CohortAnalysisSelectionService::preview(
             verified_text_by_artifact.emplace(selection.managed_file_id, *read.text);
         }
 
-        if (counted_artifacts.emplace(selection.managed_file_id).second) {
-            const auto bytes = static_cast<std::uint64_t>(artifact->file.size_bytes());
-            if (preview.total_vcf_bytes >
-                std::numeric_limits<std::uint64_t>::max() - bytes) {
-                add_issue(preview, "limit_exceeded", selection.project_sample_id,
-                          selection.managed_file_id,
-                          "Combined VCF byte count overflowed");
-                continue;
-            }
-            preview.total_vcf_bytes += bytes;
+        if (first_artifact) {
+            counted_artifacts.emplace(selection.managed_file_id);
+            preview.total_vcf_bytes += static_cast<std::uint64_t>(artifact->file.size_bytes());
         }
 
         preview.sources.push_back({
