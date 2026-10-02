@@ -338,6 +338,11 @@ CohortAnalysisSelectionPreview CohortAnalysisSelectionService::preview(
         .project_id = request.project_id,
         .cohort_id = request.cohort_id,
         .cohort_revision = request.cohort_revision,
+        .ready = false,
+        .reference = std::nullopt,
+        .sources = {},
+        .issues = {},
+        .total_vcf_bytes = 0U,
     };
 
     const auto cohort = cohorts_.find(
