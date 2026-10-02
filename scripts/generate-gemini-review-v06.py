@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Seal the 089 candidate and embed every changed file in four thematic parts."""
+"""Seal the 090 candidate and embed every changed file in four thematic parts."""
 from __future__ import annotations
 
 import argparse
@@ -15,8 +15,8 @@ assert spec and spec.loader
 base = importlib.util.module_from_spec(spec)
 sys.modules[spec.name] = base
 spec.loader.exec_module(base)
-BASELINE = "c82d2ef0210f4a74d191b2c27c9c73d640544ebf"
-BASELINE_TREE = "e3087bde6594b603db4f4a06152c3519fa6f7e06"
+BASELINE = "9f85dd30cd774851beb101630e8577e17d4fb0de"
+BASELINE_TREE = "18b5d4c5dab896b2b322ff29e105fa69296d9c53"
 TITLES = ["Scope, baseline and contracts", "Implementation delta and source context",
           "Tests, regressions and failure scenarios", "Evidence, limits and verdict request"]
 
@@ -30,7 +30,7 @@ def main() -> None:
     evidence_mode.add_argument("--local-only", action="store_true",
                                help="Prepare a draft with local evidence; CI remains an open gate")
     args = parser.parse_args()
-    base.BASELINE_NAME = "accepted/iteration-088"
+    base.BASELINE_NAME = "accepted/iteration-089"
     base.BASELINE_COMMIT = BASELINE
     base.require_clean_tracked_tree()
     if base.git("rev-parse", f"{BASELINE}^{{tree}}") != BASELINE_TREE:
@@ -55,7 +55,7 @@ def main() -> None:
     if any(not group for group in groups):
         raise RuntimeError("each thematic part must contain changed source")
     args.output.mkdir(parents=True, exist_ok=True)
-    archive = args.output / "OpenGenesis-BioCore-iteration-089-source-CANDIDATE.zip"
+    archive = args.output / "OpenGenesis-BioCore-iteration-090-source-CANDIDATE.zip"
     subprocess.run(["git", "archive", "--format=zip", "--prefix=OpenGenesis-BioCore/",
                     f"--output={archive}", "HEAD"], check=True)
     source_hash = hashlib.sha256(archive.read_bytes()).hexdigest()
@@ -68,7 +68,7 @@ def main() -> None:
         "linux-gcc-debug", "linux-gcc-release", "linux-clang-debug", "linux-gcc-asan-ubsan")
     for lane in lanes:
         summary = (args.evidence_dir / f"{lane}.txt").read_text()
-        if f"COMMIT={commit}" not in summary or "100% tests passed" not in summary or "292" not in summary:
+        if f"COMMIT={commit}" not in summary or "100% tests passed" not in summary or "300" not in summary:
             raise RuntimeError(f"missing/incorrect candidate test evidence: {lane}")
     evidence = "\n\n".join(f"### {path.name}\n\n```text\n{path.read_text().rstrip()}\n```"
                              for path in evidence_files)
@@ -77,22 +77,24 @@ def main() -> None:
                        f"Same-candidate CI: https://github.com/recoiii/OpenGenesis-BioCore/actions/runs/{args.ci_run_id}")
     generated = []
     for index, group in enumerate(groups):
-        body = f"""# OpenGenesis-BioCore v0.6.0-dev — Iteration 089 — Part {index + 1:02d}/04
+        body = f"""# OpenGenesis-BioCore v0.6.0-dev — Iteration 090 — Part {index + 1:02d}/04
 
 ## {TITLES[index]}
 
 - Candidate commit: `{commit}`
 - Candidate tree: `{tree}`
-- Frozen baseline: `accepted/iteration-088` / `{BASELINE}`
+- Frozen baseline: `accepted/iteration-089` / `{BASELINE}`
 - Baseline tree: `{BASELINE_TREE}`
 - Full source ZIP SHA-256: `{source_hash}`
 - Evidence status: {evidence_status}
 - Status: CANDIDATE; independent Gemini review pending; NOT accepted or frozen.
-- Linux evidence is included; native Windows and package closure are not claimed for 089.
+- Linux evidence is included; native Windows and package closure are not claimed for 090.
 
-Read all four parts and the source ZIP. Evaluate the roadmap scope and contracts,
-not only green tests. 089 changes development identity, documents, fixtures and CI;
-it does not implement the registry/API or new scientific algorithms.
+Read all four parts and the source ZIP. Evaluate the accepted 089 contract and the
+090 acceptance criteria, not only green tests. 090 implements the project-bound
+cohort registry, immutable versioned membership/group snapshots and schema v16. It
+does not select artifacts/runs, build cohort matrices, execute association, or add a
+parallel scheduler/scientific engine.
 Project owner/developer: Recep Çelik. ChatGPT: AI-assisted implementation and review preparation.
 
 {base.manifest(entries, assignments)}
@@ -112,12 +114,13 @@ Project owner/developer: Recep Çelik. ChatGPT: AI-assisted implementation and r
 
 For a LOCAL DRAFT, four-lane CI is an explicit open gate; review can identify
 findings, but final iteration acceptance is premature until CI evidence is attached.
-The cohort persistence/mapping/dispatch/UI and hard resource limits are future
-iteration contracts, not features tested in 089. Benchmark data describe retained
-engine performance on synthetic data. UI latency and full end-to-end report bytes
-are not measured yet. No independent roadmap or iteration ACCEPT is assumed.
+Artifact/run mapping, matrix/association dispatch, QC approval, execution/recovery,
+results and integrated HTTP/browser UI remain future iteration contracts, not 090
+claims. Benchmark data describe retained engine regression performance on synthetic
+data. Native Windows and package evidence remain final-closure gates. No independent
+090 ACCEPT is assumed.
 Return REJECT for a blocking defect, with file/symbol, trigger, impact and correction.
-Do not start 090 or create accepted/iteration-089 before an exact-candidate ACCEPT.
+Do not start 091 or create accepted/iteration-090 before an exact-candidate ACCEPT.
 
 ```text
 VERDICT: ACCEPT | REJECT
@@ -131,7 +134,7 @@ NON-BLOCKING FINDINGS: NONE | <findings>
 RATIONALE: <independent rationale>
 ```
 """
-        path = args.output / f"OpenGenesis-BioCore-iteration-089-GEMINI-review-part-{index + 1:02d}-of-04.md"
+        path = args.output / f"OpenGenesis-BioCore-iteration-090-GEMINI-review-part-{index + 1:02d}-of-04.md"
         path.write_text(body, encoding="utf-8", newline="\n")
         generated.append(path)
     base.verify_generated(generated, entries, "")
