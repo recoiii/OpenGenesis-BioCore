@@ -1070,3 +1070,17 @@ target_link_libraries(
 foreach(mode model create validation revision atomicity immutability migration rollback)
     add_test(NAME integration.cohort_registry_${mode} COMMAND biocore-cohort-registry-tests ${mode})
 endforeach()
+
+
+add_executable(biocore-cohort-analysis-selection-tests cohort_analysis_selection_tests.cpp)
+target_link_libraries(
+    biocore-cohort-analysis-selection-tests
+    PRIVATE BioCore::application BioCore::infrastructure
+            BioCore::project_options BioCore::project_warnings BioCore::sanitizers
+)
+foreach(mode mapping multi-vcf attempts hash reference ploidy limits manifest)
+    add_test(
+        NAME integration.cohort_analysis_selection_${mode}
+        COMMAND biocore-cohort-analysis-selection-tests ${mode}
+    )
+endforeach()
