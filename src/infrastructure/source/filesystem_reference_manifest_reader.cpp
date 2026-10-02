@@ -30,6 +30,17 @@ namespace {
 #endif
 }
 
+[[nodiscard]] application::ReferenceManifestRead status_only(
+    const application::ReferenceManifestReadStatus status
+) {
+    return {
+        .status = status,
+        .contigs = {},
+        .verified_sha256 = std::nullopt,
+        .verified_size_bytes = 0,
+    };
+}
+
 [[nodiscard]] std::string header_token(const std::string_view line) {
     if (line.empty() || line.front() != '>') {
         throw std::invalid_argument{"Reference FASTA header is invalid"};
@@ -68,20 +79,20 @@ FilesystemReferenceManifestReader::read_verified_manifest(
     if (before.status != ManagedFileIntegrityStatus::verified ||
         !before.observed_sha256.has_value() ||
         !before.observed_size_bytes.has_value()) {
-        return {.status = ReferenceManifestReadStatus::integrity_unverified};
+        return status_only(ReferenceManifestReadStatus::integrity_unverified);
     }
     if (*before.observed_size_bytes < 0 ||
         static_cast<std::uint64_t>(*before.observed_size_bytes) >
             static_cast<std::uint64_t>(maximum_bytes)) {
-        return {.status = ReferenceManifestReadStatus::too_large};
+        return status_only(ReferenceManifestReadStatus::too_large);
     }
     if (!file.managed_path().has_value()) {
-        return {.status = ReferenceManifestReadStatus::integrity_unverified};
+        return status_only(ReferenceManifestReadStatus::integrity_unverified);
     }
 
     try {
         std::ifstream input{path_from_utf8(*file.managed_path()), std::ios::binary};
-        if (!input) return {.status = ReferenceManifestReadStatus::io_error};
+        if (!input) return status_only(ReferenceManifestReadStatus::io_error);
 
         std::vector<application::ReferenceManifestContig> contigs;
         std::set<std::string, std::less<>> names;
@@ -124,10 +135,10 @@ FilesystemReferenceManifestReader::read_verified_manifest(
                 ++current_length;
             }
         }
-        if (input.bad()) return {.status = ReferenceManifestReadStatus::io_error};
+        if (input.bad()) return status_only(ReferenceManifestReadStatus::io_error);
         finish_contig();
         if (contigs.empty()) {
-            return {.status = ReferenceManifestReadStatus::invalid_fasta};
+            return status_only(ReferenceManifestReadStatus::invalid_fasta);
         }
 
         const auto after = input_storage_.verify_managed_file(file);
@@ -136,7 +147,7 @@ FilesystemReferenceManifestReader::read_verified_manifest(
             !after.observed_size_bytes.has_value() ||
             *after.observed_sha256 != *before.observed_sha256 ||
             *after.observed_size_bytes != *before.observed_size_bytes) {
-            return {.status = ReferenceManifestReadStatus::changed_during_read};
+            return status_only(ReferenceManifestReadStatus::changed_during_read);
         }
 
         return {
@@ -146,11 +157,11 @@ FilesystemReferenceManifestReader::read_verified_manifest(
             .verified_size_bytes = *after.observed_size_bytes,
         };
     } catch (const std::invalid_argument&) {
-        return {.status = ReferenceManifestReadStatus::invalid_fasta};
+        return status_only(ReferenceManifestReadStatus::invalid_fasta);
     } catch (const std::length_error&) {
-        return {.status = ReferenceManifestReadStatus::invalid_fasta};
+        return status_only(ReferenceManifestReadStatus::invalid_fasta);
     } catch (...) {
-        return {.status = ReferenceManifestReadStatus::io_error};
+        return status_only(ReferenceManifestReadStatus::io_error);
     }
 }
 
