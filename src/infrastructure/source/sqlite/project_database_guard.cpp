@@ -20,7 +20,7 @@ struct ExpectedMigration final {
     std::string_view name;
 };
 
-constexpr std::array<ExpectedMigration, 17> expected_migrations{{
+constexpr std::array<ExpectedMigration, 18> expected_migrations{{
     {1, "create_project_core_tables"},
     {2, "extend_jobs_for_repository"},
     {3, "register_generated_output_artifacts"},
@@ -38,6 +38,7 @@ constexpr std::array<ExpectedMigration, 17> expected_migrations{{
     {15, "add_batch_recovery_attempt_lineage"},
     {16, "add_cohort_registry_and_revisions"},
     {17, "persist_immutable_cohort_analysis_snapshots"},
+    {18, "persist_cohort_execution_attempt_lineage"},
 }};
 
 struct RequiredSchemaObject final {
@@ -45,7 +46,7 @@ struct RequiredSchemaObject final {
     std::string_view name;
 };
 
-constexpr std::array<RequiredSchemaObject, 100> required_current_objects{{
+constexpr std::array<RequiredSchemaObject, 104> required_current_objects{{
     {"table", "schema_migrations"},
     {"table", "project_metadata"},
     {"table", "project_samples"},
@@ -146,6 +147,10 @@ constexpr std::array<RequiredSchemaObject, 100> required_current_objects{{
     {"trigger", "cohort_analysis_test_universe_require_open_snapshot"},
     {"trigger", "cohort_analysis_test_universe_immutable_update"},
     {"trigger", "cohort_analysis_test_universe_immutable_delete"},
+    {"table", "cohort_analysis_attempts"},
+    {"trigger", "cohort_analysis_attempts_validate_insert"},
+    {"trigger", "cohort_analysis_attempts_validate_update"},
+    {"trigger", "cohort_analysis_attempts_immutable_delete"},
 }};
 
 class Statement final {
