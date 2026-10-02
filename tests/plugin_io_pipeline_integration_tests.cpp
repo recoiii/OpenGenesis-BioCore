@@ -52,7 +52,7 @@ int main(int argc,const char* const argv[]){
     if(argc!=3){std::cerr<<"Expected worker and plugin root\n";return EXIT_FAILURE;}
     Project project;Repo repo{project.root()};
     biocore::infrastructure::FilesystemPluginRegistry registry{{fs::canonical(path_from_utf8(argv[2]))}};
-    const auto report=registry.refresh();if(report.loaded_plugins!=8U||!report.rejected.empty()){std::cerr<<"Plugin discovery failed\n";return EXIT_FAILURE;}
+    const auto report=registry.refresh();if(report.loaded_plugins!=9U||report.loaded_modules!=18U||!report.rejected.empty()||!registry.find_module("org.biocore.cohortanalysis.analysis").has_value()){std::cerr<<"Plugin discovery failed\n";return EXIT_FAILURE;}
     biocore::infrastructure::JsonExecutionPlanStore plan_store{project.root()};
     biocore::application::PipelinePreparationService preparation{plan_store,registry,repo};
     const biocore::domain::PipelineDefinition definition{2U,"org.biocore.demo.io","IO","1.0.0",{biocore::domain::PipelineStep{"copy","org.biocore.demo.copy", "0.1.0",{},1.0}}};
