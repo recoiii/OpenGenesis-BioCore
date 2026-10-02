@@ -101,7 +101,7 @@ QC approval and immutable analysis snapshot ownership remain 093. Association re
 
 ## Verification gate
 
-Eight dedicated CTest modes cover:
+Nine dedicated CTest modes cover:
 1. shared multi-sample VCF parsed once with exact project-ID column projection,
 2. sparse absence remaining absent,
 3. deterministic sample and variant ordering,
@@ -109,9 +109,9 @@ Eight dedicated CTest modes cover:
 5. exact resource boundary validation,
 6. explicit custom reference alias projection,
 7. reference-byte drift rejection before matrix construction,
-8. deterministic matrix-stage dispatch descriptor.
+8. real managed-filesystem FASTA loading and tamper rejection,\n9. deterministic matrix-stage dispatch descriptor.
 
-Expected full CTest inventory: 316 tests (308 inherited + 8 new).
+Expected full CTest inventory: 317 tests (308 inherited + 9 new).
 
 The standard four Linux lanes and retained cohort benchmark must pass on the exact
 candidate commit. The Gemini package remains exactly four Markdown files plus the
