@@ -30,7 +30,7 @@ def main() -> None:
     evidence_mode.add_argument("--local-only", action="store_true",
                                help="Prepare a draft with local evidence; CI remains an open gate")
     args = parser.parse_args()
-    base.BASELINE_NAME = "accepted/iteration-091"
+    base.BASELINE_NAME = "accepted/iteration-090"
     base.BASELINE_COMMIT = BASELINE
     base.require_clean_tracked_tree()
     if base.git("rev-parse", f"{BASELINE}^{{tree}}") != BASELINE_TREE:
