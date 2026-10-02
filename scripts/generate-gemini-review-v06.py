@@ -68,7 +68,8 @@ def main() -> None:
         "linux-gcc-debug", "linux-gcc-release", "linux-clang-debug", "linux-gcc-asan-ubsan")
     for lane in lanes:
         summary = (args.evidence_dir / f"{lane}.txt").read_text()
-        if (f"COMMIT={commit}" not in summary or "CTEST_COUNT=332" not in summary or\n                "100% tests passed" not in summary or "out of 332" not in summary):
+        if (f"COMMIT={commit}" not in summary or "CTEST_COUNT=332" not in summary or
+                "100% tests passed" not in summary or "out of 332" not in summary):
             raise RuntimeError(f"missing/incorrect candidate test evidence: {lane}")
     evidence = "\n\n".join(f"### {path.name}\n\n```text\n{path.read_text().rstrip()}\n```"
                              for path in evidence_files)
