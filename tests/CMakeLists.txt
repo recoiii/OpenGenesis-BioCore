@@ -1149,7 +1149,7 @@ target_link_libraries(
     PRIVATE BioCore::application BioCore::infrastructure SQLite::SQLite3
             BioCore::project_options BioCore::project_warnings BioCore::sanitizers
 )
-foreach(mode store duplicate drift recovery retry cancel completion migration)
+foreach(mode store duplicate drift recovery retry cancel completion persistence-failure migration)
     add_test(
         NAME integration.cohort_execution_${mode}
         COMMAND biocore-cohort-execution-tests ${mode}
