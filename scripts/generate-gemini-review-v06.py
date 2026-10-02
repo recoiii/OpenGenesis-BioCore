@@ -101,11 +101,7 @@ Project owner/developer: Recep Çelik. ChatGPT: AI-assisted implementation and r
 """
         body += "\n".join(base.render_entry(entry) for entry in group)
         if index == 1:
-            body += "\n## Unchanged scientific source context (authoritative source ZIP also supplied)\n"
-            for path in ("src/domain/source/case_control_association.cpp",
-                         "src/domain/source/multi_sample_matrix_vcf.cpp",
-                         "src/application/include/biocore/application/batch_results_service.hpp"):
-                body += f"\n### {path}\n\n```cpp\n{base.git('show', 'HEAD:' + path)}\n```\n"
+            body += """\n## Scientific source reuse boundary\n\nIteration 090 does not modify the matrix, VCF ingestion or case/control association engines.\nThose unchanged sources remain authoritative in the exact candidate source ZIP rather than\nbeing duplicated into this Markdown part. The changed-file manifest above is complete.\n"""
         if index == 3:
             body += "\n## Executed evidence\n\n" + evidence
             body += """
