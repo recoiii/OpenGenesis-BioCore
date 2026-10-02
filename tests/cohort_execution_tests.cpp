@@ -225,6 +225,7 @@ public:
         : jobs_{jobs}, connection_{connection} {}
 
     domain::Job submit(const application::SubmitJobRequest& request) override {
+        last_request = request;
         ++calls;
         if (fail) throw std::runtime_error{"synthetic scheduler failure"};
         const std::string id = "job-" + std::to_string(calls);
@@ -254,6 +255,7 @@ public:
     infrastructure::sqlite::SqliteConnection& connection_;
     int calls{0};
     bool fail{false};
+    std::optional<application::SubmitJobRequest> last_request;
 };
 
 void bootstrap_v17(infrastructure::sqlite::SqliteConnection& connection) {
@@ -404,6 +406,16 @@ void duplicate_test() {
     Harness h;
     const auto first = h.service.submit(submit_request());
     check(first.job_id == std::optional<std::string>{"job-1"}, "first handoff attached");
+    check(h.submitter.last_request.has_value(), "cohort handoff request captured");
+    const auto& bindings = h.submitter.last_request->bindings.steps;
+    check(bindings.size() == 1U && bindings[0].step_id == "analyze",
+          "cohort pipeline bindings target analyze step");
+    check(bindings[0].parameters.size() == 3U,
+          "cohort pipeline receives immutable identity parameters");
+    check(std::get<std::string>(bindings[0].parameters[0].value) == project_id &&
+          std::get<std::string>(bindings[0].parameters[1].value) == analysis_id &&
+          std::get<std::string>(bindings[0].parameters[2].value) == snapshot_digest,
+          "cohort pipeline bindings preserve project/analysis/snapshot identity");
     const auto replay = h.service.submit(submit_request());
     check(replay.attempt_id == first.attempt_id, "duplicate returns same attempt");
     check(h.submitter.calls == 1, "duplicate does not submit second job");
