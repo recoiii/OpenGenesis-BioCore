@@ -117,9 +117,9 @@ void add_issue(
     }
     if (read.text->empty() ||
         read.text->find('\0') != std::string::npos ||
-        read.text->find(""module":"org.biocore.vcfqc.filter"") == std::string::npos ||
-        read.text->find(""schemaVersion":1") == std::string::npos ||
-        read.text->find(""metrics"") == std::string::npos) {
+        read.text->find("\\\"module\\\":\\\"org.biocore.vcfqc.filter\\\"") == std::string::npos ||
+        read.text->find("\\\"schemaVersion\\\":1") == std::string::npos ||
+        read.text->find("\\\"metrics\\\"") == std::string::npos) {
         evidence.reason = "VCF QC summary content does not match schema v1 identity";
         return evidence;
     }
