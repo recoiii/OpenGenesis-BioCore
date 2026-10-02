@@ -130,4 +130,6 @@ struct BatchVariantMatrixBuild final {
     domain::MultiSampleMatrix matrix;
 };
 
+void validate_vcf_qc_summary_document(std::string_view text);
+
 }  // namespace biocore::application
