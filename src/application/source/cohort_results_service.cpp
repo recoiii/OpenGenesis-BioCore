@@ -60,10 +60,22 @@ void validate_analysis_against_snapshot(
             row.alternate != frozen.alternate ||
             row.total_cases != snapshot.approved_case_samples ||
             row.total_controls != snapshot.approved_control_samples ||
+            row.case_unobserved != frozen.case_unobserved ||
+            row.control_unobserved != frozen.control_unobserved ||
+            row.case_no_calls != frozen.case_no_calls ||
+            row.control_no_calls != frozen.control_no_calls ||
+            row.case_partial_calls != frozen.case_partial_calls ||
+            row.control_partial_calls != frozen.control_partial_calls ||
+            row.effective_case_samples != frozen.case_complete_calls ||
+            row.effective_control_samples != frozen.control_complete_calls ||
             row.allele.family_member != frozen.allele_family_member ||
-            row.carrier.family_member != frozen.carrier_family_member) {
+            row.carrier.family_member != frozen.carrier_family_member ||
+            row.allele.fisher_two_sided_p.has_value() != row.allele.family_member ||
+            row.allele.bh_adjusted_q.has_value() != row.allele.family_member ||
+            row.carrier.fisher_two_sided_p.has_value() != row.carrier.family_member ||
+            row.carrier.bh_adjusted_q.has_value() != row.carrier.family_member) {
             throw std::invalid_argument(
-                "cohort result row identity or frozen family membership drifted"
+                "cohort result row identity, denominators or frozen family membership drifted"
             );
         }
     }
