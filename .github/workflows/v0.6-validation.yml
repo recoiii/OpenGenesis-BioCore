@@ -16,7 +16,7 @@ concurrency:
 
 env:
   BIOCORE_ITERATION: "095"
-  BIOCORE_EXPECTED_TESTS: "349"
+  BIOCORE_EXPECTED_TESTS: "350"
 
 jobs:
   linux:
