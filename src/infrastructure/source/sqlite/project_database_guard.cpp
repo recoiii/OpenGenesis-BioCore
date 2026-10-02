@@ -20,7 +20,7 @@ struct ExpectedMigration final {
     std::string_view name;
 };
 
-constexpr std::array<ExpectedMigration, 16> expected_migrations{{
+constexpr std::array<ExpectedMigration, 17> expected_migrations{{
     {1, "create_project_core_tables"},
     {2, "extend_jobs_for_repository"},
     {3, "register_generated_output_artifacts"},
@@ -37,6 +37,7 @@ constexpr std::array<ExpectedMigration, 16> expected_migrations{{
     {14, "submit_batch_plans_through_scheduler"},
     {15, "add_batch_recovery_attempt_lineage"},
     {16, "add_cohort_registry_and_revisions"},
+    {17, "persist_immutable_cohort_analysis_snapshots"},
 }};
 
 struct RequiredSchemaObject final {
@@ -44,7 +45,7 @@ struct RequiredSchemaObject final {
     std::string_view name;
 };
 
-constexpr std::array<RequiredSchemaObject, 77> required_current_objects{{
+constexpr std::array<RequiredSchemaObject, 100> required_current_objects{{
     {"table", "schema_migrations"},
     {"table", "project_metadata"},
     {"table", "project_samples"},
@@ -122,6 +123,29 @@ constexpr std::array<RequiredSchemaObject, 77> required_current_objects{{
     {"trigger", "cohort_revision_members_require_open_revision"},
     {"trigger", "cohort_revision_members_immutable_update"},
     {"trigger", "cohort_revision_members_immutable_delete"},
+    {"table", "cohort_analysis_snapshots"},
+    {"table", "cohort_analysis_samples"},
+    {"table", "cohort_analysis_sources"},
+    {"table", "cohort_analysis_reference_contigs"},
+    {"table", "cohort_analysis_reference_aliases"},
+    {"table", "cohort_analysis_test_universe"},
+    {"trigger", "cohort_analysis_snapshots_validate_update"},
+    {"trigger", "cohort_analysis_snapshots_immutable_delete"},
+    {"trigger", "cohort_analysis_samples_require_open_snapshot"},
+    {"trigger", "cohort_analysis_samples_immutable_update"},
+    {"trigger", "cohort_analysis_samples_immutable_delete"},
+    {"trigger", "cohort_analysis_sources_require_open_snapshot"},
+    {"trigger", "cohort_analysis_sources_immutable_update"},
+    {"trigger", "cohort_analysis_sources_immutable_delete"},
+    {"trigger", "cohort_analysis_reference_contigs_require_open_snapshot"},
+    {"trigger", "cohort_analysis_reference_contigs_immutable_update"},
+    {"trigger", "cohort_analysis_reference_contigs_immutable_delete"},
+    {"trigger", "cohort_analysis_reference_aliases_require_open_snapshot"},
+    {"trigger", "cohort_analysis_reference_aliases_immutable_update"},
+    {"trigger", "cohort_analysis_reference_aliases_immutable_delete"},
+    {"trigger", "cohort_analysis_test_universe_require_open_snapshot"},
+    {"trigger", "cohort_analysis_test_universe_immutable_update"},
+    {"trigger", "cohort_analysis_test_universe_immutable_delete"},
 }};
 
 class Statement final {
