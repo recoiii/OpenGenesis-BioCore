@@ -78,6 +78,21 @@ struct CohortAssociationApprovalOptions final {
     friend bool operator==(const CohortAssociationApprovalOptions&, const CohortAssociationApprovalOptions&) = default;
 };
 
+struct CohortAnalysisResourceLimits final {
+    std::size_t maximum_samples{100U};
+    std::size_t maximum_sources{100U};
+    std::size_t maximum_vcf_bytes{64U * 1024U * 1024U};
+    std::size_t maximum_combined_vcf_bytes{256U * 1024U * 1024U};
+    std::size_t maximum_reference_bytes{512U * 1024U * 1024U};
+    std::size_t maximum_normalized_alleles{10000U};
+    std::size_t maximum_observations{1000000U};
+
+    friend bool operator==(
+        const CohortAnalysisResourceLimits&,
+        const CohortAnalysisResourceLimits&
+    ) = default;
+};
+
 struct CohortAnalysisVariantUniverse final {
     std::size_t ordinal{0U};
     std::string contig;
@@ -111,6 +126,9 @@ struct CohortAnalysisSnapshot final {
     CohortPinnedReference reference;
     std::vector<CohortPinnedVcfSource> sources;
     std::vector<CohortAnalysisSampleSnapshot> samples;
+    std::string matrix_stage_id{"matrix"};
+    std::string matrix_module_id{"org.biocore.cohort.matrix"};
+    CohortAnalysisResourceLimits resource_limits;
     CohortAssociationApprovalOptions association_options;
     std::string association_contract_version{"biocore.case-control.v1"};
     std::string test_filter_version{"biocore.complete-call-gate.v1"};
