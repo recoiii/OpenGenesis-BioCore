@@ -1,5 +1,8 @@
 #include <algorithm>
 #include <cstdint>
+#include <chrono>
+#include <filesystem>
+#include <fstream>
 #include <cstdlib>
 #include <iostream>
 #include <map>
@@ -26,6 +29,8 @@
 #include "biocore/application/i_result_artifact_reader.hpp"
 #include "biocore/domain/job.hpp"
 #include "biocore/domain/managed_file.hpp"
+#include "biocore/infrastructure/filesystem_input_file_storage.hpp"
+#include "biocore/infrastructure/filesystem_reference_genome_reader.hpp"
 
 namespace {
 using namespace biocore;
@@ -806,6 +811,69 @@ void reference_drift_contract() {
     });
 }
 
+class TempProject final {
+public:
+    TempProject()
+        : root{std::filesystem::temp_directory_path() /
+               ("biocore-cohort-092-" + std::to_string(
+                   std::chrono::steady_clock::now().time_since_epoch().count()))} {
+        std::filesystem::create_directories(root / "inputs");
+        std::filesystem::create_directories(root / ".biocore" / "runtime");
+    }
+
+    ~TempProject() {
+        std::error_code ignored;
+        std::filesystem::remove_all(root, ignored);
+    }
+
+    std::filesystem::path root;
+};
+
+void genome_reader_contract() {
+    TempProject temp;
+    const auto source = temp.root / "source.fa";
+    {
+        std::ofstream output{source, std::ios::binary};
+        output << ">custom\nACGTACGT\n";
+    }
+
+    const auto canonical_root = std::filesystem::canonical(temp.root).generic_string();
+    infrastructure::FilesystemInputFileStorage storage{canonical_root};
+    auto transaction = storage.prepare_managed_copy(
+        source.generic_string(), "ref-092"
+    );
+    const auto prepared = transaction->prepared_file();
+    domain::ManagedFile managed{
+        "ref-092", prepared.display_name, domain::StorageMode::managed_copy,
+        prepared.original_path, prepared.managed_path, prepared.relative_project_path,
+        "fasta", prepared.size_bytes, std::nullopt,
+        prepared.checksum_algorithm, prepared.checksum_value, "created", "updated"
+    };
+    transaction->commit();
+
+    infrastructure::FilesystemReferenceGenomeReader reader{storage};
+    const auto loaded = reader.read_verified_genome(
+        managed, domain::ReferenceAssembly::custom, 1024U
+    );
+    check(loaded.status == application::ReferenceGenomeReadStatus::verified &&
+          loaded.genome.has_value() &&
+          loaded.verified_sha256 == managed.checksum_value(),
+          "filesystem reference genome was not verified");
+    const auto contig = loaded.genome->contigs().resolve("custom");
+    check(contig.has_value() && loaded.genome->base(*contig, 2U) == std::optional<char>{'G'},
+          "filesystem reference genome content is incorrect");
+
+    {
+        std::ofstream output{*managed.managed_path(), std::ios::binary | std::ios::app};
+        output << "A";
+    }
+    const auto changed = reader.read_verified_genome(
+        managed, domain::ReferenceAssembly::custom, 1024U
+    );
+    check(changed.status == application::ReferenceGenomeReadStatus::integrity_unverified,
+          "tampered managed FASTA remained loadable");
+}
+
 void dispatch_contract() {
     Harness h;
     h.cohorts.value = cohort({
@@ -842,6 +910,7 @@ int main(int argc, char** argv) {
         else if (mode == "budget") budget_contract();
         else if (mode == "alias") alias_contract();
         else if (mode == "reference-drift") reference_drift_contract();
+        else if (mode == "genome-reader") genome_reader_contract();
         else if (mode == "dispatch") dispatch_contract();
         else return EXIT_FAILURE;
         return EXIT_SUCCESS;
