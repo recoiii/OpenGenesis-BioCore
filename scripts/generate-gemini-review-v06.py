@@ -17,8 +17,8 @@ sys.modules[spec.name] = base
 spec.loader.exec_module(base)
 BASELINE = "bf296adf633ec766e46011b605ba892bc3ab53ff"
 BASELINE_TREE = "c862af020fbd96c570d86db926eeecb6b70dcb78"
-TITLES = ["Scope, baseline and approval contracts", "Implementation, persistence and source context",
-          "Tests, regressions and failure scenarios", "CI evidence, limits and verdict request"]
+TITLES = ["Candidate source delta — partition A", "Candidate source delta — partition B",
+          "Candidate source delta — partition C", "CI evidence, limits and source partition D"]
 
 
 def main() -> None:
@@ -41,19 +41,30 @@ def main() -> None:
     entries = base.load_changed_entries()
     groups: list[list] = [[], [], [], []]
     assignments = {}
-    for entry in entries:
-        if entry.path.startswith((".github/", "scripts/")):
-            index = 3
-        elif entry.path.startswith("tests/"):
-            index = 2
-        elif entry.path.endswith("CMakeLists.txt") or "/include/" in entry.path:
-            index = 0
-        else:
-            index = 1
+    rendered = {entry.path: base.render_entry(entry) for entry in entries}
+    # Reserve space in part 04 for CI evidence, then greedily balance the exact
+    # rendered changed-source bytes across all four parts. Review completeness is
+    # preserved by the manifest and verify_generated() below.
+    costs = [0, 0, 0, 30000]
+    support = [
+        entry for entry in entries
+        if entry.path.startswith((".github/", "scripts/"))
+    ]
+    for entry in support:
+        groups[3].append(entry)
+        assignments[entry.path] = 4
+        costs[3] += len(rendered[entry.path].encode("utf-8"))
+    remaining = [entry for entry in entries if entry not in support]
+    remaining.sort(
+        key=lambda entry: (-len(rendered[entry.path].encode("utf-8")), entry.path)
+    )
+    for entry in remaining:
+        index = min(range(4), key=lambda candidate: (costs[candidate], candidate))
         groups[index].append(entry)
         assignments[entry.path] = index + 1
+        costs[index] += len(rendered[entry.path].encode("utf-8"))
     if any(not group for group in groups):
-        raise RuntimeError("each thematic part must contain changed source")
+        raise RuntimeError("each review part must contain changed source")
     args.output.mkdir(parents=True, exist_ok=True)
     archive = args.output / "OpenGenesis-BioCore-iteration-093-source-CANDIDATE.zip"
     subprocess.run(["git", "archive", "--format=zip", "--prefix=OpenGenesis-BioCore/",
@@ -106,7 +117,7 @@ review preparation and release-process support.
 
 {base.manifest(entries, assignments)}
 """
-        body += "\n".join(base.render_entry(entry) for entry in group)
+        body += "\n".join(rendered[entry.path] for entry in group)
         if index == 1:
             body += """\n## Scientific source reuse boundary\n\nIteration 093 reuses the accepted 092 cohort matrix path and the retained v0.3 case/control engine.\nThe changed approval/persistence sources freeze inputs, QC decisions, denominators and test-family\nmembership for later association; unchanged scientific engines remain authoritative in the exact\ncandidate source ZIP. The changed-file manifest above is complete.\n"""
         if index == 3:
