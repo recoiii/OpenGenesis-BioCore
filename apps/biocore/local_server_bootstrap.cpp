@@ -13,6 +13,12 @@
 #include "biocore/application/batch_results_service.hpp"
 #include "biocore/application/batch_execution_service.hpp"
 #include "biocore/application/batch_planning_service.hpp"
+#include "biocore/application/cohort_analysis_approval_service.hpp"
+#include "biocore/application/cohort_analysis_selection_service.hpp"
+#include "biocore/application/cohort_execution_service.hpp"
+#include "biocore/application/cohort_matrix_service.hpp"
+#include "biocore/application/cohort_registry_service.hpp"
+#include "biocore/application/cohort_workspace_integration_service.hpp"
 #include "biocore/application/project_workspace_integration_service.hpp"
 #include "biocore/application/sample_binding_service.hpp"
 #include "biocore/application/sample_registry_import.hpp"
@@ -33,6 +39,8 @@
 #include "biocore/infrastructure/filesystem_input_file_storage.hpp"
 #include "biocore/infrastructure/filesystem_result_artifact_reader.hpp"
 #include "biocore/infrastructure/filesystem_reference_compatibility_inspector.hpp"
+#include "biocore/infrastructure/filesystem_reference_genome_reader.hpp"
+#include "biocore/infrastructure/filesystem_reference_manifest_reader.hpp"
 #include "biocore/infrastructure/filesystem_output_artifact_inspector.hpp"
 #include "biocore/infrastructure/filesystem_partial_output_cleaner.hpp"
 #include "biocore/infrastructure/filesystem_pipeline_catalog.hpp"
@@ -44,12 +52,16 @@
 #include "biocore/infrastructure/monotonic_clock.hpp"
 #include "biocore/infrastructure/platform_worker_supervisor.hpp"
 #include "biocore/infrastructure/secure_token.hpp"
+#include "biocore/infrastructure/sha256_cohort_analysis_digester.hpp"
 #include "biocore/infrastructure/sqlite/project_database_guard.hpp"
 #include "biocore/infrastructure/sqlite/project_migration_runner.hpp"
 #include "biocore/infrastructure/sqlite/sqlite_connection.hpp"
 #include "biocore/infrastructure/sqlite/sqlite_batch_execution_store.hpp"
 #include "biocore/infrastructure/sqlite/sqlite_batch_plan_store.hpp"
 #include "biocore/infrastructure/sqlite/sqlite_current_project_store.hpp"
+#include "biocore/infrastructure/sqlite/sqlite_cohort_analysis_snapshot_store.hpp"
+#include "biocore/infrastructure/sqlite/sqlite_cohort_execution_store.hpp"
+#include "biocore/infrastructure/sqlite/sqlite_cohort_registry_store.hpp"
 #include "biocore/infrastructure/sqlite/sqlite_project_research_metadata_store.hpp"
 #include "biocore/infrastructure/sqlite/sqlite_project_sample_binding_store.hpp"
 #include "biocore/infrastructure/sqlite/sqlite_project_sample_store.hpp"
@@ -266,6 +278,9 @@ int run_local_server(
     infrastructure::sqlite::SqliteProjectResearchMetadataStore api_project_research{api_connection};
     infrastructure::sqlite::SqliteProjectSampleStore api_project_samples{api_connection};
     infrastructure::sqlite::SqliteProjectSampleBindingStore api_sample_bindings{api_connection};
+    infrastructure::sqlite::SqliteCohortRegistryStore api_cohort_registry{api_connection};
+    infrastructure::sqlite::SqliteCohortAnalysisSnapshotStore api_cohort_snapshots{api_connection};
+    infrastructure::sqlite::SqliteCohortExecutionStore api_cohort_executions{api_connection};
     infrastructure::sqlite::SqliteJobRepository runtime_job_repository{runtime_connection};
     infrastructure::sqlite::SqlitePreparedJobStore runtime_prepared_jobs{runtime_connection};
     infrastructure::sqlite::SqliteManagedFileRepository runtime_managed_files{runtime_connection};
@@ -345,6 +360,42 @@ int run_local_server(
     application::JobSubmissionService submissions{api_prepared_jobs, pipelines, preparation, execution_plans, api_ids, clock};
     application::JobRetryService retries{api_jobs, api_prepared_jobs, clock};
 
+    infrastructure::FilesystemReferenceManifestReader reference_manifest_reader{
+        api_input_storage
+    };
+    infrastructure::FilesystemReferenceGenomeReader reference_genome_reader{
+        api_input_storage
+    };
+    infrastructure::Sha256CohortAnalysisDigester cohort_digester;
+    application::CohortRegistryService cohort_registry{
+        api_cohort_registry, api_ids, clock
+    };
+    application::CohortAnalysisSelectionService cohort_selections{
+        api_cohort_registry, api_batch_plans, api_batch_executions,
+        api_job_repository, api_managed_files, api_input_storage,
+        result_artifact_reader, reference_manifest_reader
+    };
+    application::CohortMatrixService cohort_matrix{
+        cohort_selections, api_managed_files, result_artifact_reader,
+        reference_genome_reader
+    };
+    application::CohortAnalysisApprovalService cohort_approvals{
+        cohort_matrix, api_cohort_registry, api_managed_files,
+        result_artifact_reader, api_cohort_snapshots, cohort_digester,
+        api_ids, clock
+    };
+    application::CohortExecutionInputVerifier cohort_input_verifier{
+        cohort_selections
+    };
+    application::CohortExecutionService cohort_execution{
+        api_cohort_snapshots, api_cohort_executions, cohort_input_verifier,
+        submissions, api_managed_files, api_jobs, api_ids, clock
+    };
+    application::CohortWorkspaceIntegrationService cohort_workspace{
+        api_current_project, cohort_registry, cohort_selections,
+        cohort_approvals, cohort_execution
+    };
+
     infrastructure::PlatformWorkerSupervisor supervisor{assets.worker_executable, root};
     application::JobScheduler scheduler{
         runtime_jobs, runtime_prepared_jobs, supervisor,
@@ -374,7 +425,7 @@ int run_local_server(
     presentation::LocalApiController api{
         api_jobs, submissions, managed_files, artifacts, clock, token, browser_session,
         &retries, &workflow_templates, &workflow_workspace, &batch_result_packages,
-        &project_workspace
+        &project_workspace, &cohort_workspace
     };
     standard_output << "OpenGenesis-BioCore project recovery: " << recovery_result.recovered_jobs.size()
                     << " stale job(s) interrupted, " << recovery_result.issues.size() << " issue(s).\n";
