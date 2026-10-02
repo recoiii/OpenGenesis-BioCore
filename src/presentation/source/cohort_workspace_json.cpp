@@ -9,7 +9,8 @@ namespace {
 [[nodiscard]] std::string quote(const std::string_view value) {
     std::string out{"\""};
     out.reserve(value.size() + 2U);
-    for (const unsigned char character : value) {
+    for (const char raw_character : value) {
+        const auto character = static_cast<unsigned char>(raw_character);
         switch (character) {
             case '"': out += "\\\""; break;
             case '\\': out += "\\\\"; break;
