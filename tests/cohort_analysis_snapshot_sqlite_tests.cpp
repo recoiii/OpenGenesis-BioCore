@@ -253,6 +253,15 @@ application::CohortAnalysisSnapshot snapshot_fixture() {
             sample(0U, "case-1", application::CohortGroup::case_group, "qc-case"),
             sample(1U, "control-1", application::CohortGroup::control, "qc-control"),
         },
+        .resource_limits = {
+            .maximum_samples = 100U,
+            .maximum_sources = 100U,
+            .maximum_vcf_bytes = 64U * 1024U * 1024U,
+            .maximum_combined_vcf_bytes = 256U * 1024U * 1024U,
+            .maximum_reference_bytes = 512U * 1024U * 1024U,
+            .maximum_normalized_alleles = 10000U,
+            .maximum_observations = 1000000U,
+        },
         .association_options = {
             .minimum_complete_case_calls = 1U,
             .minimum_complete_control_calls = 1U,
@@ -313,6 +322,7 @@ void roundtrip_contract() {
         loaded->reference.sha256 == snapshot.reference.sha256 &&
         loaded->sources.size() == 2U &&
         loaded->samples.size() == 2U &&
+        loaded->resource_limits == snapshot.resource_limits &&
         loaded->test_universe.size() == 1U &&
         loaded->test_universe[0].case_complete_calls == 1U &&
         loaded->allele_family_size == 1U,
