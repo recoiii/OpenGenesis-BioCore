@@ -1506,6 +1506,25 @@ void apply_version_seventeen(SqliteConnection& connection) {
                 length(CAST(normalization_contract_version AS BLOB)) BETWEEN 1 AND 128 AND
                 instr(normalization_contract_version, char(0)) = 0
             ),
+            matrix_stage_id TEXT NOT NULL CHECK(matrix_stage_id = 'matrix'),
+            matrix_module_id TEXT NOT NULL CHECK(
+                matrix_module_id = 'org.biocore.cohort.matrix'
+            ),
+            maximum_samples INTEGER NOT NULL CHECK(maximum_samples = 100),
+            maximum_sources INTEGER NOT NULL CHECK(maximum_sources = 100),
+            maximum_vcf_bytes INTEGER NOT NULL CHECK(maximum_vcf_bytes = 67108864),
+            maximum_combined_vcf_bytes INTEGER NOT NULL CHECK(
+                maximum_combined_vcf_bytes = 268435456
+            ),
+            maximum_reference_bytes INTEGER NOT NULL CHECK(
+                maximum_reference_bytes = 536870912
+            ),
+            maximum_normalized_alleles INTEGER NOT NULL CHECK(
+                maximum_normalized_alleles = 10000
+            ),
+            maximum_observations INTEGER NOT NULL CHECK(
+                maximum_observations = 1000000
+            ),
             association_contract_version TEXT NOT NULL CHECK(
                 length(CAST(association_contract_version AS BLOB)) BETWEEN 1 AND 128 AND
                 instr(association_contract_version, char(0)) = 0
@@ -1764,6 +1783,15 @@ void apply_version_seventeen(SqliteConnection& connection) {
             NEW.reference_assembly = OLD.reference_assembly AND
             NEW.reference_custom_id IS OLD.reference_custom_id AND
             NEW.normalization_contract_version = OLD.normalization_contract_version AND
+            NEW.matrix_stage_id = OLD.matrix_stage_id AND
+            NEW.matrix_module_id = OLD.matrix_module_id AND
+            NEW.maximum_samples = OLD.maximum_samples AND
+            NEW.maximum_sources = OLD.maximum_sources AND
+            NEW.maximum_vcf_bytes = OLD.maximum_vcf_bytes AND
+            NEW.maximum_combined_vcf_bytes = OLD.maximum_combined_vcf_bytes AND
+            NEW.maximum_reference_bytes = OLD.maximum_reference_bytes AND
+            NEW.maximum_normalized_alleles = OLD.maximum_normalized_alleles AND
+            NEW.maximum_observations = OLD.maximum_observations AND
             NEW.association_contract_version = OLD.association_contract_version AND
             NEW.test_filter_version = OLD.test_filter_version AND
             NEW.minimum_complete_case_calls = OLD.minimum_complete_case_calls AND
