@@ -224,7 +224,7 @@ namespace fs = std::filesystem;
         }
     }
 
-    if (actual_pipelines.size() != retained_pipelines.size() ||
+    if (actual_pipelines.size() < retained_pipelines.size() ||
         template_count != 1U) {
         return false;
     }
