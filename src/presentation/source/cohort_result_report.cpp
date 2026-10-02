@@ -187,6 +187,23 @@ namespace {
     add_meta("filter_definition", package.filter_definition);
     add_meta("analysis_id", package.analysis_id);
     add_meta("reference_sha256", package.reference_sha256);
+    add_meta("association_contract_version", package.association_contract_version);
+    add_meta("test_filter_version", package.test_filter_version);
+    add_meta("no_call_policy", package.no_call_policy);
+    add_meta("allele_family_size", std::to_string(package.allele_family_size));
+    add_meta("carrier_family_size", std::to_string(package.carrier_family_size));
+    add_meta("excluded_samples", std::to_string(package.excluded_samples));
+    for (std::size_t index = 0U; index < package.exclusions.size(); ++index) {
+        add_meta(
+            "exclusion_" + std::to_string(index) + "_sample_id",
+            quote_json(package.exclusions[index].sample_id)
+        );
+        add_meta(
+            "exclusion_" + std::to_string(index) + "_reason",
+            package.exclusions[index].reason.has_value()
+                ? quote_json(*package.exclusions[index].reason) : "null"
+        );
+    }
     add_meta("statistical_test", package.statistical_test);
     add_meta("effect_measure", package.effect_measure);
     add_meta("confidence_interval_method", package.confidence_interval_method);
@@ -273,6 +290,16 @@ std::string render_cohort_result_package_json(
     }
     rows += ']';
 
+    std::string exclusions{"["};
+    for (std::size_t i = 0U; i < package.exclusions.size(); ++i) {
+        if (i != 0U) exclusions += ',';
+        exclusions += "{\"sampleId\":" + quote_json(package.exclusions[i].sample_id) +
+                      ",\"reason\":" +
+                      (package.exclusions[i].reason.has_value()
+                           ? quote_json(*package.exclusions[i].reason) : "null") + "}";
+    }
+    exclusions += ']';
+
     return "{\"schemaVersion\":" + std::to_string(package.schema_version) +
            ",\"producer\":{\"name\":" + quote_json(package.producer_name) +
            ",\"version\":" + quote_json(package.producer_version) + "}" +
@@ -289,7 +316,13 @@ std::string render_cohort_result_package_json(
            ",\"approvedCaseSamples\":" + std::to_string(package.approved_case_samples) +
            ",\"approvedControlSamples\":" + std::to_string(package.approved_control_samples) +
            ",\"excludedSamples\":" + std::to_string(package.excluded_samples) +
-           ",\"methods\":{\"statisticalTest\":" + quote_json(package.statistical_test) +
+           ",\"exclusions\":" + exclusions +
+           ",\"contracts\":{\"association\":" + quote_json(package.association_contract_version) +
+           ",\"testFilter\":" + quote_json(package.test_filter_version) + "}" +
+           ",\"testFamilies\":{\"allele\":" + std::to_string(package.allele_family_size) +
+           ",\"carrier\":" + std::to_string(package.carrier_family_size) + "}" +
+           ",\"methods\":{\"noCallPolicy\":" + quote_json(package.no_call_policy) +
+           ",\"statisticalTest\":" + quote_json(package.statistical_test) +
            ",\"effectMeasure\":" + quote_json(package.effect_measure) +
            ",\"confidenceInterval\":" + quote_json(package.confidence_interval_method) +
            ",\"multipleTesting\":" + quote_json(package.multiple_testing_method) + "}" +
@@ -335,6 +368,16 @@ std::string render_cohort_result_package_html(
         rows = "<tr><td colspan=\"12\">No variants match the selected view filter.</td></tr>";
     }
 
+    std::string exclusion_rows;
+    for (const auto& exclusion : package.exclusions) {
+        exclusion_rows += "<tr><td>" + escape_html(exclusion.sample_id) + "</td><td>" +
+                          (exclusion.reason.has_value()
+                               ? escape_html(*exclusion.reason) : "—") + "</td></tr>";
+    }
+    if (exclusion_rows.empty()) {
+        exclusion_rows = "<tr><td colspan=\"2\">No analysis exclusions.</td></tr>";
+    }
+
     return "<!doctype html><html><head><meta charset=\"utf-8\">"
            "<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">"
            "<title>OpenGenesis-BioCore Cohort Report " + escape_html(package.analysis_id) +
@@ -356,6 +399,13 @@ std::string render_cohort_result_package_html(
            std::to_string(package.approved_case_samples) + ", controls=" +
            std::to_string(package.approved_control_samples) +
            ", excluded=" + std::to_string(package.excluded_samples) +
+           "</dd><dt>Association contract</dt><dd>" +
+           escape_html(package.association_contract_version) +
+           "</dd><dt>Test filter</dt><dd>" + escape_html(package.test_filter_version) +
+           "</dd><dt>No-call policy</dt><dd>" + escape_html(package.no_call_policy) +
+           "</dd><dt>Frozen test families</dt><dd>allele=" +
+           std::to_string(package.allele_family_size) + ", carrier=" +
+           std::to_string(package.carrier_family_size) +
            "</dd><dt>Statistical test</dt><dd>" + escape_html(package.statistical_test) +
            "</dd><dt>Effect measure</dt><dd>" + escape_html(package.effect_measure) +
            "</dd><dt>95% CI</dt><dd>" + escape_html(package.confidence_interval_method) +
@@ -364,6 +414,8 @@ std::string render_cohort_result_package_html(
            "</dd><dt>Variants</dt><dd>" + std::to_string(package.total_matched_variants) +
            " matched of " + std::to_string(package.total_unfiltered_variants) +
            "</dd></dl><p><strong>Display filters do not redefine the frozen statistical test universe.</strong></p>"
+           "<h2>Analysis exclusions</h2><table><thead><tr><th>Sample</th><th>Reason</th>"
+           "</tr></thead><tbody>" + exclusion_rows + "</tbody></table><h2>Variants</h2>"
            "<table><thead><tr><th>#</th><th>Locus</th><th>Allele</th><th>Effective cases</th>"
            "<th>Effective controls</th><th>Allele OR</th><th>Allele p</th><th>Allele q</th>"
            "<th>Carrier OR</th><th>Carrier p</th><th>Carrier q</th><th>Annotation DBs</th>"
