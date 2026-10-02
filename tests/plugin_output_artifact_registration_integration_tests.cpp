@@ -235,7 +235,9 @@ void ingest_events(
 
     infrastructure::FilesystemPluginRegistry registry{{fs::canonical(plugin_root)}};
     const auto refresh = registry.refresh();
-    if (refresh.loaded_plugins != 8U || !refresh.rejected.empty()) return false;
+    if (refresh.loaded_plugins != 9U || refresh.loaded_modules != 18U ||
+        !refresh.rejected.empty() ||
+        !registry.find_module("org.biocore.cohortanalysis.analysis").has_value()) return false;
     infrastructure::JsonExecutionPlanStore plan_store{project.root()};
     application::PipelinePreparationService preparation{plan_store, registry, files};
     const domain::PipelineDefinition definition{
@@ -345,7 +347,9 @@ void ingest_events(
 
     infrastructure::FilesystemPluginRegistry registry{{fs::canonical(plugin_root)}};
     const auto refresh = registry.refresh();
-    if (refresh.loaded_plugins != 8U || !refresh.rejected.empty()) return false;
+    if (refresh.loaded_plugins != 9U || refresh.loaded_modules != 18U ||
+        !refresh.rejected.empty() ||
+        !registry.find_module("org.biocore.cohortanalysis.analysis").has_value()) return false;
     infrastructure::JsonExecutionPlanStore plan_store{project.root()};
     application::PipelinePreparationService preparation{plan_store, registry, files};
     const domain::PipelineDefinition definition{
@@ -426,7 +430,9 @@ void ingest_events(
 
     infrastructure::FilesystemPluginRegistry registry{{fs::canonical(plugin_root)}};
     const auto refresh = registry.refresh();
-    if (refresh.loaded_plugins != 8U || !refresh.rejected.empty()) return false;
+    if (refresh.loaded_plugins != 9U || refresh.loaded_modules != 18U ||
+        !refresh.rejected.empty() ||
+        !registry.find_module("org.biocore.cohortanalysis.analysis").has_value()) return false;
     infrastructure::JsonExecutionPlanStore plan_store{project.root()};
     application::PipelinePreparationService preparation{plan_store, registry, files};
     const domain::PipelineDefinition definition{
@@ -548,7 +554,7 @@ void ingest_events(
     infrastructure::FilesystemPluginRegistry registry{{fs::canonical(plugin_root)}};
     const auto refresh = registry.refresh();
     const auto fasta_module = registry.find_module("org.biocore.fastaqc.stats");
-    if (refresh.loaded_plugins != 8U || refresh.loaded_modules != 17U ||
+    if (refresh.loaded_plugins != 9U || refresh.loaded_modules != 18U ||
         !refresh.rejected.empty() || !fasta_module.has_value()) {
         return false;
     }
@@ -749,7 +755,7 @@ void ingest_events(
     infrastructure::FilesystemPluginRegistry registry{{fs::canonical(plugin_root)}};
     const auto refresh = registry.refresh();
     const auto fastq_module = registry.find_module("org.biocore.fastqqc.stats");
-    if (refresh.loaded_plugins != 8U || refresh.loaded_modules != 17U ||
+    if (refresh.loaded_plugins != 9U || refresh.loaded_modules != 18U ||
         !refresh.rejected.empty() || !fastq_module.has_value()) {
         return false;
     }
@@ -945,7 +951,7 @@ void ingest_events(
     infrastructure::FilesystemPluginRegistry registry{{fs::canonical(plugin_root)}};
     const auto refresh = registry.refresh();
     const auto paired_module = registry.find_module("org.biocore.fastqqc.paired-stats");
-    if (refresh.loaded_plugins != 8U || refresh.loaded_modules != 17U ||
+    if (refresh.loaded_plugins != 9U || refresh.loaded_modules != 18U ||
         !refresh.rejected.empty() || !paired_module.has_value()) {
         return false;
     }
@@ -1119,7 +1125,7 @@ void ingest_events(
     infrastructure::FilesystemPluginRegistry registry{{fs::canonical(plugin_root)}};
     const auto refresh = registry.refresh();
     const auto trim_module = registry.find_module("org.biocore.fastqqc.trim-paired");
-    if (refresh.loaded_plugins != 8U || refresh.loaded_modules != 17U ||
+    if (refresh.loaded_plugins != 9U || refresh.loaded_modules != 18U ||
         !refresh.rejected.empty() || !trim_module.has_value()) return false;
 
     infrastructure::JsonExecutionPlanStore plan_store{project.root()};
@@ -1273,7 +1279,7 @@ void ingest_events(
     infrastructure::FilesystemPluginRegistry registry{{fs::canonical(plugin_root)}};
     const auto refresh = registry.refresh();
     const auto module = registry.find_module("org.biocore.align.paired");
-    if (refresh.loaded_plugins != 8U || refresh.loaded_modules != 17U ||
+    if (refresh.loaded_plugins != 9U || refresh.loaded_modules != 18U ||
         !refresh.rejected.empty() || !module.has_value()) return false;
 
     infrastructure::JsonExecutionPlanStore plan_store{project.root()};
@@ -1425,7 +1431,7 @@ void ingest_events(
     infrastructure::FilesystemPluginRegistry registry{{fs::canonical(plugin_root)}};
     const auto refresh = registry.refresh();
     const auto module = registry.find_module("org.biocore.alignmentqc.summary");
-    if (refresh.loaded_plugins != 8U || refresh.loaded_modules != 17U ||
+    if (refresh.loaded_plugins != 9U || refresh.loaded_modules != 18U ||
         !refresh.rejected.empty() || !module.has_value()) return false;
 
     infrastructure::JsonExecutionPlanStore plan_store{project.root()};
@@ -1573,7 +1579,7 @@ void ingest_events(
     infrastructure::FilesystemPluginRegistry registry{{fs::canonical(plugin_root)}};
     const auto refresh = registry.refresh();
     const auto module = registry.find_module("org.biocore.variantcall.snv");
-    if (refresh.loaded_plugins != 8U || refresh.loaded_modules != 17U ||
+    if (refresh.loaded_plugins != 9U || refresh.loaded_modules != 18U ||
         !refresh.rejected.empty() || !module.has_value()) return false;
 
     infrastructure::JsonExecutionPlanStore plan_store{project.root()};
@@ -1714,7 +1720,7 @@ void ingest_events(
     infrastructure::FilesystemPluginRegistry registry{{fs::canonical(plugin_root)}};
     const auto refresh = registry.refresh();
     const auto module = registry.find_module("org.biocore.vcfqc.filter");
-    if (refresh.loaded_plugins != 8U || refresh.loaded_modules != 17U ||
+    if (refresh.loaded_plugins != 9U || refresh.loaded_modules != 18U ||
         !refresh.rejected.empty() || !module.has_value()) return false;
 
     infrastructure::JsonExecutionPlanStore plan_store{project.root()};
@@ -1861,7 +1867,7 @@ void ingest_events(
 
     infrastructure::FilesystemPluginRegistry registry{{fs::canonical(plugin_root)}};
     const auto refresh = registry.refresh();
-    if (refresh.loaded_plugins != 8U || refresh.loaded_modules != 17U ||
+    if (refresh.loaded_plugins != 9U || refresh.loaded_modules != 18U ||
         !refresh.rejected.empty() || !registry.find_module("org.biocore.variantannotate.local").has_value()) return false;
     infrastructure::JsonExecutionPlanStore plan_store{project.root()};
     application::PipelinePreparationService preparation{plan_store, registry, files};
