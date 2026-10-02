@@ -25,6 +25,18 @@ void validate_probability(const std::optional<double>& value, const char* name) 
     return stream.str();
 }
 
+
+[[nodiscard]] std::string canonical_text_token(const std::string_view value) {
+    static constexpr char hex[] = "0123456789abcdef";
+    std::string result;
+    result.reserve(value.size() * 2U);
+    for (const unsigned char c : value) {
+        result.push_back(hex[(c >> 4U) & 0x0fU]);
+        result.push_back(hex[c & 0x0fU]);
+    }
+    return result;
+}
+
 }  // namespace
 
 std::string_view to_string(const CohortResultVariantView value) noexcept {
@@ -84,13 +96,13 @@ void validate_cohort_result_query(const CohortResultQuery& query) {
 std::string canonical_cohort_result_filter(const CohortResultQuery& query) {
     validate_cohort_result_query(query);
     return "view=" + std::string{to_string(query.variant_view)} +
-           ";contig=" + (query.contig.has_value() ? *query.contig : "*") +
+           ";contig_hex=" + (query.contig.has_value() ? canonical_text_token(*query.contig) : "*") +
            ";annotated=" + std::string{query.annotated_only ? "1" : "0"} +
            ";allele_p=" + optional_number(query.maximum_allele_p_value) +
            ";carrier_p=" + optional_number(query.maximum_carrier_p_value) +
            ";allele_q=" + optional_number(query.maximum_allele_fdr_q) +
            ";carrier_q=" + optional_number(query.maximum_carrier_fdr_q) +
-           ";search=" + query.search_text +
+           ";search_hex=" + canonical_text_token(query.search_text) +
            ";sort=" + std::string{to_string(query.sort_key)} +
            ";direction=" + std::string{to_string(query.sort_direction)};
 }
