@@ -1898,6 +1898,203 @@ void apply_version_seventeen(SqliteConnection& connection) {
     )sql");
 }
 
+
+void apply_version_eighteen(SqliteConnection& connection) {
+    connection.execute(R"sql(
+        CREATE TABLE cohort_analysis_attempts (
+            project_id TEXT NOT NULL CHECK(
+                length(CAST(project_id AS BLOB)) BETWEEN 1 AND 128 AND
+                instr(project_id, char(0)) = 0
+            ),
+            analysis_id TEXT NOT NULL CHECK(
+                length(CAST(analysis_id AS BLOB)) BETWEEN 1 AND 128 AND
+                instr(analysis_id, char(0)) = 0
+            ),
+            attempt_number INTEGER NOT NULL CHECK(attempt_number >= 1),
+            attempt_id TEXT NOT NULL UNIQUE CHECK(
+                length(CAST(attempt_id AS BLOB)) BETWEEN 1 AND 128 AND
+                instr(attempt_id, char(0)) = 0
+            ),
+            parent_attempt_id TEXT REFERENCES cohort_analysis_attempts(attempt_id)
+                ON DELETE RESTRICT,
+            job_id TEXT UNIQUE REFERENCES jobs(id) ON DELETE RESTRICT,
+            snapshot_digest TEXT NOT NULL CHECK(
+                length(snapshot_digest) = 64 AND
+                snapshot_digest NOT GLOB '*[^0-9a-f]*'
+            ),
+            idempotency_key TEXT NOT NULL CHECK(
+                length(CAST(idempotency_key AS BLOB)) BETWEEN 1 AND 200 AND
+                instr(idempotency_key, char(0)) = 0
+            ),
+            payload_digest TEXT NOT NULL CHECK(
+                length(payload_digest) = 64 AND
+                payload_digest NOT GLOB '*[^0-9a-f]*'
+            ),
+            cancellation_requested INTEGER NOT NULL DEFAULT 0
+                CHECK(cancellation_requested IN (0, 1)),
+            state TEXT NOT NULL CHECK(state IN (
+                'queued','running','completed','failed','cancelled','interrupted'
+            )),
+            created_at_utc TEXT NOT NULL CHECK(
+                length(CAST(created_at_utc AS BLOB)) BETWEEN 1 AND 200 AND
+                instr(created_at_utc, char(0)) = 0
+            ),
+            updated_at_utc TEXT NOT NULL CHECK(
+                length(CAST(updated_at_utc AS BLOB)) BETWEEN 1 AND 200 AND
+                instr(updated_at_utc, char(0)) = 0
+            ),
+            failure_message TEXT CHECK(
+                failure_message IS NULL OR (
+                    length(CAST(failure_message AS BLOB)) BETWEEN 1 AND 16384 AND
+                    instr(failure_message, char(0)) = 0
+                )
+            ),
+            result_manifest_file_id TEXT REFERENCES managed_files(id) ON DELETE RESTRICT,
+            result_manifest_sha256 TEXT CHECK(
+                result_manifest_sha256 IS NULL OR (
+                    length(result_manifest_sha256) = 64 AND
+                    result_manifest_sha256 NOT GLOB '*[^0-9a-f]*'
+                )
+            ),
+            PRIMARY KEY(project_id, analysis_id, attempt_number),
+            UNIQUE(project_id, analysis_id, idempotency_key),
+            FOREIGN KEY(project_id, analysis_id)
+                REFERENCES cohort_analysis_snapshots(project_id, analysis_id)
+                ON DELETE RESTRICT,
+            CHECK(
+                (attempt_number = 1 AND parent_attempt_id IS NULL) OR
+                (attempt_number > 1 AND parent_attempt_id IS NOT NULL)
+            ),
+            CHECK(
+                (state IN ('failed','interrupted') AND failure_message IS NOT NULL) OR
+                (state NOT IN ('failed','interrupted') AND failure_message IS NULL)
+            ),
+            CHECK(
+                (state = 'completed' AND
+                    job_id IS NOT NULL AND
+                    cancellation_requested = 0 AND
+                    result_manifest_file_id IS NOT NULL AND
+                    result_manifest_sha256 IS NOT NULL) OR
+                (state != 'completed' AND
+                    result_manifest_file_id IS NULL AND
+                    result_manifest_sha256 IS NULL)
+            )
+        );
+
+        CREATE INDEX idx_cohort_analysis_attempts_analysis
+            ON cohort_analysis_attempts(project_id, analysis_id, attempt_number);
+        CREATE INDEX idx_cohort_analysis_attempts_job
+            ON cohort_analysis_attempts(job_id)
+            WHERE job_id IS NOT NULL;
+        CREATE INDEX idx_cohort_analysis_attempts_state
+            ON cohort_analysis_attempts(state, updated_at_utc);
+
+        CREATE TRIGGER cohort_analysis_attempts_validate_insert
+        BEFORE INSERT ON cohort_analysis_attempts
+        WHEN
+            NEW.state != 'queued' OR
+            NEW.job_id IS NOT NULL OR
+            NEW.cancellation_requested != 0 OR
+            NEW.failure_message IS NOT NULL OR
+            NEW.result_manifest_file_id IS NOT NULL OR
+            NEW.result_manifest_sha256 IS NOT NULL OR
+            NOT EXISTS (
+                SELECT 1 FROM cohort_analysis_snapshots AS s
+                WHERE s.project_id = NEW.project_id
+                  AND s.analysis_id = NEW.analysis_id
+                  AND s.sealed = 1
+                  AND s.snapshot_digest = NEW.snapshot_digest
+            ) OR
+            (
+                NEW.attempt_number = 1 AND EXISTS (
+                    SELECT 1 FROM cohort_analysis_attempts AS a
+                    WHERE a.project_id = NEW.project_id
+                      AND a.analysis_id = NEW.analysis_id
+                )
+            ) OR
+            (
+                NEW.attempt_number > 1 AND NOT EXISTS (
+                    SELECT 1 FROM cohort_analysis_attempts AS p
+                    WHERE p.project_id = NEW.project_id
+                      AND p.analysis_id = NEW.analysis_id
+                      AND p.attempt_id = NEW.parent_attempt_id
+                      AND p.attempt_number = NEW.attempt_number - 1
+                      AND p.snapshot_digest = NEW.snapshot_digest
+                      AND p.state IN ('failed','cancelled','interrupted')
+                )
+            )
+        BEGIN
+            SELECT RAISE(ABORT, 'invalid cohort execution attempt reservation');
+        END;
+
+        CREATE TRIGGER cohort_analysis_attempts_validate_update
+        BEFORE UPDATE ON cohort_analysis_attempts
+        WHEN
+            NEW.project_id != OLD.project_id OR
+            NEW.analysis_id != OLD.analysis_id OR
+            NEW.attempt_number != OLD.attempt_number OR
+            NEW.attempt_id != OLD.attempt_id OR
+            NEW.parent_attempt_id IS NOT OLD.parent_attempt_id OR
+            NEW.snapshot_digest != OLD.snapshot_digest OR
+            NEW.idempotency_key != OLD.idempotency_key OR
+            NEW.payload_digest != OLD.payload_digest OR
+            NEW.created_at_utc != OLD.created_at_utc OR
+            (OLD.job_id IS NOT NULL AND NEW.job_id IS NOT OLD.job_id) OR
+            NEW.cancellation_requested < OLD.cancellation_requested OR
+            (
+                OLD.state IN ('completed','failed','cancelled','interrupted') AND
+                (
+                    NEW.state != OLD.state OR
+                    NEW.cancellation_requested != OLD.cancellation_requested OR
+                    NEW.failure_message IS NOT OLD.failure_message OR
+                    NEW.result_manifest_file_id IS NOT OLD.result_manifest_file_id OR
+                    NEW.result_manifest_sha256 IS NOT OLD.result_manifest_sha256
+                )
+            ) OR
+            (
+                OLD.state = 'queued' AND
+                NEW.state NOT IN ('queued','running','completed','failed','cancelled','interrupted')
+            ) OR
+            (
+                OLD.state = 'running' AND
+                NEW.state NOT IN ('running','completed','failed','cancelled','interrupted')
+            ) OR
+            (
+                NEW.state IN ('failed','interrupted') AND NEW.failure_message IS NULL
+            ) OR
+            (
+                NEW.state NOT IN ('failed','interrupted') AND NEW.failure_message IS NOT NULL
+            ) OR
+            (
+                NEW.state = 'completed' AND (
+                    NEW.job_id IS NULL OR
+                    NEW.cancellation_requested != 0 OR
+                    NEW.result_manifest_file_id IS NULL OR
+                    NEW.result_manifest_sha256 IS NULL
+                )
+            ) OR
+            (
+                NEW.state != 'completed' AND (
+                    NEW.result_manifest_file_id IS NOT NULL OR
+                    NEW.result_manifest_sha256 IS NOT NULL
+                )
+            )
+        BEGIN
+            SELECT RAISE(ABORT, 'invalid cohort execution attempt mutation');
+        END;
+
+        CREATE TRIGGER cohort_analysis_attempts_immutable_delete
+        BEFORE DELETE ON cohort_analysis_attempts
+        BEGIN
+            SELECT RAISE(ABORT, 'cohort execution attempt history cannot be deleted');
+        END;
+
+        INSERT INTO schema_migrations(version, name, applied_at_utc)
+        VALUES (18, 'persist_cohort_execution_attempt_lineage',
+                strftime('%Y-%m-%dT%H:%M:%fZ', 'now'));
+    )sql");
+}
+
 ProjectMigrationRunner::ProjectMigrationRunner(SqliteConnection& connection) noexcept
     : connection_{connection} {}
 
@@ -1970,6 +2167,9 @@ void ProjectMigrationRunner::apply_pending() {
     }
     if (version < 17) {
         apply_version_seventeen(connection_);
+    }
+    if (version < 18) {
+        apply_version_eighteen(connection_);
     }
     transaction.commit();
 }
