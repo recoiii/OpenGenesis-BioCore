@@ -30,7 +30,7 @@ def main() -> None:
     evidence_mode.add_argument("--local-only", action="store_true",
                                help="Prepare a draft with local evidence; CI remains an open gate")
     args = parser.parse_args()
-    base.BASELINE_NAME = "accepted/iteration-090"
+    base.BASELINE_NAME = "accepted/iteration-089"
     base.BASELINE_COMMIT = BASELINE
     base.require_clean_tracked_tree()
     if base.git("rev-parse", f"{BASELINE}^{{tree}}") != BASELINE_TREE:
@@ -83,12 +83,12 @@ def main() -> None:
 
 - Candidate commit: `{commit}`
 - Candidate tree: `{tree}`
-- Frozen baseline: `accepted/iteration-088` / `{BASELINE}`
+- Frozen baseline: `accepted/iteration-089` / `{BASELINE}`
 - Baseline tree: `{BASELINE_TREE}`
 - Full source ZIP SHA-256: `{source_hash}`
 - Evidence status: {evidence_status}
 - Status: CANDIDATE; independent Gemini review pending; NOT accepted or frozen.
-- Linux evidence is included; native Windows and package closure are not claimed for 089.
+- Linux evidence is included; native Windows and package closure are not claimed for 090.
 
 Read all four parts and the source ZIP. Evaluate the roadmap scope and contracts,
 not only green tests. 089 changes development identity, documents, fixtures and CI;
