@@ -74,6 +74,7 @@ target_sources(
             include/biocore/application/generated_output_artifact.hpp
             include/biocore/application/health_snapshot.hpp
             include/biocore/application/i_artifact_content_access.hpp
+            include/biocore/application/i_cohort_registry_store.hpp
             include/biocore/application/i_batch_execution_store.hpp
             include/biocore/application/i_current_project_store.hpp
             include/biocore/application/i_batch_plan_store.hpp
