@@ -356,6 +356,28 @@ CohortAnalysisApprovalPreview CohortAnalysisApprovalService::preview(
         return preview;
     }
 
+    std::vector<CohortMatrixDispatchSource> expected_dispatch_sources;
+    expected_dispatch_sources.reserve(matrix_build.selection.sources.size());
+    for (const auto& source : matrix_build.selection.sources) {
+        expected_dispatch_sources.push_back({
+            .project_sample_id = source.project_sample_id,
+            .managed_file_id = source.managed_file_id,
+            .sha256 = source.sha256,
+            .vcf_sample_name = source.vcf_sample_name,
+        });
+    }
+    std::ranges::sort(expected_dispatch_sources, [](const auto& left, const auto& right) {
+        return std::tie(
+            left.project_sample_id,
+            left.managed_file_id,
+            left.vcf_sample_name
+        ) < std::tie(
+            right.project_sample_id,
+            right.managed_file_id,
+            right.vcf_sample_name
+        );
+    });
+
     if (matrix_build.dispatch.project_id != request.selection.project_id ||
         matrix_build.dispatch.cohort_id != request.selection.cohort_id ||
         matrix_build.dispatch.cohort_revision != request.selection.cohort_revision ||
@@ -366,7 +388,14 @@ CohortAnalysisApprovalPreview CohortAnalysisApprovalService::preview(
         matrix_build.dispatch.reference_sha256 !=
             matrix_build.selection.reference->sha256 ||
         matrix_build.dispatch.normalization_contract_version !=
-            matrix_build.selection.reference->normalization_contract_version) {
+            matrix_build.selection.reference->normalization_contract_version ||
+        matrix_build.dispatch.sources != expected_dispatch_sources ||
+        matrix_build.dispatch.maximum_samples != CohortMatrixBudget::maximum_samples ||
+        matrix_build.dispatch.maximum_sources != CohortMatrixBudget::maximum_sources ||
+        matrix_build.dispatch.maximum_normalized_alleles !=
+            CohortMatrixBudget::maximum_normalized_alleles ||
+        matrix_build.dispatch.maximum_observations !=
+            CohortMatrixBudget::maximum_observations) {
         add_issue(preview, "matrix_dispatch_mismatch", {}, true,
                   "Matrix dispatch descriptor no longer matches the revalidated selection");
         return preview;
