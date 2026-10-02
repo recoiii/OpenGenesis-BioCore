@@ -321,7 +321,7 @@ void insert_test_universe(
     Statement statement{
         database,
         "INSERT INTO cohort_analysis_test_universe("
-        "project_id,analysis_id,ordinal,contig,start,end,reference_allele,alternate_allele,"
+        "project_id,analysis_id,ordinal,contig,start_pos,end_pos,reference_allele,alternate_allele,"
         "case_unobserved,control_unobserved,case_no_calls,control_no_calls,"
         "case_partial_calls,control_partial_calls,case_complete_calls,control_complete_calls,"
         "allele_family_member,carrier_family_member"
@@ -521,7 +521,7 @@ void insert_test_universe(
 ) {
     Statement statement{
         database,
-        "SELECT ordinal,contig,start,end,reference_allele,alternate_allele,"
+        "SELECT ordinal,contig,start_pos,end_pos,reference_allele,alternate_allele,"
         "case_unobserved,control_unobserved,case_no_calls,control_no_calls,"
         "case_partial_calls,control_partial_calls,case_complete_calls,control_complete_calls,"
         "allele_family_member,carrier_family_member "
