@@ -16,6 +16,7 @@
 #include "biocore/application/i_cohort_execution_store.hpp"
 #include "biocore/application/i_id_generator.hpp"
 #include "biocore/application/i_job_submitter.hpp"
+#include "biocore/application/i_managed_file_repository.hpp"
 #include "biocore/application/i_utc_clock.hpp"
 #include "biocore/application/job_service.hpp"
 #include "biocore/domain/job_status.hpp"
@@ -174,6 +175,7 @@ CohortExecutionService::CohortExecutionService(
     ICohortExecutionStore& executions,
     ICohortExecutionInputVerifier& input_verifier,
     IJobSubmitter& submitter,
+    IManagedFileRepository& managed_files,
     JobService& jobs,
     IIdGenerator& ids,
     IUtcClock& clock
@@ -182,6 +184,7 @@ CohortExecutionService::CohortExecutionService(
       executions_{executions},
       input_verifier_{input_verifier},
       submitter_{submitter},
+      managed_files_{managed_files},
       jobs_{jobs},
       ids_{ids},
       clock_{clock} {}
@@ -216,6 +219,15 @@ CohortExecutionAttempt CohortExecutionService::dispatch_reserved(
                 attempt.attempt_id,
                 job.id(),
                 now)) {
+            try {
+                (void)jobs_.transition(
+                    job.id(),
+                    domain::JobStatus::cancelled,
+                    job.progress(),
+                    std::nullopt
+                );
+            } catch (...) {
+            }
             fail(
                 CohortExecutionErrorCode::concurrent_update,
                 "Reserved cohort attempt changed before scheduler handoff could be attached"
@@ -460,7 +472,8 @@ CohortExecutionAttempt CohortExecutionService::retry(
     (void)reconcile(request.project_id, request.analysis_id);
     const auto attempts = executions_.list_attempts(request.project_id, request.analysis_id);
     for (const auto& existing : attempts) {
-        if (existing.idempotency_key != request.idempotency_key) continue;
+        if (existing.attempt_number <= 1 ||
+            existing.idempotency_key != request.idempotency_key) continue;
         if (existing.payload_digest != request.payload_digest ||
             existing.parent_attempt_id !=
                 std::optional<std::string>{request.expected_parent_attempt_id}) {
@@ -546,6 +559,22 @@ CohortExecutionAttempt CohortExecutionService::complete(
         job->progress() != 1.0) {
         fail(CohortExecutionErrorCode::completion_not_verified,
              "Cohort execution cannot complete before its Job reaches verified completion");
+    }
+
+    bool manifest_verified = false;
+    for (const auto& artifact : managed_files_.list_generated_outputs(*attempt->job_id)) {
+        if (artifact.file.id() == request.result_manifest_file_id &&
+            artifact.file.storage_mode() == domain::StorageMode::generated_output &&
+            artifact.file.checksum_algorithm() == std::optional<std::string>{"sha256"} &&
+            artifact.file.checksum_value() ==
+                std::optional<std::string>{request.result_manifest_sha256}) {
+            manifest_verified = true;
+            break;
+        }
+    }
+    if (!manifest_verified) {
+        fail(CohortExecutionErrorCode::completion_not_verified,
+             "Cohort result manifest is not a registered SHA-256 verified output of this Job");
     }
 
     const auto now = clock_.now_utc_iso8601();
