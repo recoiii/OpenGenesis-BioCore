@@ -72,7 +72,7 @@ namespace fs = std::filesystem;
     ProjectMigrationRunner initial{connection};
     initial.apply_pending();
     if (initial.current_version() != latest_project_schema_version ||
-        latest_project_schema_version != 17) {
+        latest_project_schema_version != 18) {
         return false;
     }
 
@@ -84,6 +84,10 @@ namespace fs = std::filesystem;
             '2026-09-15T12:00:00Z', '2026-09-15T12:01:00Z'
         );
 
+        DROP TRIGGER IF EXISTS cohort_analysis_attempts_immutable_delete;
+        DROP TRIGGER IF EXISTS cohort_analysis_attempts_validate_update;
+        DROP TRIGGER IF EXISTS cohort_analysis_attempts_validate_insert;
+        DROP TABLE IF EXISTS cohort_analysis_attempts;
         DROP TRIGGER IF EXISTS cohort_analysis_test_universe_immutable_delete;
         DROP TRIGGER IF EXISTS cohort_analysis_test_universe_immutable_update;
         DROP TRIGGER IF EXISTS cohort_analysis_test_universe_require_open_snapshot;
@@ -171,6 +175,7 @@ namespace fs = std::filesystem;
            table_exists(connection, "workflow_checkpoint_artifacts") &&
            table_exists(connection, "workflow_branch_decisions") &&
            table_exists(connection, "cohort_analysis_snapshots") &&
+           table_exists(connection, "cohort_analysis_attempts") &&
            scalar_int(
                connection,
                "SELECT COUNT(*) FROM jobs "
