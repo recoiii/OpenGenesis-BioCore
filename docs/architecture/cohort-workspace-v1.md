@@ -1,6 +1,6 @@
 # Cohort Analysis Workspace v1 — 089 contract
 
-Status: accepted 089 contract; Iteration 090 registry persistence implemented as a candidate. Version: 1.
+Status: accepted 089 contract; Iteration 090 registry is frozen, Iteration 091 selection/reference admission is candidate. Version: 1.
 All paths are relative to the repository. Current behavior is distinct from
 required future cohort integration. Existing scientific engines remain unchanged.
 
@@ -131,6 +131,31 @@ Artifact/run/attempt selection, analysis snapshots, execution and result APIs re
 The route ownership table below names the domain/application operation introduced by
 an iteration. Wiring these operations into the existing Drogon project-workspace HTTP
 surface and the browser UI remains the integrated workspace work assigned to 097.
+
+
+**Iteration 091 implementation.** Explicit selection preview now requires a frozen
+cohort revision and a one-to-one project-sample mapping to a concrete
+`plan_id + attempt_number + job_id + step_id + output_port + managed_file_id +
+VCF sample name + expected SHA-256`. It never resolves "latest" implicitly.
+Selections are accepted only from completed Jobs and frozen batch-attempt node scopes;
+the generated-output module/plugin/file-type contract is rechecked against the frozen
+batch plan. Shared multi-sample VCFs are verified/read once and columns are mapped by
+exact UTF-8 header name without trimming, case folding or numeric coercion.
+
+Reference admission pins assembly identity, optional custom assembly identity,
+normalization-contract version, exact FASTA managed-file ID/size/SHA-256, canonical
+contig names/lengths derived from verified FASTA bytes, and explicit alias mappings.
+Every producing batch sample must carry the same reference file snapshot. FASTA bytes
+are verified before and after streaming manifest extraction; VCF bytes are verified
+through the existing result-artifact reader. Haploid/polyploid GT values block cohort
+v1 admission. Resource admission enforces <=100 included samples, <=100 sources,
+<=64 MiB per VCF, <=256 MiB combined selected VCF text and <=512 MiB reference FASTA.
+The 10,000 normalized-allele and 1,000,000 observation matrix caps remain owned by
+092 because 091 deliberately does not normalize or construct the matrix.
+
+No analysis snapshot is persisted in 091. QC inclusion approval, group-denominator
+checks and immutable analysis approval remain 093 scope; matrix construction/dispatch
+remain 092 scope. HTTP/browser wiring remains 097.
 
 ## 4. Execution and retry contract (dispatch in 092, hardening in 095)
 
