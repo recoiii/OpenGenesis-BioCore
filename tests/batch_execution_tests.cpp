@@ -567,7 +567,7 @@ void migration_contract() {
     check(migrations.current_version() == 13, "fixture is not v13");
     migrations.apply_pending();
     ProjectDatabaseGuard{connection}.validate_current_schema();
-    check(migrations.current_version() == 15, "v15 migration missing");
+    check(migrations.current_version() == latest_project_schema_version, "latest migration missing");
     check(scalar(connection, "SELECT COUNT(*) FROM batch_plans;") == 1,
           "v13 approved plan was not preserved");
     check(scalar(connection, "SELECT COUNT(*) FROM batch_executions;") == 0,
