@@ -612,10 +612,13 @@ application::CohortAnalysisStoreResult SqliteCohortAnalysisSnapshotStore::create
         "project_id,analysis_id,cohort_id,cohort_revision,contract_version,preview_digest,"
         "snapshot_digest,approved_at_utc,reference_file_id,reference_file_type,"
         "reference_size_bytes,reference_sha256,reference_assembly,reference_custom_id,"
-        "normalization_contract_version,association_contract_version,test_filter_version,"
-        "minimum_complete_case_calls,minimum_complete_control_calls,maximum_fisher_table_states,"
-        "approved_case_samples,approved_control_samples,allele_family_size,carrier_family_size,sealed"
-        ") VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,0);",
+        "normalization_contract_version,matrix_stage_id,matrix_module_id,"
+        "maximum_samples,maximum_sources,maximum_vcf_bytes,maximum_combined_vcf_bytes,"
+        "maximum_reference_bytes,maximum_normalized_alleles,maximum_observations,"
+        "association_contract_version,test_filter_version,minimum_complete_case_calls,"
+        "minimum_complete_control_calls,maximum_fisher_table_states,approved_case_samples,"
+        "approved_control_samples,allele_family_size,carrier_family_size,sealed"
+        ") VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,0);",
         "Unable to insert cohort analysis snapshot"
     };
     header.bind_text(1, snapshot.project_id);
@@ -633,18 +636,31 @@ application::CohortAnalysisStoreResult SqliteCohortAnalysisSnapshotStore::create
     header.bind_text(13, assembly_token(snapshot.reference.assembly));
     header.bind_optional_text(14, snapshot.reference.custom_assembly_id);
     header.bind_text(15, snapshot.reference.normalization_contract_version);
-    header.bind_text(16, snapshot.association_contract_version);
-    header.bind_text(17, snapshot.test_filter_version);
-    header.bind_integer(18, static_cast<std::int64_t>(
+    header.bind_text(16, snapshot.matrix_stage_id);
+    header.bind_text(17, snapshot.matrix_module_id);
+    header.bind_integer(18, static_cast<std::int64_t>(snapshot.resource_limits.maximum_samples));
+    header.bind_integer(19, static_cast<std::int64_t>(snapshot.resource_limits.maximum_sources));
+    header.bind_integer(20, static_cast<std::int64_t>(snapshot.resource_limits.maximum_vcf_bytes));
+    header.bind_integer(
+        21, static_cast<std::int64_t>(snapshot.resource_limits.maximum_combined_vcf_bytes));
+    header.bind_integer(
+        22, static_cast<std::int64_t>(snapshot.resource_limits.maximum_reference_bytes));
+    header.bind_integer(
+        23, static_cast<std::int64_t>(snapshot.resource_limits.maximum_normalized_alleles));
+    header.bind_integer(
+        24, static_cast<std::int64_t>(snapshot.resource_limits.maximum_observations));
+    header.bind_text(25, snapshot.association_contract_version);
+    header.bind_text(26, snapshot.test_filter_version);
+    header.bind_integer(27, static_cast<std::int64_t>(
         snapshot.association_options.minimum_complete_case_calls));
-    header.bind_integer(19, static_cast<std::int64_t>(
+    header.bind_integer(28, static_cast<std::int64_t>(
         snapshot.association_options.minimum_complete_control_calls));
-    header.bind_integer(20, static_cast<std::int64_t>(
+    header.bind_integer(29, static_cast<std::int64_t>(
         snapshot.association_options.maximum_fisher_table_states));
-    header.bind_integer(21, static_cast<std::int64_t>(snapshot.approved_case_samples));
-    header.bind_integer(22, static_cast<std::int64_t>(snapshot.approved_control_samples));
-    header.bind_integer(23, static_cast<std::int64_t>(snapshot.allele_family_size));
-    header.bind_integer(24, static_cast<std::int64_t>(snapshot.carrier_family_size));
+    header.bind_integer(30, static_cast<std::int64_t>(snapshot.approved_case_samples));
+    header.bind_integer(31, static_cast<std::int64_t>(snapshot.approved_control_samples));
+    header.bind_integer(32, static_cast<std::int64_t>(snapshot.allele_family_size));
+    header.bind_integer(33, static_cast<std::int64_t>(snapshot.carrier_family_size));
     require_done(database, header.step(), "Unable to insert cohort analysis snapshot");
 
     insert_samples(database, snapshot);
@@ -680,9 +696,11 @@ SqliteCohortAnalysisSnapshotStore::find(
         "SELECT cohort_id,cohort_revision,contract_version,preview_digest,snapshot_digest,"
         "approved_at_utc,reference_file_id,reference_file_type,reference_size_bytes,"
         "reference_sha256,reference_assembly,reference_custom_id,normalization_contract_version,"
-        "association_contract_version,test_filter_version,minimum_complete_case_calls,"
-        "minimum_complete_control_calls,maximum_fisher_table_states,approved_case_samples,"
-        "approved_control_samples,allele_family_size,carrier_family_size,sealed "
+        "matrix_stage_id,matrix_module_id,maximum_samples,maximum_sources,maximum_vcf_bytes,"
+        "maximum_combined_vcf_bytes,maximum_reference_bytes,maximum_normalized_alleles,"
+        "maximum_observations,association_contract_version,test_filter_version,"
+        "minimum_complete_case_calls,minimum_complete_control_calls,maximum_fisher_table_states,"
+        "approved_case_samples,approved_control_samples,allele_family_size,carrier_family_size,sealed "
         "FROM cohort_analysis_snapshots WHERE project_id=? AND analysis_id=?;",
         "Unable to read cohort analysis snapshot"
     };
@@ -694,7 +712,7 @@ SqliteCohortAnalysisSnapshotStore::find(
         throw SqliteError{result, std::string{"Unable to read cohort analysis snapshot: "} +
                                 sqlite3_errmsg(database)};
     }
-    if (header.integer(22) != 1) {
+    if (header.integer(31) != 1) {
         throw SqliteError{SQLITE_CORRUPT, "Cohort analysis snapshot is not sealed"};
     }
     const auto assembly = assembly_from_token(header.text(10));
@@ -724,17 +742,28 @@ SqliteCohortAnalysisSnapshotStore::find(
         },
         .sources = read_sources(database, project_id, analysis_id),
         .samples = read_samples(database, project_id, analysis_id),
-        .association_options = application::CohortAssociationApprovalOptions{
-            .minimum_complete_case_calls = static_cast<std::size_t>(header.integer(15)),
-            .minimum_complete_control_calls = static_cast<std::size_t>(header.integer(16)),
-            .maximum_fisher_table_states = static_cast<std::size_t>(header.integer(17)),
+        .matrix_stage_id = header.text(13),
+        .matrix_module_id = header.text(14),
+        .resource_limits = application::CohortAnalysisResourceLimits{
+            .maximum_samples = static_cast<std::size_t>(header.integer(15)),
+            .maximum_sources = static_cast<std::size_t>(header.integer(16)),
+            .maximum_vcf_bytes = static_cast<std::size_t>(header.integer(17)),
+            .maximum_combined_vcf_bytes = static_cast<std::size_t>(header.integer(18)),
+            .maximum_reference_bytes = static_cast<std::size_t>(header.integer(19)),
+            .maximum_normalized_alleles = static_cast<std::size_t>(header.integer(20)),
+            .maximum_observations = static_cast<std::size_t>(header.integer(21)),
         },
-        .association_contract_version = header.text(13),
-        .test_filter_version = header.text(14),
-        .approved_case_samples = static_cast<std::size_t>(header.integer(18)),
-        .approved_control_samples = static_cast<std::size_t>(header.integer(19)),
-        .allele_family_size = static_cast<std::size_t>(header.integer(20)),
-        .carrier_family_size = static_cast<std::size_t>(header.integer(21)),
+        .association_options = application::CohortAssociationApprovalOptions{
+            .minimum_complete_case_calls = static_cast<std::size_t>(header.integer(24)),
+            .minimum_complete_control_calls = static_cast<std::size_t>(header.integer(25)),
+            .maximum_fisher_table_states = static_cast<std::size_t>(header.integer(26)),
+        },
+        .association_contract_version = header.text(22),
+        .test_filter_version = header.text(23),
+        .approved_case_samples = static_cast<std::size_t>(header.integer(27)),
+        .approved_control_samples = static_cast<std::size_t>(header.integer(28)),
+        .allele_family_size = static_cast<std::size_t>(header.integer(29)),
+        .carrier_family_size = static_cast<std::size_t>(header.integer(30)),
         .test_universe = read_universe(database, project_id, analysis_id),
     };
     return snapshot;
