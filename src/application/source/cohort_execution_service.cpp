@@ -401,7 +401,7 @@ CohortExecutionHistory CohortExecutionService::reconcile(
                     artifact.provenance.output_port == "manifest" &&
                     artifact.provenance.plugin_id == "org.biocore.cohortanalysis" &&
                     artifact.provenance.plugin_version == "1.0.0" &&
-                    artifact.provenance.module_id == "org.biocore.cohort.analysis" &&
+                    artifact.provenance.module_id == "org.biocore.cohortanalysis.analysis" &&
                     artifact.provenance.file_type == "json" &&
                     artifact.file.storage_mode() == domain::StorageMode::generated_output &&
                     artifact.file.checksum_algorithm() == std::optional<std::string>{"sha256"} &&
