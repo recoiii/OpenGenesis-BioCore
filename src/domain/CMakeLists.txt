@@ -65,6 +65,7 @@ target_sources(
         BASE_DIRS include
         FILES
             include/biocore/domain/component_identity.hpp
+            include/biocore/domain/cohort.hpp
             include/biocore/domain/contig_table.hpp
             include/biocore/domain/genotype.hpp
             include/biocore/domain/inline_values.hpp
