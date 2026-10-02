@@ -46,6 +46,7 @@
 #include "biocore/pipeline_protocol/workflow_document_codec.hpp"
 #include "biocore/presentation/artifact_report.hpp"
 #include "biocore/presentation/batch_result_package_report.hpp"
+#include "biocore/presentation/cohort_workspace_json.hpp"
 #include "biocore/presentation/health_json.hpp"
 #include "biocore/presentation/local_browser_session.hpp"
 #include "biocore/presentation/project_workspace_json.hpp"
@@ -1401,6 +1402,37 @@ if (path.size() == 6U && path[2] == "files" && path[3] == "uploads" &&
     return json_response(200, "{\"status\":\"cancelled\"}");
 }
 
+
+        if (path.size() >= 5U && path[2] == "projects" &&
+            safe_path_atom(path[3]) && path[4] == "cohorts") {
+            if (cohort_workspace_ == nullptr) {
+                return error_response(
+                    503, "cohort_workspace_unavailable",
+                    "Cohort workspace integration is unavailable"
+                );
+            }
+            if (cohort_workspace_->current_project_id() != path[3]) {
+                return error_response(
+                    409, "project_context_mismatch",
+                    "Requested project does not match the currently opened project"
+                );
+            }
+            if (path.size() == 5U && request.method == HttpMethod::get) {
+                return json_response(
+                    200, render_cohort_list(cohort_workspace_->list_cohorts())
+                );
+            }
+            if (path.size() == 6U && safe_path_atom(path[5]) &&
+                request.method == HttpMethod::get) {
+                const auto cohort = cohort_workspace_->find_cohort(path[5]);
+                if (!cohort.has_value()) {
+                    return error_response(
+                        404, "cohort_not_found", "Cohort was not found"
+                    );
+                }
+                return json_response(200, render_cohort_definition(*cohort));
+            }
+        }
 
         if (path[2] == "project-workspace") {
             if (project_workspace_ == nullptr) {
