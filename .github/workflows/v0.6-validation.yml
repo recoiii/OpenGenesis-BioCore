@@ -1,4 +1,4 @@
-name: OpenGenesis-BioCore v0.6 iteration validation
+name: OpenGenesis-BioCore v0.6 final validation
 
 on:
   push:
@@ -11,45 +11,65 @@ permissions:
   contents: read
 
 concurrency:
-  group: v06-validation-${{ github.ref }}
+  group: v06-final-validation-${{ github.ref }}
   cancel-in-progress: true
 
 env:
-  BIOCORE_ITERATION: "097"
+  BIOCORE_ITERATION: "098"
   BIOCORE_EXPECTED_TESTS: "359"
+  BIOCORE_RELEASE_VERSION: "0.6.0"
+  BIOCORE_ACCEPTED_BASELINE_NAME: "accepted/iteration-097"
+  BIOCORE_ACCEPTED_BASELINE_SHA: "5a85bac8f36ab0bdee84b06d9f850bdb04b9e964"
+  BIOCORE_ACCEPTED_BASELINE_TREE: "26ba7edf28a89bc735882250348faa1226f6bd43"
 
 jobs:
+  source-candidate:
+    name: Exact source candidate
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - name: Verify baseline and seal source
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse "$BIOCORE_ACCEPTED_BASELINE_SHA^{tree}")" = "$BIOCORE_ACCEPTED_BASELINE_TREE"
+          git merge-base --is-ancestor "$BIOCORE_ACCEPTED_BASELINE_SHA" HEAD
+          mkdir -p artifacts/source
+          archive="artifacts/source/OpenGenesis-BioCore-iteration-$BIOCORE_ITERATION-source-CANDIDATE.zip"
+          git archive --format=zip --prefix=OpenGenesis-BioCore/ --output="$archive" HEAD
+          sha256sum "$archive" | tee artifacts/source/SHA256SUMS.txt
+          git rev-parse HEAD | tee artifacts/source/COMMIT.txt
+          git rev-parse 'HEAD^{tree}' | tee artifacts/source/TREE.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: OpenGenesis-BioCore-iteration-${{ env.BIOCORE_ITERATION }}-source-CANDIDATE
+          path: artifacts/source/
+          if-no-files-found: error
+          retention-days: 30
+
   linux:
     name: ${{ matrix.lane }}
     runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
       matrix:
-        lane: [linux-gcc-debug, linux-gcc-release, linux-clang-debug, linux-gcc-asan-ubsan]
+        lane: [linux-gcc-debug, linux-gcc-release, linux-clang-debug]
     steps:
       - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
       - name: Install build dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y ninja-build libsqlite3-dev zlib1g-dev clang
       - name: Configure
-        shell: bash
-        run: |
-          if [ '${{ matrix.lane }}' = linux-gcc-asan-ubsan ]; then
-            cmake -S . -B build/linux-gcc-asan-ubsan -G Ninja \
-              -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_COMPILER=g++ \
-              -DBIOCORE_BUILD_TESTS=ON -DBIOCORE_WARNINGS_AS_ERRORS=ON \
-              -DBIOCORE_ENABLE_ASAN=ON -DBIOCORE_ENABLE_UBSAN=ON -DBIOCORE_VERSION_SUFFIX=dev
-          else
-            cmake --preset '${{ matrix.lane }}'
-          fi
+        run: cmake --preset "${{ matrix.lane }}"
       - name: Build
-        run: cmake --build build/${{ matrix.lane }} --parallel 4
-      - name: Verify inventory, identity and regressions
+        run: cmake --build --preset "${{ matrix.lane }}" --parallel 4
+      - name: Verify exact release identity and run regressions
         shell: bash
-        env:
-          ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
-          UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
         run: |
           set -euo pipefail
           mkdir -p artifacts/evidence
@@ -57,65 +77,208 @@ jobs:
           count="$(ctest --test-dir "build/$lane" -N | sed -n 's/^Total Tests: //p')"
           test "$count" = "$BIOCORE_EXPECTED_TESTS"
           version="$("build/$lane/apps/biocore/biocore" --version)"
-          test "$version" = '0.6.0-dev'
-          ctest --test-dir "build/$lane" --output-on-failure \
-            --output-junit "$GITHUB_WORKSPACE/artifacts/$lane.xml" | tee "artifacts/$lane-full.log"
+          test "$version" = "$BIOCORE_RELEASE_VERSION"
+          ctest --test-dir "build/$lane" --output-on-failure             --output-junit "$GITHUB_WORKSPACE/artifacts/$lane.xml" | tee "artifacts/$lane-full.log"
           {
             echo "COMMIT=$(git rev-parse HEAD)"
+            echo "TREE=$(git rev-parse 'HEAD^{tree}')"
             echo "VERSION=$version"
             echo "CTEST_COUNT=$count"
             tail -n 5 "artifacts/$lane-full.log"
           } > "artifacts/evidence/$lane.txt"
+      - name: Verify release metadata
+        if: matrix.lane == 'linux-gcc-debug'
+        shell: bash
+        run: |
+          grep -F '"BIOCORE_VERSION_SUFFIX": ""' CMakePresets.json
+          grep -F 'version: "0.6.0"' CITATION.cff
+          grep -F '**Release candidate under final validation: v0.6.0**' README.md
+          test -f docs/release/RELEASE-NOTES-0.6.0.md
+          grep -F 'latest_project_schema_version = 18' src/infrastructure/include/biocore/infrastructure/sqlite/project_migration_runner.hpp
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: iteration-097-${{ matrix.lane }}
+          name: iteration-098-${{ matrix.lane }}
           path: artifacts/
           if-no-files-found: error
+          retention-days: 30
 
-  benchmark:
-    name: Cohort contract scale evidence
+  sanitizers:
+    name: linux-gcc-asan-ubsan
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y ninja-build libsqlite3-dev zlib1g-dev time
-      - name: Build benchmark
+          sudo apt-get install -y ninja-build libsqlite3-dev zlib1g-dev
+      - name: Configure
         run: |
-          cmake --preset linux-gcc-release
-          cmake --build --preset linux-gcc-release --target biocore-cohort-contract-benchmark --parallel 4
-      - name: Measure independent scale axes
+          cmake -S . -B build/linux-gcc-asan-ubsan -G Ninja             -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_COMPILER=g++             -DBIOCORE_BUILD_TESTS=ON -DBIOCORE_WARNINGS_AS_ERRORS=ON             -DBIOCORE_ENABLE_ASAN=ON -DBIOCORE_ENABLE_UBSAN=ON             -DBIOCORE_VERSION_SUFFIX=
+      - name: Build
+        run: cmake --build build/linux-gcc-asan-ubsan --parallel 4
+      - name: Run exact sanitizer suite
         shell: bash
+        env:
+          ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
+          UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
         run: |
           set -euo pipefail
           mkdir -p artifacts/evidence
+          count="$(ctest --test-dir build/linux-gcc-asan-ubsan -N | sed -n 's/^Total Tests: //p')"
+          test "$count" = "$BIOCORE_EXPECTED_TESTS"
+          version="$(build/linux-gcc-asan-ubsan/apps/biocore/biocore --version)"
+          test "$version" = "$BIOCORE_RELEASE_VERSION"
+          ctest --test-dir build/linux-gcc-asan-ubsan --output-on-failure             --output-junit "$GITHUB_WORKSPACE/artifacts/linux-gcc-asan-ubsan.xml" | tee artifacts/linux-gcc-asan-ubsan-full.log
           {
             echo "COMMIT=$(git rev-parse HEAD)"
-            uname -a
-            lscpu | head -n 24
-            free -m
-            g++ --version
-          } > artifacts/evidence/hardware.txt
-          for dimensions in '20 1000 100' '100 1000 100' '20 10000 100' '100 10000 10' '100 10000 100'; do
-            key="${dimensions// /-}"
-            /usr/bin/time -f 'peak_rss_kib=%M\nwall_seconds=%e' -o "artifacts/evidence/time-$key.txt" \
-              timeout 120 build/linux-gcc-release/tests/biocore-cohort-contract-benchmark $dimensions \
-              > "artifacts/evidence/scale-$key.txt"
-            echo "summary_output_bytes=$(wc -c < "artifacts/evidence/scale-$key.txt")" >> "artifacts/evidence/time-$key.txt"
-            rss="$(sed -n 's/^peak_rss_kib=//p' "artifacts/evidence/time-$key.txt")"
-            test "$rss" -le 2097152
-          done
+            echo "TREE=$(git rev-parse 'HEAD^{tree}')"
+            echo "VERSION=$version"
+            echo "CTEST_COUNT=$count"
+            tail -n 5 artifacts/linux-gcc-asan-ubsan-full.log
+          } > artifacts/evidence/linux-gcc-asan-ubsan.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: iteration-098-linux-gcc-asan-ubsan
+          path: artifacts/
+          if-no-files-found: error
+          retention-days: 30
+
+  closure-evidence:
+    name: Retained science, migration, recovery and cohort closure
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build libsqlite3-dev zlib1g-dev time curl
+      - name: Configure and build release
+        run: |
+          cmake --preset linux-gcc-release
+          cmake --build --preset linux-gcc-release --parallel 4
+      - name: Run retained v0.4/v0.5 compatibility gates
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/evidence artifacts/giab
+          ctest --preset linux-gcc-release -R '^release\.v04\.' --output-on-failure             | tee artifacts/evidence/v04-compatibility-ctest.txt
+          grep -F '100% tests passed' artifacts/evidence/v04-compatibility-ctest.txt
+          ctest --preset linux-gcc-release             -R '^(integration\.(project_research_metadata_(migration|rollback)|sample_registry_(migration|rollback)|sample_binding_(migration|rollback)|batch_planning_(migration|rollback)|batch_execution_(migration|rollback)|batch_recovery_(restart|resume|retry|changed-input|checkpoint-integrity|cancel-latest)|project_workspace_v05_e2e))$'             --output-on-failure | tee artifacts/evidence/v05-compatibility-ctest.txt
+          grep -F '100% tests passed' artifacts/evidence/v05-compatibility-ctest.txt
+      - name: Run complete v0.6 cohort closure set
+        shell: bash
+        run: |
+          set -euo pipefail
+          ctest --preset linux-gcc-release             -R '^(domain\.cohort_contract_.*|integration\.cohort_.*|presentation\.cohort_workspace_json)$'             --output-on-failure | tee artifacts/evidence/v06-cohort-closure-ctest.txt
+          grep -F '100% tests passed' artifacts/evidence/v06-cohort-closure-ctest.txt
+          grep -F 'latest_project_schema_version = 18'             src/infrastructure/include/biocore/infrastructure/sqlite/project_migration_runner.hpp             > artifacts/evidence/v06-current-schema.txt
+      - name: Run retained scientific benchmarks
+        shell: bash
+        run: |
+          set -euo pipefail
+          /usr/bin/time -v build/linux-gcc-release/src/domain/biocore-case-control-association-benchmark             > artifacts/evidence/case-control-association-benchmark.txt             2> artifacts/evidence/case-control-association-time.txt
+          grep -F 'samples=100' artifacts/evidence/case-control-association-benchmark.txt
+          grep -F 'variants=10000' artifacts/evidence/case-control-association-benchmark.txt
+          grep -F 'observations=1000000' artifacts/evidence/case-control-association-benchmark.txt
+
+          /usr/bin/time -v build/linux-gcc-release/biocore-variant-workspace-benchmark             > artifacts/evidence/variant-workspace-benchmark.txt             2> artifacts/evidence/variant-workspace-time.txt
+          grep -F '"variants":100000' artifacts/evidence/variant-workspace-benchmark.txt
+
+          /usr/bin/time -v build/linux-gcc-release/biocore-variant-export-benchmark             > artifacts/evidence/variant-export-benchmark.txt             2> artifacts/evidence/variant-export-time.txt
+          grep -F '"variants":100000' artifacts/evidence/variant-export-benchmark.txt
+
+          /usr/bin/time -v build/linux-gcc-release/biocore-truth-set-benchmark-benchmark             > artifacts/evidence/truth-set-benchmark.txt             2> artifacts/evidence/truth-set-time.txt
+          grep -F '"truth_variants":250000' artifacts/evidence/truth-set-benchmark.txt
+
+          /usr/bin/time -f 'peak_rss_kib=%M\nwall_seconds=%e'             -o artifacts/evidence/cohort-scale-time.txt             timeout 120 build/linux-gcc-release/tests/biocore-cohort-contract-benchmark 100 10000 100             > artifacts/evidence/cohort-scale.txt
+          grep -F 'samples=100' artifacts/evidence/cohort-scale.txt
+          grep -F 'variants=10000' artifacts/evidence/cohort-scale.txt
+          rss="$(sed -n 's/^peak_rss_kib=//p' artifacts/evidence/cohort-scale-time.txt)"
+          test "$rss" -le 2097152
+      - name: Run pinned GIAB compatibility gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          base='https://raw.githubusercontent.com/google/deepvariant/45f2627504c59785ea2b88d0256a2ec347bce7b4/deeptrio/testdata/input'
+          vcf_gz='artifacts/giab/HG002_GRCh38_1_22_v4.2.1_benchmark.chr20.vcf.gz'
+          bed='artifacts/giab/HG002_GRCh38_1_22_v4.2.1_benchmark.chr20.bed'
+          curl --fail --location --retry 5 --retry-all-errors "$base/HG002_GRCh38_1_22_v4.2.1_benchmark.chr20.vcf.gz" -o "$vcf_gz"
+          curl --fail --location --retry 5 --retry-all-errors "$base/HG002_GRCh38_1_22_v4.2.1_benchmark.chr20.bed" -o "$bed"
+          test "$(git hash-object "$vcf_gz")" = 'c642801a079fbfc1a43df80d47d19493c58ef135'
+          test "$(git hash-object "$bed")" = '31528cdbf5648f467890fe780dc20a8396cb3131'
+          gzip -dc "$vcf_gz" > artifacts/giab/HG002.truth.vcf
+          /usr/bin/time -v build/linux-gcc-release/biocore-giab-truth-benchmark             artifacts/giab/HG002.truth.vcf "$bed"             > artifacts/evidence/giab-truth-benchmark.txt             2> artifacts/evidence/giab-truth-time.txt
+          grep -F '"dataset":"GIAB HG002 GRCh38 v4.2.1 chr20"' artifacts/evidence/giab-truth-benchmark.txt
+          grep -F '"fp":0' artifacts/evidence/giab-truth-benchmark.txt
+          grep -F '"fn":0' artifacts/evidence/giab-truth-benchmark.txt
+          {
+            echo "COMMIT=$(git rev-parse HEAD)"
+            echo "TREE=$(git rev-parse 'HEAD^{tree}')"
+            echo "VERSION=$(build/linux-gcc-release/apps/biocore/biocore --version)"
+            echo "SCHEMA=18"
+            echo "COHORT_SCALE_RSS_KIB=$(sed -n 's/^peak_rss_kib=//p' artifacts/evidence/cohort-scale-time.txt)"
+            echo "GIAB=PASS"
+          } > artifacts/evidence/final-linux-closure-summary.txt
       - uses: actions/upload-artifact@v4
         with:
-          name: iteration-097-benchmark
+          name: OpenGenesis-BioCore-iteration-098-closure-evidence
           path: artifacts/evidence/
           if-no-files-found: error
+          retention-days: 30
+
+  windows-native-closure:
+    name: Native Windows final closure
+    needs: [source-candidate]
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: actions/download-artifact@v5
+        with:
+          name: OpenGenesis-BioCore-iteration-${{ env.BIOCORE_ITERATION }}-source-CANDIDATE
+          path: artifacts/source
+      - name: Resolve hosted vcpkg root
+        shell: pwsh
+        run: |
+          if (-not $env:VCPKG_ROOT -and $env:VCPKG_INSTALLATION_ROOT) {
+            "VCPKG_ROOT=$env:VCPKG_INSTALLATION_ROOT" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          }
+      - name: Validate sealed source on native Windows
+        shell: pwsh
+        run: |
+          $drive = 'B:'
+          if (Get-PSDrive -Name 'B' -ErrorAction SilentlyContinue) { throw 'Required short-path drive B: is already in use.' }
+          subst $drive $env:GITHUB_WORKSPACE
+          try {
+            $archive = Get-ChildItem "$drive\artifacts\source\OpenGenesis-BioCore-iteration-098-source-CANDIDATE.zip" | Select-Object -First 1
+            $line = Get-Content "$drive\artifacts\source\SHA256SUMS.txt" | Select-Object -First 1
+            $sha = ($line -split '\s+')[0]
+            & "$drive\scripts\validate-windows-final.ps1"               -SourceArchive $archive.FullName               -ExpectedSourceSha256 $sha               -ExpectedVersion "0.6.0"               -ExpectedCTestCount 359               -Iteration 98               -ExpectedWorkflowTemplateCount 1
+          }
+          finally {
+            Set-Location $env:GITHUB_WORKSPACE
+            subst $drive /D
+          }
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: OpenGenesis-BioCore-iteration-098-windows-final-closure
+          path: |
+            artifacts/windows-final-closure/
+            artifacts/OpenGenesis-BioCore-iteration-098-windows-evidence.zip
+          if-no-files-found: error
+          retention-days: 30
 
   review-package:
-    name: Exact four-part Gemini candidate
-    needs: [linux, benchmark]
+    name: Exact four-part final review candidate
+    needs: [source-candidate, linux, sanitizers, closure-evidence, windows-native-closure]
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v5
@@ -123,23 +286,49 @@ jobs:
           fetch-depth: 0
       - uses: actions/download-artifact@v5
         with:
-          pattern: iteration-097-*
-          path: artifacts/downloads
-      - name: Collect exact-candidate evidence
+          pattern: iteration-098-linux-*
+          path: artifacts/downloads/linux
+      - uses: actions/download-artifact@v5
+        with:
+          name: OpenGenesis-BioCore-iteration-098-closure-evidence
+          path: artifacts/downloads/closure
+      - uses: actions/download-artifact@v5
+        with:
+          name: OpenGenesis-BioCore-iteration-098-windows-final-closure
+          path: artifacts/downloads/windows
+      - uses: actions/download-artifact@v5
+        with:
+          name: OpenGenesis-BioCore-iteration-${{ env.BIOCORE_ITERATION }}-source-CANDIDATE
+          path: artifacts/source
+      - name: Collect concise exact-candidate evidence
         shell: bash
         run: |
+          set -euo pipefail
           mkdir -p artifacts/evidence
-          find artifacts/downloads -type f -name '*.txt' -exec cp {} artifacts/evidence/ \;
-      - name: Generate and verify sealed review package
+          find artifacts/downloads/linux -type f -path '*/evidence/*.txt' -exec cp {} artifacts/evidence/ \;
+          find artifacts/downloads/closure -maxdepth 1 -type f -name '*.txt' -exec cp {} artifacts/evidence/ \;
+          summary="$(find artifacts/downloads/windows -type f -name 'windows-final-closure-summary.json' -print -quit)"
+          sums="$(find artifacts/downloads/windows -type f -name 'SHA256SUMS.txt' -print -quit)"
+          test -n "$summary"
+          test -n "$sums"
+          cp "$summary" artifacts/evidence/windows-final-closure-summary.txt
+          cp "$sums" artifacts/evidence/windows-final-SHA256SUMS.txt
+      - name: Generate sealed final review package
         shell: bash
         run: |
-          python3 scripts/generate-gemini-review-v06.py --output artifacts/review \
-            --evidence-dir artifacts/evidence --ci-run-id '${{ github.run_id }}'
+          archive="$(find artifacts/source -maxdepth 1 -type f -name '*source-CANDIDATE.zip' -print -quit)"
+          test -n "$archive"
+          python3 scripts/generate-final-review-v06.py             --output artifacts/review             --evidence-dir artifacts/evidence             --source-archive "$archive"             --ci-run-id '${{ github.run_id }}'
           cd artifacts/review
           sha256sum -c SHA256SUMS.txt
           test "$(find . -name '*-part-*-of-04.md' | wc -l)" -eq 4
+          grep -F 'Changed-file completeness: PASS' *-part-04-of-04.md
+          for part in *-part-*-of-04.md; do
+            test "$(wc -c < "$part")" -le 120000
+          done
       - uses: actions/upload-artifact@v4
         with:
-          name: OpenGenesis-BioCore-iteration-097-GEMINI-review
+          name: OpenGenesis-BioCore-iteration-098-GEMINI-review
           path: artifacts/review/
           if-no-files-found: error
+          retention-days: 30

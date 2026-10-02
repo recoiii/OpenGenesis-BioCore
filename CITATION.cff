@@ -3,8 +3,8 @@ message: "If you use OpenGenesis-BioCore in your research, please cite the softw
 
 title: "OpenGenesis-BioCore"
 type: software
-version: "0.5.0"
-date-released: "2026-09-28"
+version: "0.6.0"
+date-released: "2026-10-02"
 license: MIT
 
 repository-code: "https://github.com/recoiii/OpenGenesis-BioCore"
@@ -25,6 +25,8 @@ keywords:
   - workflow management
   - project workspace
   - sample management
+  - cohort analysis
+  - case-control association
   - local-first
   - C++
   - variant calling
@@ -35,23 +37,24 @@ keywords:
 abstract: >-
   OpenGenesis-BioCore is a local-first, extensible bioinformatics platform
   designed for reproducible analysis workflows on Windows and Linux. Version
-  0.5.0 builds on the canonical small-variant and Workflow Engine 2.0 layers
-  with a Project & Sample Workspace: revision-controlled research metadata,
-  sample registry and input/reference binding, deterministic batch planning and
-  execution, explicit resume/retry attempt lineage, lineage-aware QC/results,
-  integrity-verified result manifests and HTML reports, and an integrated local
-  browser workspace. The release retains the C++20 native core, localhost-only
-  browser interface, SQLite persistence, native plugins, exact-version workflow
-  templates, scientific benchmark gates, and local-first provenance model.
+  0.6.0 builds on the canonical small-variant, Workflow Engine 2.0, and Project
+  & Sample Workspace layers with project-scoped cohort/group registries,
+  deterministic verified-artifact selection, compatibility and QC gates,
+  frozen cohort analysis snapshots, canonical multi-sample matrix and
+  case/control association reuse, durable execution/recovery lineage,
+  verified result manifests, result browsing and multi-format reporting.
+  The release retains the C++20 native core, localhost-only browser interface,
+  SQLite persistence, native plugins, exact-version workflow templates,
+  scientific benchmark gates, and local-first provenance model.
 
 preferred-citation:
   type: software
-  title: "OpenGenesis-BioCore v0.5.0"
+  title: "OpenGenesis-BioCore v0.6.0"
   authors:
     - family-names: "Çelik"
       given-names: "Recep"
       orcid: "https://orcid.org/0009-0003-2939-1009"
-  version: "0.5.0"
-  date-released: "2026-09-28"
+  version: "0.6.0"
+  date-released: "2026-10-02"
   doi: "10.5281/zenodo.22012037"
   url: "https://doi.org/10.5281/zenodo.22012037"

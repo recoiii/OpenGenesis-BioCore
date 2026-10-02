@@ -211,11 +211,12 @@ function Test-InstalledLayout {
         'org.biocore.alignmentqc',
         'org.biocore.variantcall',
         'org.biocore.vcfqc',
-        'org.biocore.variantannotate'
+        'org.biocore.variantannotate',
+        'org.biocore.cohortanalysis'
     )
     $plugins = @(Get-InstalledPluginRecords -InstallRoot $InstallRoot)
     $actualIds = @($plugins | ForEach-Object { $_.Id })
-    Assert-True ($plugins.Count -eq $expectedPluginIds.Count) "Expected 8 installed native plugins, found $($plugins.Count)"
+    Assert-True ($plugins.Count -eq $expectedPluginIds.Count) "Expected $($expectedPluginIds.Count) installed native plugins, found $($plugins.Count)"
     foreach ($pluginId in $expectedPluginIds) {
         Assert-True ($actualIds -contains $pluginId) "Missing installed plugin: $pluginId"
     }
@@ -252,7 +253,7 @@ function Test-InstalledLayout {
     $workflowTemplates = @(
         Get-ChildItem -LiteralPath $pipelineRoot -Filter '*.workflow-template.json' -File
     )
-    Assert-True ($analysisPipelines.Count -eq 12) "Expected exactly 12 frozen analysis pipelines in the install tree"
+    Assert-True ($analysisPipelines.Count -eq 13) "Expected exactly 13 frozen analysis pipelines in the install tree"
     Assert-True ($workflowTemplates.Count -eq $ExpectedWorkflowTemplateCount) "Expected $ExpectedWorkflowTemplateCount workflow template(s) in the install tree, found $($workflowTemplates.Count)"
     Assert-True (Test-Path -LiteralPath (Join-Path $frontendRoot 'index.html') -PathType Leaf) "Installed frontend index.html is missing"
 

@@ -6,7 +6,7 @@ OpenGenesis-BioCore is a local-first C++20 bioinformatics platform with a localh
 processes, SQLite project persistence, plugin/pipeline execution, live job telemetry, durable artifacts,
 and an integrated FASTA/FASTQ-to-variant-analysis workflow suite.
 
-**Current stable release: v0.5.0**
+**Release candidate under final validation: v0.6.0**\n\n**Current published stable release: v0.5.0**
 
 ## Highlights
 
@@ -33,16 +33,16 @@ and an integrated FASTA/FASTQ-to-variant-analysis workflow suite.
 
 ## Validation
 
-OpenGenesis-BioCore v0.5.0 closes against one exact Iteration 088 source candidate. Linux GCC Debug/Release,
-Clang Debug, GCC ASan+UBSan, the retained scientific/performance gates, the v9→v15 migration and recovery/E2E
-closure gates, native Windows MSVC Debug/Release, clean install and portable-package smoke, and independent
-Gemini + Claude final review must all refer to the same candidate identity. Historical evidence is never reused
-to close a newer source state.
+OpenGenesis-BioCore v0.6.0 closes against one exact Iteration 098 source candidate. Linux GCC Debug/Release,
+Clang Debug, GCC ASan+UBSan, retained scientific/v0.4/v0.5 compatibility gates, schema-v18 cohort
+migration/recovery/E2E closure, native Windows MSVC Debug/Release, clean install and portable-package smoke,
+and independent Gemini + Claude final review must all refer to the same candidate identity. Historical evidence
+is never reused to close a newer source state.
 
 See [`docs/release/VALIDATION.md`](docs/release/VALIDATION.md),
 [`docs/release/FINAL-WINDOWS-CLOSURE.md`](docs/release/FINAL-WINDOWS-CLOSURE.md),
 [`docs/release/KNOWN-LIMITATIONS.md`](docs/release/KNOWN-LIMITATIONS.md), and
-[`docs/release/RELEASE-NOTES-0.5.0.md`](docs/release/RELEASE-NOTES-0.5.0.md).
+[`docs/release/RELEASE-NOTES-0.6.0.md`](docs/release/RELEASE-NOTES-0.6.0.md).
 
 ## Build on Linux
 
@@ -91,10 +91,11 @@ installing a plugin is equivalent to installing native software from that publis
 
 ## Scientific scope
 
-The v0.5.0 release retains the v0.3 canonical small-variant scientific methods and the v0.4 Workflow Engine 2.0
-contracts. v0.5 adds project/sample/batch context, recovery lineage, QC/result aggregation, verified reporting and
-an integrated project workspace; it does not introduce a new caller, association method, biological score or
-second execution engine. Structural-variant/CNV calling, tumor-normal somatic calling, full GWAS, ACMG clinical
+The v0.6.0 release retains the v0.3 canonical small-variant scientific methods, v0.4 Workflow Engine 2.0
+contracts and v0.5 Project & Sample Workspace. v0.6 adds project-scoped cohort registry, verified artifact
+selection, compatibility/QC gates, frozen analysis snapshots, canonical matrix/case-control reuse, execution
+recovery lineage and integrated cohort results/reporting; it does not introduce a new caller, association method,
+biological score or second execution engine. Structural-variant/CNV calling, tumor-normal somatic calling, full GWAS, ACMG clinical
 classification and distributed/cloud execution remain outside scope. The current Annotation 2.0 implementation
 performs exact allele lookup and GFF/GTF feature overlap; it does not claim transcript/CDS/codon/protein
 consequence prediction. The GIAB gate demonstrates truth-set ingestion/comparison compatibility, not end-to-end
@@ -107,7 +108,7 @@ OpenGenesis-BioCore is distributed under the [MIT License](LICENSE).
 ## Citation
 
 The stable Zenodo concept DOI for OpenGenesis-BioCore is **10.5281/zenodo.22012037**. The repository citation
-metadata identify this source as v0.5.0. A version-specific v0.5.0 DOI is added only after the accepted release
+metadata identify this final candidate as v0.6.0. A version-specific v0.6.0 DOI is added only after the accepted release
 source is deposited; no unreleased DOI is fabricated in this candidate.
 
 Citation metadata are available in [`CITATION.cff`](CITATION.cff).
