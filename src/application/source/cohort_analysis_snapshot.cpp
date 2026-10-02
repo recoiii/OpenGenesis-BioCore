@@ -48,6 +48,23 @@ void append_integer(std::string& out, const std::string_view key, const Integer 
     return "unspecified";
 }
 
+[[nodiscard]] std::string indexed_prefix(
+    const std::string_view base,
+    const std::size_t index
+) {
+    std::array<char, 32> buffer{};
+    const auto [end, error] = std::to_chars(
+        buffer.data(), buffer.data() + buffer.size(), index
+    );
+    if (error != std::errc{}) {
+        throw std::logic_error{"Unable to serialize canonical cohort snapshot index"};
+    }
+    std::string result{base};
+    result.append(buffer.data(), static_cast<std::size_t>(end - buffer.data()));
+    result.push_back('.');
+    return result;
+}
+
 void append_optional(
     std::string& out,
     const std::string_view key,
@@ -120,7 +137,7 @@ std::string canonical_cohort_analysis_snapshot(
 
     append_integer(out, "reference.contig_count", snapshot.reference.contigs.size());
     for (std::size_t index = 0U; index < snapshot.reference.contigs.size(); ++index) {
-        const auto prefix = "reference.contig." + std::to_string(index) + ".";
+        const auto prefix = indexed_prefix("reference.contig.", index);
         append_token(out, prefix + "name", snapshot.reference.contigs[index].canonical_name);
         append_integer(out, prefix + "length", snapshot.reference.contigs[index].length);
     }
@@ -132,7 +149,7 @@ std::string canonical_cohort_analysis_snapshot(
     });
     append_integer(out, "reference.alias_count", aliases.size());
     for (std::size_t index = 0U; index < aliases.size(); ++index) {
-        const auto prefix = "reference.alias." + std::to_string(index) + ".";
+        const auto prefix = indexed_prefix("reference.alias.", index);
         append_token(out, prefix + "alias", aliases[index].alias);
         append_token(out, prefix + "canonical", aliases[index].canonical_name);
     }
@@ -149,7 +166,7 @@ std::string canonical_cohort_analysis_snapshot(
     append_integer(out, "source_count", sources.size());
     for (std::size_t index = 0U; index < sources.size(); ++index) {
         const auto& source = sources[index];
-        const auto prefix = "source." + std::to_string(index) + ".";
+        const auto prefix = indexed_prefix("source.", index);
         append_token(out, prefix + "project_sample_id", source.project_sample_id);
         append_token(out, prefix + "biological_unit_id", source.biological_unit_id);
         append_token(out, prefix + "plan_id", source.plan_id);
@@ -174,7 +191,7 @@ std::string canonical_cohort_analysis_snapshot(
     append_integer(out, "sample_count", samples.size());
     for (std::size_t index = 0U; index < samples.size(); ++index) {
         const auto& sample = samples[index];
-        const auto prefix = "sample." + std::to_string(index) + ".";
+        const auto prefix = indexed_prefix("sample.", index);
         append_integer(out, prefix + "ordinal", sample.ordinal);
         append_token(out, prefix + "sample_id", sample.sample_id);
         append_token(out, prefix + "display_name", sample.sample_display_name);
@@ -216,7 +233,7 @@ std::string canonical_cohort_analysis_snapshot(
     append_integer(out, "test_universe_count", snapshot.test_universe.size());
     for (std::size_t index = 0U; index < snapshot.test_universe.size(); ++index) {
         const auto& variant = snapshot.test_universe[index];
-        const auto prefix = "variant." + std::to_string(index) + ".";
+        const auto prefix = indexed_prefix("variant.", index);
         append_integer(out, prefix + "ordinal", variant.ordinal);
         append_token(out, prefix + "contig", variant.contig);
         append_integer(out, prefix + "start", variant.start);
