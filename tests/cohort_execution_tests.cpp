@@ -595,6 +595,59 @@ void completion_test() {
           std::optional<std::string>{manifest_hash},
           "manifest hash retained");
 
+    Harness h3;
+    const auto automatic = h3.service.submit(submit_request());
+    auto job3 = h3.job_repository.find_by_id(*automatic.job_id);
+    check(job3.has_value(), "automatic completion job exists");
+    (void)h3.jobs.transition(
+        job3->id(), domain::JobStatus::preparing, 0.0, std::nullopt
+    );
+    (void)h3.jobs.transition(
+        job3->id(), domain::JobStatus::running, 0.5, std::string{"analyze"}
+    );
+    (void)h3.jobs.transition(
+        job3->id(), domain::JobStatus::completed, 1.0, std::nullopt
+    );
+    h3.connection.execute("INSERT INTO managed_files(id) VALUES('manifest-auto');");
+    const domain::ManagedFile automatic_manifest{
+        "manifest-auto",
+        "cohort-result-manifest.json",
+        domain::StorageMode::generated_output,
+        std::nullopt,
+        std::string{"/managed/project/outputs/manifest-auto.json"},
+        std::string{"outputs/manifest-auto.json"},
+        "json",
+        128,
+        std::nullopt,
+        std::string{"sha256"},
+        std::string{manifest_hash},
+        "2026-10-02T15:33:00Z",
+        "2026-10-02T15:33:00Z"
+    };
+    check(h3.files.add_generated_output(
+        automatic_manifest,
+        application::GeneratedOutputProvenance{
+            .job_id = *automatic.job_id,
+            .step_id = "analyze",
+            .output_port = "manifest",
+            .plugin_id = "org.biocore.cohortanalysis",
+            .plugin_version = "1.0.0",
+            .module_id = "org.biocore.cohort.analysis",
+            .file_type = "json",
+            .relative_project_path = "outputs/manifest-auto.json",
+            .step_progress = 1.0,
+            .registered_at_utc = "2026-10-02T15:33:00Z",
+        }),
+        "automatic manifest fixture registered"
+    );
+    const auto reconciled = h3.service.reconcile(project_id, analysis_id);
+    check(reconciled.attempts.size() == 1U &&
+          reconciled.attempts[0].state == application::CohortExecutionState::completed,
+          "verified native cohort manifest completes during reconciliation");
+    check(reconciled.attempts[0].result_manifest_file_id ==
+          std::optional<std::string>{"manifest-auto"},
+          "automatic completion retains manifest identity");
+
     rejects<application::CohortExecutionError>([&] {
         (void)h2.service.retry({
             .project_id = project_id,
