@@ -217,6 +217,32 @@ std::string canonical_cohort_analysis_snapshot(
         append_optional(out, prefix + "qc_sha256", sample.qc.sha256);
     }
 
+    append_token(out, "matrix.stage_id", snapshot.matrix_stage_id);
+    append_token(out, "matrix.module_id", snapshot.matrix_module_id);
+    append_integer(out, "limits.maximum_samples", snapshot.resource_limits.maximum_samples);
+    append_integer(out, "limits.maximum_sources", snapshot.resource_limits.maximum_sources);
+    append_integer(out, "limits.maximum_vcf_bytes", snapshot.resource_limits.maximum_vcf_bytes);
+    append_integer(
+        out,
+        "limits.maximum_combined_vcf_bytes",
+        snapshot.resource_limits.maximum_combined_vcf_bytes
+    );
+    append_integer(
+        out,
+        "limits.maximum_reference_bytes",
+        snapshot.resource_limits.maximum_reference_bytes
+    );
+    append_integer(
+        out,
+        "limits.maximum_normalized_alleles",
+        snapshot.resource_limits.maximum_normalized_alleles
+    );
+    append_integer(
+        out,
+        "limits.maximum_observations",
+        snapshot.resource_limits.maximum_observations
+    );
+
     append_token(out, "association.contract_version", snapshot.association_contract_version);
     append_token(out, "association.test_filter_version", snapshot.test_filter_version);
     append_integer(out, "association.minimum_complete_case_calls",
