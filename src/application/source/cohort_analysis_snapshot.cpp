@@ -36,6 +36,18 @@ void append_integer(std::string& out, const std::string_view key, const Integer 
     append_token(out, key, std::string_view{buffer.data(), static_cast<std::size_t>(end - buffer.data())});
 }
 
+[[nodiscard]] std::string_view assembly_token(
+    const domain::ReferenceAssembly assembly
+) noexcept {
+    switch (assembly) {
+        case domain::ReferenceAssembly::unspecified: return "unspecified";
+        case domain::ReferenceAssembly::grch37: return "grch37";
+        case domain::ReferenceAssembly::grch38: return "grch38";
+        case domain::ReferenceAssembly::custom: return "custom";
+    }
+    return "unspecified";
+}
+
 void append_optional(
     std::string& out,
     const std::string_view key,
@@ -102,7 +114,7 @@ std::string canonical_cohort_analysis_snapshot(
     append_token(out, "reference.file_type", snapshot.reference.file_type);
     append_integer(out, "reference.size_bytes", snapshot.reference.size_bytes);
     append_token(out, "reference.sha256", snapshot.reference.sha256);
-    append_token(out, "reference.assembly", domain::to_string(snapshot.reference.assembly));
+    append_token(out, "reference.assembly", assembly_token(snapshot.reference.assembly));
     append_optional(out, "reference.custom_assembly_id", snapshot.reference.custom_assembly_id);
     append_token(out, "reference.normalization_contract", snapshot.reference.normalization_contract_version);
 
