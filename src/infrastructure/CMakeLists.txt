@@ -29,6 +29,7 @@ target_sources(
         source/platform_worker_supervisor.cpp
         source/monotonic_clock.cpp
         source/sha256.cpp
+        source/sha256_cohort_analysis_digester.cpp
         source/secure_token.cpp
         source/system_clock.cpp
         source/uuid_v4_generator.cpp
@@ -40,6 +41,7 @@ target_sources(
         source/sqlite/project_migration_runner.cpp
         source/sqlite/sqlite_connection.cpp
         source/sqlite/sqlite_cohort_registry_store.cpp
+        source/sqlite/sqlite_cohort_analysis_snapshot_store.cpp
         source/sqlite/sqlite_current_project_store.cpp
         source/sqlite/sqlite_error.cpp
         source/sqlite/sqlite_job_repository.cpp
@@ -79,6 +81,7 @@ target_sources(
             include/biocore/infrastructure/platform_worker_supervisor.hpp
             include/biocore/infrastructure/monotonic_clock.hpp
             include/biocore/infrastructure/sha256.hpp
+            include/biocore/infrastructure/sha256_cohort_analysis_digester.hpp
             include/biocore/infrastructure/secure_token.hpp
             include/biocore/infrastructure/system_clock.hpp
             include/biocore/infrastructure/uuid_v4_generator.hpp
@@ -90,6 +93,7 @@ target_sources(
             include/biocore/infrastructure/sqlite/project_migration_runner.hpp
             include/biocore/infrastructure/sqlite/sqlite_connection.hpp
             include/biocore/infrastructure/sqlite/sqlite_cohort_registry_store.hpp
+            include/biocore/infrastructure/sqlite/sqlite_cohort_analysis_snapshot_store.hpp
             include/biocore/infrastructure/sqlite/sqlite_current_project_store.hpp
             include/biocore/infrastructure/sqlite/sqlite_error.hpp
             include/biocore/infrastructure/sqlite/sqlite_job_repository.hpp
