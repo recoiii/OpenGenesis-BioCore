@@ -1098,3 +1098,33 @@ foreach(mode projection absence ordering allele-gate budget alias reference-drif
         COMMAND biocore-cohort-matrix-tests ${mode}
     )
 endforeach()
+
+
+add_executable(biocore-cohort-analysis-approval-tests cohort_analysis_approval_tests.cpp)
+target_link_libraries(
+    biocore-cohort-analysis-approval-tests
+    PRIVATE BioCore::application BioCore::infrastructure
+            BioCore::project_options BioCore::project_warnings BioCore::sanitizers
+)
+foreach(mode valid empty registry-excluded missing-qc groups qc-excluded stale-digest deterministic-digest family-gate id-retry)
+    add_test(
+        NAME integration.cohort_analysis_approval_${mode}
+        COMMAND biocore-cohort-analysis-approval-tests ${mode}
+    )
+endforeach()
+
+add_executable(
+    biocore-cohort-analysis-snapshot-sqlite-tests
+    cohort_analysis_snapshot_sqlite_tests.cpp
+)
+target_link_libraries(
+    biocore-cohort-analysis-snapshot-sqlite-tests
+    PRIVATE BioCore::application BioCore::infrastructure SQLite::SQLite3
+            BioCore::project_options BioCore::project_warnings BioCore::sanitizers
+)
+foreach(mode roundtrip immutability atomicity migration missing-source)
+    add_test(
+        NAME integration.cohort_analysis_snapshot_${mode}
+        COMMAND biocore-cohort-analysis-snapshot-sqlite-tests ${mode}
+    )
+endforeach()
