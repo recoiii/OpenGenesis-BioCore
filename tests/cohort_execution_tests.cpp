@@ -595,6 +595,88 @@ void completion_test() {
     });
 }
 
+void persistence_failure_test() {
+    Harness h;
+    h.connection.execute(
+        "CREATE TRIGGER reject_attempt_reservation BEFORE INSERT ON cohort_analysis_attempts "
+        "BEGIN SELECT RAISE(ABORT,'simulated durable storage failure'); END;"
+    );
+    rejects<infrastructure::sqlite::SqliteError>([&] {
+        (void)h.service.submit(submit_request());
+    });
+    check(h.submitter.calls == 0,
+          "failed durable reservation must precede scheduler handoff");
+    check(h.executions.list_attempts(project_id, analysis_id).empty(),
+          "failed durable reservation leaves no attempt row");
+
+    Harness h2;
+    const auto started = h2.service.submit(submit_request());
+    auto job = h2.job_repository.find_by_id(*started.job_id);
+    check(job.has_value(), "persistence failure completion job exists");
+    (void)h2.jobs.transition(
+        job->id(), domain::JobStatus::preparing, 0.0, std::nullopt
+    );
+    (void)h2.jobs.transition(
+        job->id(), domain::JobStatus::running, 0.5, std::string{"analysis"}
+    );
+    (void)h2.jobs.transition(
+        job->id(), domain::JobStatus::completed, 1.0, std::nullopt
+    );
+    h2.connection.execute("INSERT INTO managed_files(id) VALUES('manifest-fail');");
+    const domain::ManagedFile manifest{
+        "manifest-fail",
+        "cohort-result-manifest.json",
+        domain::StorageMode::generated_output,
+        std::nullopt,
+        std::nullopt,
+        std::string{"outputs/manifest-fail.json"},
+        "json",
+        128,
+        std::nullopt,
+        std::string{"sha256"},
+        std::string{manifest_hash},
+        "2026-10-02T15:33:00Z",
+        "2026-10-02T15:33:00Z"
+    };
+    check(h2.files.add_generated_output(
+        manifest,
+        application::GeneratedOutputProvenance{
+            .job_id = *started.job_id,
+            .step_id = "analysis",
+            .output_port = "manifest",
+            .plugin_id = "org.biocore.cohort",
+            .plugin_version = "1.0.0",
+            .module_id = "org.biocore.cohort.analysis",
+            .file_type = "json",
+            .relative_project_path = "outputs/manifest-fail.json",
+            .step_progress = 1.0,
+            .registered_at_utc = "2026-10-02T15:33:00Z",
+        }),
+        "failure manifest fixture registered"
+    );
+    h2.connection.execute(
+        "CREATE TRIGGER reject_completion_commit BEFORE UPDATE ON cohort_analysis_attempts "
+        "WHEN NEW.state='completed' "
+        "BEGIN SELECT RAISE(ABORT,'simulated durable completion failure'); END;"
+    );
+    rejects<infrastructure::sqlite::SqliteError>([&] {
+        (void)h2.service.complete({
+            .project_id = project_id,
+            .analysis_id = analysis_id,
+            .attempt_id = started.attempt_id,
+            .result_manifest_file_id = "manifest-fail",
+            .result_manifest_sha256 = manifest_hash,
+        });
+    });
+    const auto persisted = h2.executions.find_attempt(
+        project_id, analysis_id, started.attempt_id
+    );
+    check(persisted.has_value() &&
+          persisted->state != application::CohortExecutionState::completed &&
+          !persisted->result_manifest_file_id.has_value(),
+          "failed completion commit cannot create false completion");
+}
+
 void migration_test() {
     infrastructure::sqlite::SqliteConnection connection{":memory:"};
     bootstrap_v17(connection);
@@ -636,6 +718,7 @@ int main(int argc, char** argv) {
         else if (mode == "retry") retry_test();
         else if (mode == "cancel") cancel_test();
         else if (mode == "completion") completion_test();
+        else if (mode == "persistence-failure") persistence_failure_test();
         else if (mode == "migration") migration_test();
         else throw std::invalid_argument{"unknown mode"};
         std::cout << "PASS " << mode << '\n';
