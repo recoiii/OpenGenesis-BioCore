@@ -1128,3 +1128,17 @@ foreach(mode roundtrip immutability atomicity migration missing-source)
         COMMAND biocore-cohort-analysis-snapshot-sqlite-tests ${mode}
     )
 endforeach()
+
+
+add_executable(biocore-cohort-case-control-analysis-tests cohort_case_control_analysis_tests.cpp)
+target_link_libraries(
+    biocore-cohort-case-control-analysis-tests
+    PRIVATE BioCore::application BioCore::domain
+            BioCore::project_options BioCore::project_warnings BioCore::sanitizers
+)
+foreach(mode fixed missingness zero-cell exclusion frozen-labels family drift empty-group contract-version)
+    add_test(
+        NAME integration.cohort_case_control_analysis_${mode}
+        COMMAND biocore-cohort-case-control-analysis-tests ${mode}
+    )
+endforeach()
