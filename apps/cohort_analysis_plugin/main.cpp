@@ -7,6 +7,7 @@
 #include <string>
 #include <string_view>
 
+#include "biocore/application/build_info.hpp"
 #include "biocore/application/cohort_analysis_selection_service.hpp"
 #include "biocore/application/cohort_case_control_analysis_service.hpp"
 #include "biocore/application/cohort_matrix_service.hpp"
@@ -227,7 +228,7 @@ int run(
         analysis_id,
         association,
         application::CohortResultQuery{},
-        "0.6.0-dev",
+        std::string{application::BuildInfo::version()},
         clock.now_utc_iso8601()
     );
 
