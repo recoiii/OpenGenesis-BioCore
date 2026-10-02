@@ -6,7 +6,7 @@
   "steps": [
     {
       "id": "analyze",
-      "module": "org.biocore.cohort.analysis",
+      "module": "org.biocore.cohortanalysis.analysis",
       "dependsOn": [],
       "weight": 1.0,
       "pluginVersion": "1.0.0"
