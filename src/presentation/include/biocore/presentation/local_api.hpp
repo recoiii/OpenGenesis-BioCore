@@ -11,6 +11,7 @@ namespace biocore::application {
 class ArtifactPresentationService;
 class BatchResultPackageService;
 class ProjectWorkspaceIntegrationService;
+class CohortWorkspaceIntegrationService;
 class JobService;
 class JobRetryService;
 class ManagedFileService;
@@ -69,7 +70,8 @@ public:
         const application::IWorkflowTemplateCatalog* workflow_templates = nullptr,
         application::WorkflowExecutionWorkspaceService* workflow_workspace = nullptr,
         application::BatchResultPackageService* batch_result_packages = nullptr,
-        application::ProjectWorkspaceIntegrationService* project_workspace = nullptr
+        application::ProjectWorkspaceIntegrationService* project_workspace = nullptr,
+        application::CohortWorkspaceIntegrationService* cohort_workspace = nullptr
     );
 
     [[nodiscard]] LocalHttpResponse handle(const LocalHttpRequest& request);
@@ -98,6 +100,7 @@ private:
     application::ArtifactPresentationService& artifacts_;
     application::BatchResultPackageService* batch_result_packages_;
     application::ProjectWorkspaceIntegrationService* project_workspace_;
+    application::CohortWorkspaceIntegrationService* cohort_workspace_;
     application::IUtcClock& clock_;
     const application::IWorkflowTemplateCatalog* workflow_templates_;
     application::WorkflowExecutionWorkspaceService* workflow_workspace_;
