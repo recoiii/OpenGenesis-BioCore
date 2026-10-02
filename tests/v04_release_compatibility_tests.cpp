@@ -72,7 +72,7 @@ namespace fs = std::filesystem;
     ProjectMigrationRunner initial{connection};
     initial.apply_pending();
     if (initial.current_version() != latest_project_schema_version ||
-        latest_project_schema_version != 16) {
+        latest_project_schema_version != 17) {
         return false;
     }
 
@@ -84,6 +84,29 @@ namespace fs = std::filesystem;
             '2026-09-15T12:00:00Z', '2026-09-15T12:01:00Z'
         );
 
+        DROP TRIGGER IF EXISTS cohort_analysis_test_universe_immutable_delete;
+        DROP TRIGGER IF EXISTS cohort_analysis_test_universe_immutable_update;
+        DROP TRIGGER IF EXISTS cohort_analysis_test_universe_require_open_snapshot;
+        DROP TRIGGER IF EXISTS cohort_analysis_reference_aliases_immutable_delete;
+        DROP TRIGGER IF EXISTS cohort_analysis_reference_aliases_immutable_update;
+        DROP TRIGGER IF EXISTS cohort_analysis_reference_aliases_require_open_snapshot;
+        DROP TRIGGER IF EXISTS cohort_analysis_reference_contigs_immutable_delete;
+        DROP TRIGGER IF EXISTS cohort_analysis_reference_contigs_immutable_update;
+        DROP TRIGGER IF EXISTS cohort_analysis_reference_contigs_require_open_snapshot;
+        DROP TRIGGER IF EXISTS cohort_analysis_sources_immutable_delete;
+        DROP TRIGGER IF EXISTS cohort_analysis_sources_immutable_update;
+        DROP TRIGGER IF EXISTS cohort_analysis_sources_require_open_snapshot;
+        DROP TRIGGER IF EXISTS cohort_analysis_samples_immutable_delete;
+        DROP TRIGGER IF EXISTS cohort_analysis_samples_immutable_update;
+        DROP TRIGGER IF EXISTS cohort_analysis_samples_require_open_snapshot;
+        DROP TRIGGER IF EXISTS cohort_analysis_snapshots_immutable_delete;
+        DROP TRIGGER IF EXISTS cohort_analysis_snapshots_validate_update;
+        DROP TABLE cohort_analysis_test_universe;
+        DROP TABLE cohort_analysis_reference_aliases;
+        DROP TABLE cohort_analysis_reference_contigs;
+        DROP TABLE cohort_analysis_sources;
+        DROP TABLE cohort_analysis_samples;
+        DROP TABLE cohort_analysis_snapshots;
         DROP TRIGGER IF EXISTS cohort_revision_members_immutable_delete;
         DROP TRIGGER IF EXISTS cohort_revision_members_immutable_update;
         DROP TRIGGER IF EXISTS cohort_revision_members_require_open_revision;
@@ -147,6 +170,7 @@ namespace fs = std::filesystem;
            table_exists(connection, "workflow_node_checkpoints") &&
            table_exists(connection, "workflow_checkpoint_artifacts") &&
            table_exists(connection, "workflow_branch_decisions") &&
+           table_exists(connection, "cohort_analysis_snapshots") &&
            scalar_int(
                connection,
                "SELECT COUNT(*) FROM jobs "
