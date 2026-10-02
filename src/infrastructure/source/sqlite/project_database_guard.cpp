@@ -20,7 +20,7 @@ struct ExpectedMigration final {
     std::string_view name;
 };
 
-constexpr std::array<ExpectedMigration, 15> expected_migrations{{
+constexpr std::array<ExpectedMigration, 16> expected_migrations{{
     {1, "create_project_core_tables"},
     {2, "extend_jobs_for_repository"},
     {3, "register_generated_output_artifacts"},
@@ -36,6 +36,7 @@ constexpr std::array<ExpectedMigration, 15> expected_migrations{{
     {13, "persist_immutable_batch_plans"},
     {14, "submit_batch_plans_through_scheduler"},
     {15, "add_batch_recovery_attempt_lineage"},
+    {16, "add_cohort_registry_and_revisions"},
 }};
 
 struct RequiredSchemaObject final {
@@ -43,7 +44,7 @@ struct RequiredSchemaObject final {
     std::string_view name;
 };
 
-constexpr std::array<RequiredSchemaObject, 67> required_current_objects{{
+constexpr std::array<RequiredSchemaObject, 77> required_current_objects{{
     {"table", "schema_migrations"},
     {"table", "project_metadata"},
     {"table", "project_samples"},
@@ -111,6 +112,16 @@ constexpr std::array<RequiredSchemaObject, 67> required_current_objects{{
     {"table", "workflow_branch_decisions"},
     {"trigger", "workflow_branch_decisions_require_snapshot_insert"},
     {"trigger", "workflow_states_prevent_branch_schema_clear"},
+    {"table", "cohort_definitions"},
+    {"table", "cohort_revisions"},
+    {"table", "cohort_revision_members"},
+    {"trigger", "cohort_definitions_validate_update"},
+    {"trigger", "cohort_definitions_immutable_delete"},
+    {"trigger", "cohort_revisions_validate_update"},
+    {"trigger", "cohort_revisions_immutable_delete"},
+    {"trigger", "cohort_revision_members_require_open_revision"},
+    {"trigger", "cohort_revision_members_immutable_update"},
+    {"trigger", "cohort_revision_members_immutable_delete"},
 }};
 
 class Statement final {
