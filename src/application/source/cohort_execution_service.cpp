@@ -194,12 +194,37 @@ CohortExecutionAttempt CohortExecutionService::dispatch_reserved(
     const domain::JobPriority priority
 ) {
     try {
+        const auto snapshot = snapshots_.find(attempt.project_id, attempt.analysis_id);
+        if (!snapshot.has_value() || snapshot->snapshot_digest != attempt.snapshot_digest) {
+            throw std::runtime_error{
+                "Reserved cohort attempt no longer matches its immutable snapshot"
+            };
+        }
+        PipelineRunBindings bindings;
+        bindings.steps.push_back(PipelineStepBindings{
+            .step_id = "analyze",
+            .parameters = {
+                PipelineParameterBinding{
+                    .name = "project_id",
+                    .value = attempt.project_id,
+                },
+                PipelineParameterBinding{
+                    .name = "analysis_id",
+                    .value = attempt.analysis_id,
+                },
+                PipelineParameterBinding{
+                    .name = "snapshot_digest",
+                    .value = attempt.snapshot_digest,
+                },
+            },
+            .inputs = {},
+        });
         auto job = submitter_.submit({
             .analysis_id = attempt.analysis_id,
             .pipeline_id = std::string{pipeline_id},
             .pipeline_version = std::string{pipeline_version},
             .priority = priority,
-            .bindings = {},
+            .bindings = std::move(bindings),
         });
         if (!job.analysis_id().has_value() ||
             *job.analysis_id() != attempt.analysis_id ||
