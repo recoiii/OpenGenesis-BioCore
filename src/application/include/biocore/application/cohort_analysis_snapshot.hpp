@@ -64,7 +64,7 @@ struct CohortAnalysisSampleSnapshot final {
     CohortMemberDisposition cohort_disposition{CohortMemberDisposition::included};
     std::optional<std::string> cohort_exclusion_reason;
     CohortAnalysisDisposition analysis_disposition{CohortAnalysisDisposition::excluded};
-    std::optional<std::string> analysis_exclusion_reason;
+    std::optional<std::string> analysis_reason;
     CohortQcArtifactEvidence qc;
 
     friend bool operator==(const CohortAnalysisSampleSnapshot&, const CohortAnalysisSampleSnapshot&) = default;
