@@ -86,6 +86,28 @@ application::CohortAnalysisVariantUniverse universe(
     };
 }
 
+application::CohortAnalysisSampleSnapshot sample_snapshot(
+    const std::size_t ordinal,
+    std::string id,
+    const application::CohortGroup group,
+    const application::CohortAnalysisDisposition disposition,
+    std::optional<std::string> reason = std::nullopt
+) {
+    return {
+        .ordinal = ordinal,
+        .sample_id = std::move(id),
+        .sample_display_name = {},
+        .sample_group_metadata = {},
+        .biological_unit_id = {},
+        .group = group,
+        .cohort_disposition = application::CohortMemberDisposition::included,
+        .cohort_exclusion_reason = std::nullopt,
+        .analysis_disposition = disposition,
+        .analysis_reason = std::move(reason),
+        .qc = {},
+    };
+}
+
 application::CohortAnalysisSnapshot snapshot() {
     application::CohortAnalysisSnapshot value;
     value.analysis_id = analysis_id;
@@ -105,17 +127,17 @@ application::CohortAnalysisSnapshot snapshot() {
     value.allele_family_size = 3U;
     value.carrier_family_size = 3U;
     value.samples = {
-        {.ordinal=0U,.sample_id="case-1",.group=application::CohortGroup::case_group,
-         .analysis_disposition=application::CohortAnalysisDisposition::included},
-        {.ordinal=1U,.sample_id="case-2",.group=application::CohortGroup::case_group,
-         .analysis_disposition=application::CohortAnalysisDisposition::included},
-        {.ordinal=2U,.sample_id="control-1",.group=application::CohortGroup::control,
-         .analysis_disposition=application::CohortAnalysisDisposition::included},
-        {.ordinal=3U,.sample_id="control-2",.group=application::CohortGroup::control,
-         .analysis_disposition=application::CohortAnalysisDisposition::included},
-        {.ordinal=4U,.sample_id="qc-excluded",.group=application::CohortGroup::control,
-         .analysis_disposition=application::CohortAnalysisDisposition::excluded,
-         .analysis_reason=std::string{"QC"}},
+        sample_snapshot(0U, "case-1", application::CohortGroup::case_group,
+                        application::CohortAnalysisDisposition::included),
+        sample_snapshot(1U, "case-2", application::CohortGroup::case_group,
+                        application::CohortAnalysisDisposition::included),
+        sample_snapshot(2U, "control-1", application::CohortGroup::control,
+                        application::CohortAnalysisDisposition::included),
+        sample_snapshot(3U, "control-2", application::CohortGroup::control,
+                        application::CohortAnalysisDisposition::included),
+        sample_snapshot(4U, "qc-excluded", application::CohortGroup::control,
+                        application::CohortAnalysisDisposition::excluded,
+                        std::string{"QC"}),
     };
     value.test_universe = {
         universe(0U, 10U, true),
@@ -191,6 +213,7 @@ std::vector<application::CohortResultAnnotationLink> annotations() {
             .ordinal = 2U,
             .database_ids = {"dbSNP"},
             .primary_record_id = std::string{"rs960"},
+            .primary_feature_type = std::nullopt,
         },
     };
 }
