@@ -459,6 +459,16 @@ CohortExecutionAttempt CohortExecutionService::retry(
 
     (void)reconcile(request.project_id, request.analysis_id);
     const auto attempts = executions_.list_attempts(request.project_id, request.analysis_id);
+    for (const auto& existing : attempts) {
+        if (existing.idempotency_key != request.idempotency_key) continue;
+        if (existing.payload_digest != request.payload_digest ||
+            existing.parent_attempt_id !=
+                std::optional<std::string>{request.expected_parent_attempt_id}) {
+            fail(CohortExecutionErrorCode::idempotency_conflict,
+                 "Retry idempotency key was reused with a different payload or parent");
+        }
+        return existing;
+    }
     if (attempts.empty()) {
         fail(CohortExecutionErrorCode::attempt_not_found,
              "Cohort analysis has no execution attempt to retry");
