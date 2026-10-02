@@ -89,6 +89,11 @@ def main() -> None:
                        f"Same-candidate CI: https://github.com/recoiii/OpenGenesis-BioCore/actions/runs/{args.ci_run_id}")
     generated = []
     for index, group in enumerate(groups):
+        manifest_block = (
+            base.manifest(entries, assignments)
+            if index == 3
+            else "The complete changed-file manifest and part assignments are in Part 04.\n"
+        )
         body = f"""# OpenGenesis-BioCore v0.6.0-dev — Iteration 097 — Part {index + 1:02d}/04
 
 ## {TITLES[index]}
@@ -115,7 +120,7 @@ the frozen scientific test universe.
 Project owner/developer: Recep Çelik. ChatGPT: AI-assisted architecture, implementation,
 debugging, tests, review preparation and release-process support.
 
-{base.manifest(entries, assignments)}
+{manifest_block}
 """
         body += "\n".join(rendered[entry.path] for entry in group)
         if index == 1:
