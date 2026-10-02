@@ -182,16 +182,18 @@ find_idempotency(
     sqlite3* database,
     const std::string_view project_id,
     const std::string_view analysis_id,
+    const std::string_view operation,
     const std::string_view key
 ) {
     const std::string sql =
         std::string{"SELECT "} + select_columns +
         " FROM cohort_analysis_attempts "
-        "WHERE project_id=? AND analysis_id=? AND idempotency_key=?;";
+        "WHERE project_id=? AND analysis_id=? AND operation=? AND idempotency_key=?;";
     Statement query{database, sql.c_str(), "Unable to inspect cohort execution idempotency"};
     query.bind_text(1, project_id);
     query.bind_text(2, analysis_id);
-    query.bind_text(3, key);
+    query.bind_text(3, operation);
+    query.bind_text(4, key);
     const int result = query.step();
     if (result == SQLITE_DONE) return std::nullopt;
     if (result != SQLITE_ROW) {
@@ -212,10 +214,10 @@ void insert_attempt(
         database,
         "INSERT INTO cohort_analysis_attempts("
         "project_id,analysis_id,attempt_number,attempt_id,parent_attempt_id,job_id,"
-        "snapshot_digest,idempotency_key,payload_digest,cancellation_requested,state,"
+        "snapshot_digest,idempotency_key,payload_digest,operation,cancellation_requested,state,"
         "created_at_utc,updated_at_utc,failure_message,result_manifest_file_id,"
         "result_manifest_sha256"
-        ") VALUES(?,?,?,?,?,NULL,?,?,?,0,'queued',?,?,NULL,NULL,NULL);",
+        ") VALUES(?,?,?,?,?,NULL,?,?,?, ?,0,'queued',?,?,NULL,NULL,NULL);",
         "Unable to reserve cohort execution attempt"
     };
     insert.bind_text(1, attempt.project_id);
@@ -226,8 +228,9 @@ void insert_attempt(
     insert.bind_text(6, attempt.snapshot_digest);
     insert.bind_text(7, attempt.idempotency_key);
     insert.bind_text(8, attempt.payload_digest);
-    insert.bind_text(9, attempt.created_at_utc);
-    insert.bind_text(10, attempt.updated_at_utc);
+    insert.bind_text(9, attempt.attempt_number == 1 ? "submit" : "retry");
+    insert.bind_text(10, attempt.created_at_utc);
+    insert.bind_text(11, attempt.updated_at_utc);
     require_done(database, insert.step(), "Unable to reserve cohort execution attempt");
 }
 
@@ -250,7 +253,7 @@ SqliteCohortExecutionStore::reserve_initial(
     Transaction transaction{connection_};
 
     const auto idem = find_idempotency(
-        database, attempt.project_id, attempt.analysis_id, attempt.idempotency_key
+        database, attempt.project_id, attempt.analysis_id, "submit", attempt.idempotency_key
     );
     if (idem.has_value()) {
         transaction.commit();
@@ -302,7 +305,7 @@ SqliteCohortExecutionStore::reserve_retry(
     Transaction transaction{connection_};
 
     const auto idem = find_idempotency(
-        database, attempt.project_id, attempt.analysis_id, attempt.idempotency_key
+        database, attempt.project_id, attempt.analysis_id, "retry", attempt.idempotency_key
     );
     if (idem.has_value()) {
         transaction.commit();
