@@ -1092,7 +1092,7 @@ target_link_libraries(
     PRIVATE BioCore::application BioCore::infrastructure
             BioCore::project_options BioCore::project_warnings BioCore::sanitizers
 )
-foreach(mode projection absence ordering allele-gate budget alias reference-drift dispatch)
+foreach(mode projection absence ordering allele-gate budget alias reference-drift genome-reader dispatch)
     add_test(
         NAME integration.cohort_matrix_${mode}
         COMMAND biocore-cohort-matrix-tests ${mode}
