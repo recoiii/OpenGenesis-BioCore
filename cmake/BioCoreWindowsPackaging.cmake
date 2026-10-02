@@ -31,6 +31,7 @@ if(MSVC)
         org.biocore.variantcall
         org.biocore.vcfqc
         org.biocore.variantannotate
+        org.biocore.cohortanalysis
     )
 
     install(
