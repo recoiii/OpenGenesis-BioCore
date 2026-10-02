@@ -14,6 +14,7 @@
 #include <vector>
 
 #include "biocore/application/generated_output_artifact.hpp"
+#include "biocore/application/cohort_analysis_selection_service.hpp"
 #include "biocore/application/batch_results.hpp"
 #include "biocore/application/i_cohort_analysis_digester.hpp"
 #include "biocore/application/i_cohort_analysis_snapshot_store.hpp"
