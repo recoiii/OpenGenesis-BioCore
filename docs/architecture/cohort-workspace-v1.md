@@ -1,6 +1,6 @@
 # Cohort Analysis Workspace v1 — 089 contract
 
-Status: accepted 089 contract; Iteration 090 registry is frozen, Iteration 091 selection/reference admission is candidate. Version: 1.
+Status: accepted 089 contract; Iterations 090–091 are frozen, Iteration 092 matrix construction/dispatch is candidate. Version: 1.
 All paths are relative to the repository. Current behavior is distinct from
 required future cohort integration. Existing scientific engines remain unchanged.
 
@@ -156,6 +156,33 @@ The 10,000 normalized-allele and 1,000,000 observation matrix caps remain owned 
 No analysis snapshot is persisted in 091. QC inclusion approval, group-denominator
 checks and immutable analysis approval remain 093 scope; matrix construction/dispatch
 remain 092 scope. HTTP/browser wiring remains 097.
+
+
+**Iteration 092 implementation.** Matrix construction re-runs the accepted 091
+selection preview, reloads the pinned FASTA from verified managed bytes and rechecks
+its SHA-256/size before scientific work. Each selected VCF artifact is verified and
+parsed exactly once, including shared multi-sample VCFs. Only explicitly selected
+VCF columns are projected into one-sample ingestion views and renamed to the exact
+project sample ID before the retained `build_multi_sample_matrix` engine is called.
+Unselected VCF columns never enter matrix denominators.
+
+The adapter reuses `ingest_vcf` normalization and the retained sparse matrix engine.
+A deterministic target contig table is derived from the reverified reference and the
+pinned explicit alias map. Cohort v1 then rejects symbolic/SV alleles, MNV/complex
+substitutions and indels whose normalized inserted/deleted length exceeds 50 bases.
+Matrix admission fixes the initial integration envelope at <=100 samples, <=100
+selected source artifacts, <=10,000 normalized alleles and <=1,000,000 observations.
+Sparse absence remains absence: a sample with no record at another source's locus has
+no matrix observation and is not converted to hom-ref/no-call.
+
+092 also materializes a deterministic matrix-stage dispatch descriptor with native
+module identity `org.biocore.cohort.matrix`, pinned reference hash, selected
+artifact/hash/column mappings and resource ceilings. It does not invent a second
+scheduler or dynamic plugin-path bundle. Durable attempt reservation, scheduler
+handoff, cancellation/retry and crash reconciliation remain 095 scope, where the
+existing JobScheduler/worker protocol is hardened around the fixed stage descriptor.
+QC approval and immutable analysis snapshot persistence remain 093; association
+execution remains 094. Project schema therefore remains v16 in 092.
 
 ## 4. Execution and retry contract (dispatch in 092, hardening in 095)
 
