@@ -1422,6 +1422,17 @@ if (path.size() == 6U && path[2] == "files" && path[3] == "uploads" &&
                     200, render_cohort_list(cohort_workspace_->list_cohorts())
                 );
             }
+            if (path.size() == 5U && request.method == HttpMethod::post) {
+                const auto parsed = parse_create_cohort_request(request.body);
+                return json_response(
+                    201,
+                    render_cohort_definition(
+                        cohort_workspace_->create_cohort(
+                            parsed.name, parsed.members
+                        )
+                    )
+                );
+            }
             if (path.size() == 6U && safe_path_atom(path[5]) &&
                 request.method == HttpMethod::get) {
                 const auto cohort = cohort_workspace_->find_cohort(path[5]);
@@ -1431,6 +1442,18 @@ if (path.size() == 6U && path[2] == "files" && path[3] == "uploads" &&
                     );
                 }
                 return json_response(200, render_cohort_definition(*cohort));
+            }
+            if (path.size() == 7U && safe_path_atom(path[5]) &&
+                path[6] == "revisions" && request.method == HttpMethod::post) {
+                const auto parsed = parse_revise_cohort_request(request.body);
+                return json_response(
+                    200,
+                    render_cohort_definition(
+                        cohort_workspace_->revise_cohort(
+                            path[5], parsed.expected_revision, parsed.members
+                        )
+                    )
+                );
             }
         }
 
@@ -1682,6 +1705,22 @@ if (path.size() == 6U && path[2] == "files" && path[3] == "uploads" &&
             }
         }
         return error_response(404, "not_found", "Route was not found");
+    } catch (const application::CohortRegistryError& error) {
+        using Code = application::CohortRegistryErrorCode;
+        switch (error.code()) {
+            case Code::project_not_found:
+            case Code::cohort_not_found:
+            case Code::sample_not_found:
+                return error_response(404, "cohort_not_found", error.what());
+            case Code::stale_revision:
+            case Code::duplicate_sample:
+                return error_response(409, "cohort_conflict", error.what());
+            case Code::invalid_request:
+                return error_response(400, "invalid_request", error.what());
+            case Code::id_generation_exhausted:
+                return error_response(409, "identifier_exhausted", error.what());
+        }
+        return error_response(500, "cohort_registry_error", error.what());
     } catch (const application::BatchResultPackageError& error) {
         return error_response(409, application::to_string(error.code()), error.what());
     } catch (const application::ArtifactPresentationError& error) {
