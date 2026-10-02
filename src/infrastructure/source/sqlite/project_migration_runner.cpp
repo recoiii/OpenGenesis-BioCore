@@ -1712,8 +1712,8 @@ void apply_version_seventeen(SqliteConnection& connection) {
                 length(CAST(contig AS BLOB)) BETWEEN 1 AND 4096 AND
                 instr(contig, char(0)) = 0
             ),
-            start INTEGER NOT NULL CHECK(start >= 0),
-            end INTEGER NOT NULL CHECK(end >= start),
+            start_pos INTEGER NOT NULL CHECK(start_pos >= 0),
+            end_pos INTEGER NOT NULL CHECK(end_pos >= start_pos),
             reference_allele TEXT NOT NULL CHECK(
                 length(CAST(reference_allele AS BLOB)) BETWEEN 1 AND 100000 AND
                 instr(reference_allele, char(0)) = 0
