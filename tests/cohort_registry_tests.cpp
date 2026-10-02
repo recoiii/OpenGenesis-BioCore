@@ -300,9 +300,20 @@ void immutability_contract() {
           "immutable member changed");
 }
 
+void drop_v17(SqliteConnection& connection) {
+    connection.execute("DROP TABLE cohort_analysis_test_universe;");
+    connection.execute("DROP TABLE cohort_analysis_reference_aliases;");
+    connection.execute("DROP TABLE cohort_analysis_reference_contigs;");
+    connection.execute("DROP TABLE cohort_analysis_sources;");
+    connection.execute("DROP TABLE cohort_analysis_samples;");
+    connection.execute("DROP TABLE cohort_analysis_snapshots;");
+    connection.execute("DELETE FROM schema_migrations WHERE version=17;");
+}
+
 void migration_contract() {
     SqliteConnection connection{":memory:"};
     initialize(connection);
+    drop_v17(connection);
     connection.execute("DROP TRIGGER cohort_revision_members_immutable_delete;");
     connection.execute("DROP TRIGGER cohort_revision_members_immutable_update;");
     connection.execute("DROP TRIGGER cohort_revision_members_require_open_revision;");
@@ -318,17 +329,22 @@ void migration_contract() {
     check(runner.current_version() == 15, "v15 fixture setup failed");
     runner.apply_pending();
     ProjectDatabaseGuard{connection}.validate_current_schema();
-    check(runner.current_version() == 16, "v15->v16 migration missing");
+    check(runner.current_version() == latest_project_schema_version,
+          "v15->current migration missing");
     check(scalar(connection, "SELECT display_name FROM project_samples WHERE sample_id='001';") == "Örnek α",
           "migration changed existing sample metadata");
     check(scalar(connection,
         "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='cohort_revision_members';") == "1",
           "v16 cohort tables missing");
+    check(scalar(connection,
+        "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='cohort_analysis_snapshots';") == "1",
+          "v17 analysis snapshot tables missing");
 }
 
 void rollback_contract() {
     SqliteConnection connection{":memory:"};
     initialize(connection);
+    drop_v17(connection);
     connection.execute("DROP TRIGGER cohort_revision_members_immutable_delete;");
     connection.execute("DROP TRIGGER cohort_revision_members_immutable_update;");
     connection.execute("DROP TRIGGER cohort_revision_members_require_open_revision;");
@@ -352,8 +368,8 @@ void rollback_contract() {
     connection.execute("DROP TRIGGER reject_v16;");
     ProjectMigrationRunner{connection}.apply_pending();
     ProjectDatabaseGuard{connection}.validate_current_schema();
-    check(ProjectMigrationRunner{connection}.current_version() == 16,
-          "v16 retry failed");
+    check(ProjectMigrationRunner{connection}.current_version() == latest_project_schema_version,
+          "current migration retry failed");
 }
 
 }  // namespace
