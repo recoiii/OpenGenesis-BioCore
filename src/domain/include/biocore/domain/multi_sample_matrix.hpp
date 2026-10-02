@@ -112,6 +112,10 @@ private:
         const std::vector<MultiSampleMatrixSource>&,
         const MultiSampleMatrixOptions&
     );
+    friend MultiSampleMatrix project_multi_sample_matrix_samples(
+        const MultiSampleMatrix&,
+        const std::vector<std::string>&
+    );
 
     ReferenceAssemblyIdentity assembly_;
     ContigTable contigs_;
@@ -130,6 +134,11 @@ private:
     ContigTable matrix_contigs,
     const std::vector<MultiSampleMatrixSource>& sources,
     const MultiSampleMatrixOptions& options = {}
+);
+
+[[nodiscard]] MultiSampleMatrix project_multi_sample_matrix_samples(
+    const MultiSampleMatrix& matrix,
+    const std::vector<std::string>& sample_ids
 );
 
 }  // namespace biocore::domain
