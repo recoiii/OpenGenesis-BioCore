@@ -1,6 +1,7 @@
 #pragma once
 
 #include "biocore/application/cohort_matrix.hpp"
+#include "biocore/application/i_cohort_matrix_builder.hpp"
 
 namespace biocore::application {
 
@@ -9,7 +10,7 @@ class IManagedFileRepository;
 class IReferenceGenomeReader;
 class IResultArtifactReader;
 
-class CohortMatrixService final {
+class CohortMatrixService final : public ICohortMatrixBuilder {
 public:
     CohortMatrixService(
         CohortAnalysisSelectionService& selection_service,
@@ -20,7 +21,7 @@ public:
 
     [[nodiscard]] CohortMatrixBuildResult build(
         const CohortAnalysisSelectionRequest& request
-    );
+    ) override;
 
 private:
     CohortAnalysisSelectionService& selection_service_;
