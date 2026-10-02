@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 2,
+  "id": "org.biocore.cohort-analysis",
+  "name": "Cohort Analysis",
+  "version": "1.0.0",
+  "steps": [
+    {
+      "id": "analyze",
+      "module": "org.biocore.cohort.analysis",
+      "dependsOn": [],
+      "weight": 1.0,
+      "pluginVersion": "1.0.0"
+    }
+  ]
+}
