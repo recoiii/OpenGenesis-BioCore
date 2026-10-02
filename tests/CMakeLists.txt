@@ -1084,3 +1084,17 @@ foreach(mode mapping multi-vcf attempts hash reference ploidy limits manifest)
         COMMAND biocore-cohort-analysis-selection-tests ${mode}
     )
 endforeach()
+
+
+add_executable(biocore-cohort-matrix-tests cohort_matrix_tests.cpp)
+target_link_libraries(
+    biocore-cohort-matrix-tests
+    PRIVATE BioCore::application BioCore::infrastructure
+            BioCore::project_options BioCore::project_warnings BioCore::sanitizers
+)
+foreach(mode projection absence ordering allele-gate budget alias reference-drift dispatch)
+    add_test(
+        NAME integration.cohort_matrix_${mode}
+        COMMAND biocore-cohort-matrix-tests ${mode}
+    )
+endforeach()
