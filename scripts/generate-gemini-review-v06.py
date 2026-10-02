@@ -30,7 +30,7 @@ def main() -> None:
     evidence_mode.add_argument("--local-only", action="store_true",
                                help="Prepare a draft with local evidence; CI remains an open gate")
     args = parser.parse_args()
-    base.BASELINE_NAME = "accepted/iteration-092"
+    base.BASELINE_NAME = "accepted/iteration-091"
     base.BASELINE_COMMIT = BASELINE
     base.require_clean_tracked_tree()
     if base.git("rev-parse", f"{BASELINE}^{{tree}}") != BASELINE_TREE:
@@ -112,11 +112,13 @@ Project owner/developer: Recep Çelik. ChatGPT: AI-assisted implementation and r
 
 For a LOCAL DRAFT, four-lane CI is an explicit open gate; review can identify
 findings, but final iteration acceptance is premature until CI evidence is attached.
-Matrix construction/dispatch, QC approval, immutable analysis snapshots, association,
-execution/recovery, results and integrated HTTP/browser UI remain future iteration
-contracts, not 091 claims. Benchmark data describe retained engine regression
-performance on synthetic data. Native Windows and package evidence remain final-
-closure gates. No independent 091 ACCEPT is assumed.
+QC approval and immutable analysis snapshots, association, durable scheduler/attempt
+handoff and recovery, results/reporting and integrated HTTP/browser UI remain future
+iteration contracts, not 092 claims. The dispatch descriptor is a deterministic stage
+boundary, not a claim that 095 persistence/retry/cancel hardening already exists.
+Benchmark data describe retained engine regression performance on synthetic data.
+Native Windows and package evidence remain final-closure gates. No independent 092
+ACCEPT is assumed.
 Return REJECT for a blocking defect, with file/symbol, trigger, impact and correction.
 Do not start 093 or create accepted/iteration-092 before an exact-candidate ACCEPT.
 
