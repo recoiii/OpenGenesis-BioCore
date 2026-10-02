@@ -226,12 +226,18 @@ void sort_rows(std::vector<CohortResultRow>& rows, const CohortResultQuery& quer
     return rows;
 }
 
-[[nodiscard]] std::size_t excluded_count(const CohortAnalysisSnapshot& snapshot) {
-    return static_cast<std::size_t>(std::count_if(
-        snapshot.samples.begin(), snapshot.samples.end(), [](const auto& sample) {
-            return sample.analysis_disposition == CohortAnalysisDisposition::excluded;
-        }
-    ));
+[[nodiscard]] std::vector<CohortResultExclusion> exclusions(
+    const CohortAnalysisSnapshot& snapshot
+) {
+    std::vector<CohortResultExclusion> result;
+    for (const auto& sample : snapshot.samples) {
+        if (sample.analysis_disposition != CohortAnalysisDisposition::excluded) continue;
+        result.push_back({
+            .sample_id = sample.sample_id,
+            .reason = sample.analysis_reason,
+        });
+    }
+    return result;
 }
 
 void require_package_text(const std::string_view value, const char* name) {
@@ -329,7 +335,13 @@ CohortResultPackage CohortResultsService::build_package(
         .reference_assembly = assembly_name(snapshot->reference.assembly),
         .approved_case_samples = snapshot->approved_case_samples,
         .approved_control_samples = snapshot->approved_control_samples,
-        .excluded_samples = excluded_count(*snapshot),
+        .excluded_samples = exclusions(*snapshot).size(),
+        .exclusions = exclusions(*snapshot),
+        .association_contract_version = analysis.association_contract_version,
+        .test_filter_version = analysis.test_filter_version,
+        .no_call_policy = analysis.no_call_policy,
+        .allele_family_size = analysis.allele_family_size,
+        .carrier_family_size = analysis.carrier_family_size,
         .statistical_test = analysis.statistical_test,
         .effect_measure = analysis.effect_measure,
         .confidence_interval_method = analysis.confidence_interval_method,
