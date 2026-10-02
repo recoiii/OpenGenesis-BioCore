@@ -42,7 +42,10 @@ def main() -> None:
     groups: list[list] = [[], [], [], []]
     assignments = {}
     for entry in entries:
-        if entry.path.startswith("docs/"):
+        if entry.path.startswith("docs/") or entry.path in (
+            "src/infrastructure/source/sqlite/project_database_guard.cpp",
+            "src/infrastructure/source/sqlite/sqlite_cohort_registry_store.cpp",
+        ):
             index = 0
         elif entry.path.startswith(("tests/",)):
             index = 2
