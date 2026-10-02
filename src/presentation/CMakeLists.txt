@@ -7,6 +7,7 @@ target_sources(
         source/artifact_report.cpp
         source/batch_result_package_report.cpp
         source/cohort_result_report.cpp
+        source/cohort_workspace_json.cpp
         source/variant_export.cpp
         source/variant_export_vcf.cpp
         source/frontend_asset_store.cpp
@@ -22,6 +23,7 @@ target_sources(
             include/biocore/presentation/artifact_report.hpp
             include/biocore/presentation/batch_result_package_report.hpp
             include/biocore/presentation/cohort_result_report.hpp
+            include/biocore/presentation/cohort_workspace_json.hpp
             include/biocore/presentation/variant_export.hpp
             include/biocore/presentation/frontend_asset_store.hpp
             include/biocore/presentation/health_json.hpp
