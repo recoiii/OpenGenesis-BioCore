@@ -7,7 +7,7 @@
   "publisher": "OpenGenesis-BioCore Project",
   "modules": [
     {
-      "id": "org.biocore.cohort.analysis",
+      "id": "org.biocore.cohortanalysis.analysis",
       "type": "process",
       "entrypoints": {
         "linux-x64": "bin/linux-x64/biocore-cohort-analysis-plugin",
