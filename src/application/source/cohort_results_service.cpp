@@ -313,6 +313,7 @@ CohortResultPackage CohortResultsService::build_package(
     validate_analysis_against_snapshot(*snapshot, analysis);
     const auto mapped = annotation_map(annotations, analysis.variants.size());
     auto matches = filtered_rows(analysis, filter, mapped);
+    auto excluded = exclusions(*snapshot);
     if (matches.size() > maximum_rows) {
         throw std::length_error(
             "cohort result export exceeds the bounded server-side export row limit"
@@ -335,8 +336,8 @@ CohortResultPackage CohortResultsService::build_package(
         .reference_assembly = assembly_name(snapshot->reference.assembly),
         .approved_case_samples = snapshot->approved_case_samples,
         .approved_control_samples = snapshot->approved_control_samples,
-        .excluded_samples = exclusions(*snapshot).size(),
-        .exclusions = exclusions(*snapshot),
+        .excluded_samples = excluded.size(),
+        .exclusions = std::move(excluded),
         .association_contract_version = analysis.association_contract_version,
         .test_filter_version = analysis.test_filter_version,
         .no_call_policy = analysis.no_call_policy,
