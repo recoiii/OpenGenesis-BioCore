@@ -45,7 +45,7 @@ def main() -> None:
     # Reserve space in part 04 for CI evidence, then greedily balance the exact
     # rendered changed-source bytes across all four parts. Review completeness is
     # preserved by the manifest and verify_generated() below.
-    costs = [0, 0, 0, 30000]
+    costs = [0, 0, 0, 18000]
     support = [
         entry for entry in entries
         if entry.path.startswith((".github/", "scripts/"))
@@ -123,7 +123,7 @@ debugging, tests, review preparation and release-process support.
 {manifest_block}
 """
         body += "\n".join(rendered[entry.path] for entry in group)
-        if index == 1:
+        if index == 3:
             body += """\n## Reuse and execution boundary\n\nIteration 097 reuses every accepted 090–096 cohort service and the existing v0.4/v0.5
 scheduler, worker, project and batch infrastructure. New code is limited to integration:
 native cohort worker composition, local-server/bootstrap wiring, project-scoped API/browser
