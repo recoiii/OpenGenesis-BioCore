@@ -17,6 +17,8 @@ target_sources(
         source/artifact_presentation_service_error.cpp
         source/variant_export.cpp
         source/build_info.cpp
+        source/cohort_registry.cpp
+        source/cohort_registry_service.cpp
         source/execution_plan.cpp
         source/job_scheduler.cpp
         source/job_scheduler_error.cpp
@@ -70,6 +72,9 @@ target_sources(
             include/biocore/application/artifact_presentation_service_error.hpp
             include/biocore/application/variant_export.hpp
             include/biocore/application/build_info.hpp
+            include/biocore/application/cohort_registry.hpp
+            include/biocore/application/cohort_registry_service.hpp
+            include/biocore/application/i_cohort_registry_store.hpp
             include/biocore/application/execution_plan.hpp
             include/biocore/application/generated_output_artifact.hpp
             include/biocore/application/health_snapshot.hpp
