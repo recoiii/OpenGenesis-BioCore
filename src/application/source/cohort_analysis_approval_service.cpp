@@ -356,8 +356,37 @@ CohortAnalysisApprovalPreview CohortAnalysisApprovalService::preview(
         return preview;
     }
 
+    if (matrix_build.dispatch.project_id != request.selection.project_id ||
+        matrix_build.dispatch.cohort_id != request.selection.cohort_id ||
+        matrix_build.dispatch.cohort_revision != request.selection.cohort_revision ||
+        matrix_build.dispatch.stage_id != "matrix" ||
+        matrix_build.dispatch.native_module_id != "org.biocore.cohort.matrix" ||
+        matrix_build.dispatch.reference_file_id !=
+            matrix_build.selection.reference->managed_file_id ||
+        matrix_build.dispatch.reference_sha256 !=
+            matrix_build.selection.reference->sha256 ||
+        matrix_build.dispatch.normalization_contract_version !=
+            matrix_build.selection.reference->normalization_contract_version) {
+        add_issue(preview, "matrix_dispatch_mismatch", {}, true,
+                  "Matrix dispatch descriptor no longer matches the revalidated selection");
+        return preview;
+    }
+
     preview.draft.reference = *matrix_build.selection.reference;
     preview.draft.sources = matrix_build.selection.sources;
+    preview.draft.matrix_stage_id = matrix_build.dispatch.stage_id;
+    preview.draft.matrix_module_id = matrix_build.dispatch.native_module_id;
+    preview.draft.resource_limits = {
+        .maximum_samples = matrix_build.dispatch.maximum_samples,
+        .maximum_sources = matrix_build.dispatch.maximum_sources,
+        .maximum_vcf_bytes = CohortAnalysisSelectionService::maximum_vcf_bytes,
+        .maximum_combined_vcf_bytes =
+            CohortAnalysisSelectionService::maximum_combined_vcf_bytes,
+        .maximum_reference_bytes = CohortAnalysisSelectionService::maximum_reference_bytes,
+        .maximum_normalized_alleles =
+            matrix_build.dispatch.maximum_normalized_alleles,
+        .maximum_observations = matrix_build.dispatch.maximum_observations,
+    };
     preview.draft.samples.reserve(cohort->revision.members.size());
 
     std::map<std::string, CohortGroup, std::less<>> approved_groups;
