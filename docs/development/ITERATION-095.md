@@ -24,12 +24,12 @@ number and foreign-keyed to the immutable sealed analysis snapshot. Each row per
 - stable attempt identity and monotonically increasing attempt number;
 - optional parent attempt for retries;
 - immutable snapshot digest;
-- operation idempotency key and payload SHA-256;
+- operation-scoped idempotency key and payload SHA-256;
 - scheduler Job identity after durable handoff;
 - cancellation request state;
 - queued/running/completed/failed/cancelled/interrupted state;
 - failure evidence;
-- verified result-manifest identity and SHA-256 for completed attempts.
+- verified result-manifest identity, Job provenance and SHA-256 for completed attempts.
 
 Attempt identity, parent lineage, snapshot digest, idempotency identity and original
 creation timestamp are immutable. Attempt history cannot be deleted.
@@ -85,9 +85,10 @@ Dedicated integration tests cover:
 - persisted/idempotent cancellation;
 - prevention of false completion from Job completion alone;
 - verified manifest completion and completed-attempt immutability;
+- injected durable persistence failure before scheduler handoff and during completion commit;
 - schema v17→v18 migration and DB-level immutability.
 
-The full regression inventory is expected to be 349 CTest registrations after the eight
+The full regression inventory is expected to be 350 CTest registrations after the nine
 Iteration 095 modes are added. The four Linux lanes and cohort-scale evidence must pass
 on the exact candidate. The exact four-part Gemini review package and source ZIP must
 come from that same commit. No `accepted/iteration-095` ref is created before Gemini
