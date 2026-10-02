@@ -336,8 +336,6 @@ CohortMatrixBuildResult CohortMatrixService::build(
     );
 
     std::map<std::string, domain::VcfIngestionResult, std::less<>> parsed;
-    std::map<std::string, GeneratedOutputArtifact, std::less<>> artifacts;
-
     for (const auto& source : selection.sources) {
         if (parsed.contains(source.managed_file_id)) continue;
 
@@ -368,7 +366,6 @@ CohortMatrixBuildResult CohortMatrixService::build(
         validate_cohort_variant_contract(ingestion);
 
         parsed.emplace(source.managed_file_id, std::move(ingestion));
-        artifacts.emplace(source.managed_file_id, *artifact);
     }
 
     validate_cohort_matrix_budget(
@@ -423,9 +420,10 @@ CohortMatrixBuildResult CohortMatrixService::build(
         matrix.observation_count()
     );
 
+    auto dispatch = dispatch_plan(selection);
     return {
         .selection = std::move(selection),
-        .dispatch = dispatch_plan(selection),
+        .dispatch = std::move(dispatch),
         .matrix = std::move(matrix),
         .parsed_vcf_artifacts = parsed.size(),
     };
