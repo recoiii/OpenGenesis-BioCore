@@ -6,7 +6,9 @@ OpenGenesis-BioCore is a local-first C++20 bioinformatics platform with a localh
 processes, SQLite project persistence, plugin/pipeline execution, live job telemetry, durable artifacts,
 and an integrated FASTA/FASTQ-to-variant-analysis workflow suite.
 
-**Release candidate under final validation: v0.6.0**\n\n**Current published stable release: v0.5.0**
+**Release candidate under final validation: v0.6.0**
+
+**Current published stable release: v0.5.0**
 
 ## Highlights
 
