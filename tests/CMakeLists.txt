@@ -1142,3 +1142,16 @@ foreach(mode fixed missingness zero-cell exclusion frozen-labels family drift em
         COMMAND biocore-cohort-case-control-analysis-tests ${mode}
     )
 endforeach()
+
+add_executable(biocore-cohort-execution-tests cohort_execution_tests.cpp)
+target_link_libraries(
+    biocore-cohort-execution-tests
+    PRIVATE BioCore::application BioCore::infrastructure SQLite::SQLite3
+            BioCore::project_options BioCore::project_warnings BioCore::sanitizers
+)
+foreach(mode store duplicate drift recovery retry cancel completion migration)
+    add_test(
+        NAME integration.cohort_execution_${mode}
+        COMMAND biocore-cohort-execution-tests ${mode}
+    )
+endforeach()
