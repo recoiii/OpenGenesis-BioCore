@@ -30,7 +30,7 @@ def main() -> None:
     evidence_mode.add_argument("--local-only", action="store_true",
                                help="Prepare a draft with local evidence; CI remains an open gate")
     args = parser.parse_args()
-    base.BASELINE_NAME = "accepted/iteration-096"
+    base.BASELINE_NAME = "accepted/iteration-095"
     base.BASELINE_COMMIT = BASELINE
     base.require_clean_tracked_tree()
     if base.git("rev-parse", f"{BASELINE}^{{tree}}") != BASELINE_TREE:
@@ -95,24 +95,23 @@ def main() -> None:
 
 - Candidate commit: `{commit}`
 - Candidate tree: `{tree}`
-- Frozen baseline: `accepted/iteration-094` / `{BASELINE}`
+- Frozen baseline: `accepted/iteration-095` / `{BASELINE}`
 - Baseline tree: `{BASELINE_TREE}`
 - Full source ZIP SHA-256: `{source_hash}`
 - Evidence status: {evidence_status}
 - Status: CANDIDATE; independent Gemini review pending; NOT accepted or frozen.
-- Linux evidence is included; native Windows and package closure are not claimed for 095.
+- Linux evidence is included; native Windows and package closure are not claimed for 096.
 
-Read all four parts and the source ZIP. Evaluate the accepted cohort execution contract and
-the 095 acceptance criteria, not only green tests. Iteration 096 adds durable,
-idempotent execution-attempt lineage around the immutable analysis snapshot accepted in
-093 and the snapshot-bound association integration accepted in 094. Attempt reservation
-is persisted before scheduler handoff; duplicate initial/retry requests collapse by
-idempotency key and payload digest; retries create new attempt and Job identities with
-explicit parent lineage; cancellation intent is durable; pinned inputs are revalidated
-before submit/retry; recovery never promotes an orphan or merely completed Job to a
-completed cohort analysis. Completion additionally requires a durable verified result
-manifest identity and SHA-256. Existing Job submission/service/runtime abstractions are
-reused rather than replaced by a second scheduler.
+Read all four parts and the source ZIP. Evaluate the cohort results-explorer/report
+contract and the 096 acceptance criteria, not only green tests. Iteration 096 adds
+bounded server-side exploration over the immutable 093 snapshot, accepted 094
+association statistics and durable 095 execution lineage. Display filters must never
+redefine the frozen test universe or recalculate Fisher/BH statistics. Shared and
+case/control-specific views are descriptive carrier-presence views. Existing annotation
+summaries are linked without creating a second annotation engine. CSV, TSV, JSON and HTML
+outputs must carry the same snapshot identity and canonical display-filter definition,
+with frozen denominators, exclusions, methods and reference SHA-256 visible. No new
+scheduler, execution ledger, HTTP route or integrated browser workflow is introduced.
 Project owner/developer: Recep Çelik. ChatGPT: AI-assisted architecture, implementation,
 debugging, tests, review preparation and release-process support.
 
@@ -120,7 +119,11 @@ debugging, tests, review preparation and release-process support.
 """
         body += "\n".join(rendered[entry.path] for entry in group)
         if index == 1:
-            body += """\n## Reuse and execution boundary\n\nIteration 096 reuses the accepted immutable 093 snapshot, 094 association semantics, the existing\nJob submission/service abstraction and the established worker/runtime state model. It adds an\nadditive schema-v18 attempt ledger and application execution coordinator; it does not rewrite the\nmatrix, association statistics, scheduler or worker protocol. Result exploration and report\ngeneration are not introduced here. The changed-file manifest above is complete.\n"""
+            body += """\n## Reuse and execution boundary\n\nIteration 096 reuses the accepted immutable 093 snapshot, 094 association semantics,
+existing annotation results and the durable 095 execution lineage. It adds bounded explorer/report
+application and presentation contracts; it does not rewrite the matrix, association statistics,
+annotation engine, scheduler, execution ledger or worker protocol. Integrated HTTP/browser
+composition remains Iteration 097. The changed-file manifest above is complete.\n"""
         if index == 3:
             body += "\n## Executed evidence\n\n" + evidence
             body += """
@@ -135,7 +138,7 @@ and package evidence remain Iteration 098 final-closure gates. Review pagination
 shared/specific carrier views, frozen-statistics filtering, annotation linkage, identical
 snapshot/filter provenance across CSV/TSV/JSON/HTML, export row bounds and drift rejection.
 Benchmark data describe retained cohort-contract regression performance on synthetic
-data. No independent 095 ACCEPT is assumed. Return REJECT for a blocking defect, with
+data. No independent 096 ACCEPT is assumed. Return REJECT for a blocking defect, with
 file/symbol, trigger, impact and correction. Do not start 096 or create
 accepted/iteration-096 before an exact-candidate ACCEPT.
 
