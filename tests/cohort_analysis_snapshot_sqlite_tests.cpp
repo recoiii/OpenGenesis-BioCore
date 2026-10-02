@@ -295,6 +295,11 @@ application::CohortAnalysisSnapshot snapshot_fixture() {
 }
 
 void drop_v17(SqliteConnection& connection) {
+    connection.execute("DROP TRIGGER IF EXISTS cohort_analysis_attempts_immutable_delete;");
+    connection.execute("DROP TRIGGER IF EXISTS cohort_analysis_attempts_validate_update;");
+    connection.execute("DROP TRIGGER IF EXISTS cohort_analysis_attempts_validate_insert;");
+    connection.execute("DROP TABLE IF EXISTS cohort_analysis_attempts;");
+    connection.execute("DELETE FROM schema_migrations WHERE version=18;");
     connection.execute("DROP TABLE cohort_analysis_test_universe;");
     connection.execute("DROP TABLE cohort_analysis_reference_aliases;");
     connection.execute("DROP TABLE cohort_analysis_reference_contigs;");
@@ -416,11 +421,14 @@ void migration_contract() {
     runner.apply_pending();
     ProjectDatabaseGuard{connection}.validate_current_schema();
     check(
-        runner.current_version() == 17 &&
+        runner.current_version() == latest_project_schema_version &&
         scalar(connection,
                "SELECT COUNT(*) FROM sqlite_master "
-               "WHERE type='table' AND name='cohort_analysis_snapshots';") == "1",
-        "v16 to v17 snapshot migration failed"
+               "WHERE type='table' AND name='cohort_analysis_snapshots';") == "1" &&
+        scalar(connection,
+               "SELECT COUNT(*) FROM sqlite_master "
+               "WHERE type='table' AND name='cohort_analysis_attempts';") == "1",
+        "v16 to current cohort migration failed"
     );
     check(
         scalar(connection, "SELECT COUNT(*) FROM project_samples;") == "2",
