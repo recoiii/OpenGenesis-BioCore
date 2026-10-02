@@ -523,6 +523,13 @@ void valid_contract() {
           approved.preview_digest == preview.preview_digest,
           "approval digests missing");
     check(h.snapshots.values.size() == 1U, "approved snapshot not persisted");
+
+    h.matrix.result.dispatch.sources[0].sha256 =
+        "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff";
+    const auto drifted_dispatch = service.preview(valid_request());
+    check(!drifted_dispatch.ready &&
+          has_issue(drifted_dispatch, "matrix_dispatch_mismatch", true),
+          "drifted matrix dispatch source was accepted");
 }
 
 void empty_contract() {
@@ -575,6 +582,17 @@ void missing_qc_contract() {
           acknowledged.draft.samples[0].qc.state ==
               application::CohortQcEvidenceState::unavailable,
           "explicit missing-QC acknowledgement did not preserve unavailable state");
+
+    add_qc(h.files, h.reader, "job-case", "qc-case");
+    h.reader.texts["qc-case"] =
+        "{\"schemaVersion\":1,\"module\":\"org.biocore.vcfqc.filter\","
+        "\"metrics\":{";
+    auto malformed_request = valid_request();
+    const auto malformed = service.preview(malformed_request);
+    check(!malformed.ready &&
+          has_issue(malformed, "qc_unavailable", false) &&
+          has_issue(malformed, "qc_acknowledgement_required", true),
+          "malformed QC JSON was treated as verified evidence");
 }
 
 void group_contract() {
