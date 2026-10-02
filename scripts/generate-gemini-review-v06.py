@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Seal the 096 candidate and embed every changed file in four balanced parts."""
+"""Seal the 097 candidate and embed every changed file in four balanced parts."""
 from __future__ import annotations
 
 import argparse
@@ -15,8 +15,8 @@ assert spec and spec.loader
 base = importlib.util.module_from_spec(spec)
 sys.modules[spec.name] = base
 spec.loader.exec_module(base)
-BASELINE = "cc60d9bb6e895dfad19c6482c8464b409cf35b8b"
-BASELINE_TREE = "4f50edaeb0722716d46dd2c63c5511dcbc6fc82c"
+BASELINE = "1d6169cdcb4759154cefdf24e6f36c8cc64e7d9c"
+BASELINE_TREE = "d0727ca4da37a8de82a6a0997d2c4cb190e4381e"
 TITLES = ["Candidate source delta — partition A", "Candidate source delta — partition B",
           "Candidate source delta — partition C", "CI evidence, limits and source partition D"]
 
@@ -30,7 +30,7 @@ def main() -> None:
     evidence_mode.add_argument("--local-only", action="store_true",
                                help="Prepare a draft with local evidence; CI remains an open gate")
     args = parser.parse_args()
-    base.BASELINE_NAME = "accepted/iteration-095"
+    base.BASELINE_NAME = "accepted/iteration-096"
     base.BASELINE_COMMIT = BASELINE
     base.require_clean_tracked_tree()
     if base.git("rev-parse", f"{BASELINE}^{{tree}}") != BASELINE_TREE:
@@ -66,7 +66,7 @@ def main() -> None:
     if any(not group for group in groups):
         raise RuntimeError("each review part must contain changed source")
     args.output.mkdir(parents=True, exist_ok=True)
-    archive = args.output / "OpenGenesis-BioCore-iteration-096-source-CANDIDATE.zip"
+    archive = args.output / "OpenGenesis-BioCore-iteration-097-source-CANDIDATE.zip"
     subprocess.run(["git", "archive", "--format=zip", "--prefix=OpenGenesis-BioCore/",
                     f"--output={archive}", "HEAD"], check=True)
     source_hash = hashlib.sha256(archive.read_bytes()).hexdigest()
@@ -79,8 +79,8 @@ def main() -> None:
         "linux-gcc-debug", "linux-gcc-release", "linux-clang-debug", "linux-gcc-asan-ubsan")
     for lane in lanes:
         summary = (args.evidence_dir / f"{lane}.txt").read_text()
-        if (f"COMMIT={commit}" not in summary or "CTEST_COUNT=358" not in summary or
-                "100% tests passed" not in summary or "out of 358" not in summary):
+        if (f"COMMIT={commit}" not in summary or "CTEST_COUNT=359" not in summary or
+                "100% tests passed" not in summary or "out of 359" not in summary):
             raise RuntimeError(f"missing/incorrect candidate test evidence: {lane}")
     evidence = "\n\n".join(f"### {path.name}\n\n```text\n{path.read_text().rstrip()}\n```"
                              for path in evidence_files)
@@ -89,29 +89,29 @@ def main() -> None:
                        f"Same-candidate CI: https://github.com/recoiii/OpenGenesis-BioCore/actions/runs/{args.ci_run_id}")
     generated = []
     for index, group in enumerate(groups):
-        body = f"""# OpenGenesis-BioCore v0.6.0-dev — Iteration 096 — Part {index + 1:02d}/04
+        body = f"""# OpenGenesis-BioCore v0.6.0-dev — Iteration 097 — Part {index + 1:02d}/04
 
 ## {TITLES[index]}
 
 - Candidate commit: `{commit}`
 - Candidate tree: `{tree}`
-- Frozen baseline: `accepted/iteration-095` / `{BASELINE}`
+- Frozen baseline: `accepted/iteration-096` / `{BASELINE}`
 - Baseline tree: `{BASELINE_TREE}`
 - Full source ZIP SHA-256: `{source_hash}`
 - Evidence status: {evidence_status}
 - Status: CANDIDATE; independent Gemini review pending; NOT accepted or frozen.
-- Linux evidence is included; native Windows and package closure are not claimed for 096.
+- Linux evidence is included; native Windows and package closure are not claimed for 097.
 
-Read all four parts and the source ZIP. Evaluate the cohort results-explorer/report
-contract and the 096 acceptance criteria, not only green tests. Iteration 096 adds
-bounded server-side exploration over the immutable 093 snapshot, accepted 094
-association statistics and durable 095 execution lineage. Display filters must never
-redefine the frozen test universe or recalculate Fisher/BH statistics. Shared and
-case/control-specific views are descriptive carrier-presence views. Existing annotation
-summaries are linked without creating a second annotation engine. CSV, TSV, JSON and HTML
-outputs must carry the same snapshot identity and canonical display-filter definition,
-with frozen denominators, exclusions, methods and reference SHA-256 visible. No new
-scheduler, execution ledger, HTTP route or integrated browser workflow is introduced.
+Read all four parts and the source ZIP. Evaluate the integrated cohort workspace
+and the 097 acceptance criteria, not only green tests. Iteration 097 must compose the
+accepted 090–096 registry, artifact-selection, matrix/QC, association, execution/recovery
+and results/report services through the existing local project API/browser/runtime.
+The native cohort worker must consume the exact frozen project/analysis/snapshot identity,
+reuse the existing scheduler/plugin protocol, and complete only after a verified result
+manifest is registered. Explicit project context must be enforced at the HTTP boundary.
+Legacy project, single-sample and batch workflows must remain operational. The known-result
+E2E must prove the full flow without adding a second matrix/statistics engine or weakening
+the frozen scientific test universe.
 Project owner/developer: Recep Çelik. ChatGPT: AI-assisted architecture, implementation,
 debugging, tests, review preparation and release-process support.
 
@@ -119,11 +119,12 @@ debugging, tests, review preparation and release-process support.
 """
         body += "\n".join(rendered[entry.path] for entry in group)
         if index == 1:
-            body += """\n## Reuse and execution boundary\n\nIteration 096 reuses the accepted immutable 093 snapshot, 094 association semantics,
-existing annotation results and the durable 095 execution lineage. It adds bounded explorer/report
-application and presentation contracts; it does not rewrite the matrix, association statistics,
-annotation engine, scheduler, execution ledger or worker protocol. Integrated HTTP/browser
-composition remains Iteration 097. The changed-file manifest above is complete.\n"""
+            body += """\n## Reuse and execution boundary\n\nIteration 097 reuses every accepted 090–096 cohort service and the existing v0.4/v0.5
+scheduler, worker, project and batch infrastructure. New code is limited to integration:
+native cohort worker composition, local-server/bootstrap wiring, project-scoped API/browser
+surfaces and end-to-end verification. Matrix, QC and association algorithms remain the
+accepted implementations; successful result identity remains snapshot-bound. Native
+Windows/package closure remains Iteration 098. The changed-file manifest above is complete.\n"""
         if index == 3:
             body += "\n## Executed evidence\n\n" + evidence
             body += """
@@ -132,15 +133,14 @@ composition remains Iteration 097. The changed-file manifest above is complete.\
 
 For a LOCAL DRAFT, four-lane CI is an explicit open gate; review can identify
 findings, but final iteration acceptance is premature until CI evidence is attached.
-Integrated project/browser workflow and known-result E2E remain Iteration 097 contracts;
-this package must not infer those routes from the presentation renderers. Native Windows
-and package evidence remain Iteration 098 final-closure gates. Review pagination bounds,
-shared/specific carrier views, frozen-statistics filtering, annotation linkage, identical
-snapshot/filter provenance across CSV/TSV/JSON/HTML, export row bounds and drift rejection.
-Benchmark data describe retained cohort-contract regression performance on synthetic
-data. No independent 096 ACCEPT is assumed. Return REJECT for a blocking defect, with
-file/symbol, trigger, impact and correction. Do not start 097 or create
-accepted/iteration-096 before an exact-candidate ACCEPT.
+Native Windows/Linux distribution and package closure remain Iteration 098 gates.
+Review the full project-scoped registry/API/browser composition, exact frozen identity
+handoff into the native cohort worker, verified-manifest completion, retry/recovery lineage,
+known-result E2E coverage and unchanged legacy project/batch behavior. Benchmark data
+describe retained cohort-contract regression performance on synthetic data. No independent
+097 ACCEPT is assumed. Return REJECT for a blocking defect, with file/symbol, trigger,
+impact and correction. Do not start 098 or create accepted/iteration-097 before an
+exact-candidate ACCEPT.
 
 ```text
 VERDICT: ACCEPT | REJECT
@@ -154,7 +154,7 @@ NON-BLOCKING FINDINGS: NONE | <findings>
 RATIONALE: <independent rationale>
 ```
 """
-        path = args.output / f"OpenGenesis-BioCore-iteration-096-GEMINI-review-part-{index + 1:02d}-of-04.md"
+        path = args.output / f"OpenGenesis-BioCore-iteration-097-GEMINI-review-part-{index + 1:02d}-of-04.md"
         path.write_text(body, encoding="utf-8", newline="\n")
         generated.append(path)
     base.verify_generated(generated, entries, "")
