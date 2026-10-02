@@ -390,7 +390,7 @@ void store_test() {
               "synthetic crash", "2026-10-02T15:31:00Z"),
           "initial attempt interrupted");
 
-    auto child = attempt(2, "attempt-2", "attempt-1", "retry-key");
+    auto child = attempt(2, "attempt-2", "attempt-1", "key-1");
     check(store.reserve_retry(child, "attempt-1") ==
           application::CohortExecutionReserveResult::created,
           "retry child reserved");
@@ -464,7 +464,7 @@ void retry_test() {
         .project_id = project_id,
         .analysis_id = analysis_id,
         .expected_parent_attempt_id = first.attempt_id,
-        .idempotency_key = "retry-key",
+        .idempotency_key = "submit-key",
         .payload_digest = payload_digest,
         .priority = domain::JobPriority::normal,
     });
@@ -478,7 +478,7 @@ void retry_test() {
         .project_id = project_id,
         .analysis_id = analysis_id,
         .expected_parent_attempt_id = first.attempt_id,
-        .idempotency_key = "retry-key",
+        .idempotency_key = "submit-key",
         .payload_digest = payload_digest,
         .priority = domain::JobPriority::normal,
     });
